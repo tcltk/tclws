@@ -1,0 +1,139 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Creating a Tcl Web Service - Visiwiki</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Creating a Tcl Web Service" name=KEYWORDS>
+</HEAD>
+<BODY>
+<H1>Creating a Tcl Web Service</H1>
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <DIV id=toctitle>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Server_Package"><SPAN
+        class=tocnumber>1</SPAN> <SPAN class=toctext>Loading the Webservices
+        Server Package</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_a_Service"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Defining a
+        Service</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_an_Operation_.28aka_a_Service_Procedure.29"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Defining an Operation (aka
+        a Service Procedure)</SPAN></A>
+        <LI class=toclevel-1><A href="#Declaring_Complex_Types"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Declaring Complex
+        Types</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
+
+<A name=Loading_the_Webservices_Server_Package></A>
+<H2>Loading the Webservices Server Package </H2>
+
+<P>
+The Web Services package, WS::Server, is not a standalone application, but rather is designed
+be a "module" of TclHttpd.
+The following command is normally placed in httpdthread.tcl:
+</P>
+
+<P>To load the webservices server package, do: </P><PRE> package require WS::Server
+</PRE>
+<P>This command will only load the server the first time it is used, so it
+causes no ill effects to put this in each file declaring a service or service
+procedure. </P>
+
+
+<HR>
+
+<A name=Defining_a_Service></A>
+<H2>Defining a Service </H2>
+
+<P>
+The code that defines a service is normally placed in one or more files in the custom directory.
+</P>
+
+<P><B>Procedure Name&nbsp;: <I>::WS::Server::</I>Service</B> </P>
+<P><B>Description</B>&nbsp;: Declare a Web Service, the following URLs will
+exist </P><PRE>               /service/&lt;ServiceName&gt;
+                     Displays an HTML page describing the service
+               /service/&lt;ServiceName&gt;/wsdl
+                     Returns a WSDL describing the service
+               /service/&lt;ServiceName&gt;/op
+                     Invoke an operation
+</PRE>
+<P><B>Arguments</B>&nbsp;: this procedure uses position independed arguments,
+they are: </P><PRE>             -host           - The host name for this serice
+                                     Defaults to "localhost"
+             -decription     - The HTML description for this service
+             -xmlnamespace   - Extra XML namespaces used by the service
+             -service        - The service name (this will also be used for
+                                 the Tcl namespace of the procedures that implement
+                                 the operations.
+             -premonitor     - This is a command prefix to be called before
+                                 an operation is called.  The following arguments are
+                                 added to the command prefix:
+                                    PRE serviceName operationName operArgList
+             -postmonitor    - This is a command prefix to be called after
+                                 an operation is called.  The following arguments are
+                                 added to the command prefix:
+                                    POST serviceName operationName OK|ERROR results
+             -inheaders      - List of input header types.
+             -outheaders     - List of output header types.
+             -checkheader    - Command prefix to check headers.
+                                   If the call is not to be allowed, this command
+                                   should raise an error.
+                                   The signature of the command must be:
+                                     cmd \
+                                         service \
+                                         operation \
+                                         caller_ipaddr \
+                                         http_header_list \
+                                         soap_header_list
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: </P><PRE>     <I>MISSREQARG</I> -- Missing required arguements
+</PRE>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
+<HR>
+
+<A name=Defining_an_Operation_.28aka_a_Service_Procedure.29></A>
+<H2>Defining an Operation (aka a Service Procedure) </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Server::ServiceProc</I></B> </P>
+<P><B>Description</B>&nbsp;: Register an operation for a service and declare the
+procedure to handle the operations. </P>
+<P><B>Arguments</B>&nbsp;: </P><PRE>     <I>ServiceName    </I> -- Name of the service this operation is for
+     <I>NameInfo       </I> -- List of three elements:
+                             1) OperationName -- the name of the operation
+                             2) ReturnType    -- the type of the procedure return,
+                                                 this can be a simple or complex type
+                             3) Description   -- description of the return method
+     <I>Arglist        </I> -- List of argument definitions,
+                         each list element must be of the form:
+                             1) ArgumentName -- the name of the argument
+                             2) ArgumentTypeInfo -- -- A list of:
+                                    {type typeName comment commentString}
+                                         typeName can be any simple or defined type.
+                                         commentString is a quoted string describing the field
+     <I>Documentation</I>   -- HTML describing what this operation does
+     <I>Body           </I> -- The tcl code to be called when the operation is invoked. This
+                            code should return a dictionary with &lt;OperationName&gt;Result as a
+                            key and the operation's result as the value.
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><I>Side-Effects</I>&nbsp;: </P><PRE>   A proceedure named "&lt;ServiceName&gt;::&lt;OperationName&gt;" defined
+   A type name with the name &lt;OperationName&gt;Result is defined.
+</PRE>
+<P><I>Exception Conditions</I>&nbsp;: None </P>
+<P><I>Pre-requisite Conditions</I>&nbsp;:&nbsp;::WS::Server::Server must have
+been called for the ServiceName </P>
+<HR>
+
+<A name=Declaring_Complex_Types></A>
+<H2>Declaring Complex Types </H2>
+<P>See: <A
+title="Creating a Web Service Type from Tcl"
+href="Creating a Web Service Type.html">Creating
+a Web Service Type from Tcl</A> </P>
+
+</BODY>
+</HTML>
