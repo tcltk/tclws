@@ -38,13 +38,11 @@
 ##                                                                           ##
 ###############################################################################
 
-if {![llength [info command dict]]} {
-    package require dict
-}
+package require Tcl 8.5
 package require log
 package require tdom
 
-package provide WS::Utils 1.0.8
+package provide WS::Utils 1.1.0
 
 namespace eval ::WS {}
 
@@ -686,7 +684,7 @@ proc ::WS::Utils::BuildRequest {mode serviceName tagName typeName valueInfos} {
 proc ::WS::Utils::convertTypeToDict {mode serviceName node type} {
     variable typeInfo
 
-    ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node ([$node nodeName])? $type]
+    ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type]
     set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
     ::log::log debug "\t type def = {$typeDefInfo}"
     set xns [dict get $typeDefInfo xns]
@@ -1541,7 +1539,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         }
                     }
                     if {[string length $occurs]} {
-                        set partMax $occurs
+                        set partMax [$element getAttribute maxOccurs 1]
+                        if {$partMax < $occurs} {
+                            set partMax $occurs
+                        }
                     } else {
                         set partMax [$element getAttribute maxOccurs 1]
                     }

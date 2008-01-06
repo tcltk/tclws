@@ -8,6 +8,6 @@
 # script is sourced, the variable $dir must contain the
 # full path name of this file's directory.
 
-package ifneeded WS::Client 1.0.8 [list source [file join $dir ClientSide.tcl]]
-package ifneeded WS::Server 1.0.8 [list source [file join $dir ServerSide.tcl]]
-package ifneeded WS::Utils 1.0.8 [list source [file join $dir Utilities.tcl]]
+package ifneeded WS::Client 1.1.0 [list source [file join $dir ClientSide.tcl]]
+package ifneeded WS::Server 1.1.0 [list source [file join $dir ServerSide.tcl]]
+package ifneeded WS::Utils 1.1.0 [list source [file join $dir Utilities.tcl]]

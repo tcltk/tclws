@@ -38,14 +38,12 @@
 ###############################################################################
 
 package require WS::Utils
-if {![llength [info command dict]]} {
-    package require dict
-}
+package require Tcl 8.5
 package require html
 package require log
 package require tdom
 
-package provide WS::Server 1.0.8
+package provide WS::Server 1.1.0
 
 namespace eval ::WS::Server {
     array set serviceArr {}
@@ -836,10 +834,10 @@ proc ::WS::Server::callOperation {service sock args} {
     $doc documentElement top
     ::log::log debug [list $doc selectNodesNamespaces \
         [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-              data http://$serviceInfo(-host)$serviceInfo(-prefix)]]
+              $service http://$serviceInfo(-host)$serviceInfo(-prefix)]]
     $doc selectNodesNamespaces \
         [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-              data http://$serviceInfo(-host)$serviceInfo(-prefix)]
+              $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
     $doc documentElement rootNode
     set top [$rootNode selectNodes /ENV:Envelope/ENV:Body/*]
     catch {$top localName} requestMessage
@@ -880,49 +878,67 @@ proc ::WS::Server::callOperation {service sock args} {
     set methodName "${ns}::$baseName"
     set tclArgList {}
     set argInfo [dict get $procInfo $ns $cmdName argList]
-    foreach argName [dict get $procInfo $ns $cmdName argOrder] {
-        set argType [dict get $argInfo $argName type]
-        set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
-        set path data:$argName
-        set node [$top selectNodes $path]
-        if {[string equal $node {}]} {
-            lappend tclArgList {}
-            continue
-        }
-        switch $typeInfoList {
-            {0 0} {
-                ##
-                ## Simple non-array
-                ##
-                lappend tclArgList [$node asText]
+    if {[catch {
+        foreach argName [dict get $procInfo $ns $cmdName argOrder] {
+            set argType [dict get $argInfo $argName type]
+            set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+            ::log::log debug "\tProcessing argName = {$argName} argType = {$argType} typeInfoList = {$typeInfoList}"
+            set path $service:$argName
+            set node [$top selectNodes $path]
+            if {[string equal $node {}]} {
+                lappend tclArgList {}
+                continue
             }
-            {0 1} {
-                ##
-                ## Simple array
-                ##
-                set tmp {}
-                foreach row $node {
-                    lappend tmp [$row asText]
+            switch $typeInfoList {
+                {0 0} {
+                    ##
+                    ## Simple non-array
+                    ##
+                    lappend tclArgList [$node asText]
                 }
-                lappend tclArgList $tmp
-            }
-            {1 0} {
-                ##
-                ## Non-simple non-array
-                ##
-                lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType]
-            }
-            {1 1} {
-                ##
-                ## Non-simple array
-                ##
-                set tmp {}
-                foreach row $node {
-                    lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType]
+                {0 1} {
+                    ##
+                    ## Simple array
+                    ##
+                    set tmp {}
+                    foreach row $node {
+                        lappend tmp [$row asText]
+                    }
+                    lappend tclArgList $tmp
                 }
-                lappend tclArgList $tmp
+                {1 0} {
+                    ##
+                    ## Non-simple non-array
+                    ##
+                    lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType]
+                }
+                {1 1} {
+                    ##
+                    ## Non-simple array
+                    ##
+                    set tmp {}
+                    set argType [string trimright $argType {()}]
+                    foreach row $node {
+                        lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType]
+                    }
+                    lappend tclArgList $tmp
+                }
             }
         }
+    } errMsg]} {
+        set localerrorCode $::errorCode
+        set localerrorInfo $::errorInfo
+        set xml [generateError \
+                    CLIENT \
+                    "Error Parsing Arguments -- $errMsg" \
+                    [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo]]
+        catch {$doc delete}
+        ::log::log debug "Leaving @ error 3::WS::Server::callOperation $xml"
+        ::Httpd_ReturnData $sock \
+                         "text/xml; charset=UTF-8"\
+                         $xml \
+                         500
+        return;
     }
     if {[info exists serviceInfo(-premonitor)] && [string length $serviceInfo(-premonitor)]} {
         set precmd $serviceInfo(-premonitor)
@@ -1143,8 +1159,9 @@ proc ::WS::Server::generateReply {serviceName operation results} {
     if {[llength $serviceData(-outheaders)]} {
         $env appendChild [$doc createElement "SOAP-ENV:Header" header]
         foreach headerType $serviceData(-outheaders) {
-            $header appendChild [$doc createElement ${serviceName}:${headerType} part]
-            ::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
+            #$header appendChild [$doc createElement ${serviceName}:${headerType} part]
+            #::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
+            ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType
         }
     }
     $env appendChild [$doc createElement "SOAP-ENV:Body" body]
