@@ -485,16 +485,19 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     }
     set url [dict get $serviceInfo service location]
     set query [buildCallquery $serviceName $operationName $url $argList]
+    set query [encoding convertto utf-8 $query]
+
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
+
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        set token [::http::geturl $url -query $query -type text/xml -binary true -headers $headers]
     } else {
-        set token [::http::geturl $url -query $query -type text/xml]
+        set token [::http::geturl $url -query $query -type text/xml -binary true]
     }
     ::http::wait $token
 
@@ -595,18 +598,21 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     }
     set url [dict get $serviceInfo service location]
     set query [buildCallquery $serviceName $operationName $url $argList]
+    set query [encoding convertto utf-8 $query]
+
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
+
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
         ::log::log debug [list ::http::geturl $url -query $query -type text/xml -headers $headers]
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        set token [::http::geturl $url -query $query -type text/xml -binary true -headers $headers]
     } else {
         ::log::log debug  [list ::http::geturl $url -query $query -type text/xml]
-        set token [::http::geturl $url -query $query -type text/xml]
+        set token [::http::geturl $url -query $query -type text/xml -binary true]
     }
     ::http::wait $token
 
@@ -728,16 +734,20 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     }
     set url [dict get $serviceInfo service location]
     set query [buildCallquery $serviceName $operationName $url $argList]
+    set query [encoding convertto utf-8 $query]
+
     if {[llength $headers]} {
         ::http::geturl $url \
             -query $query \
             -type text/xml \
+	    -binary true \
             -headers $headers \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
             -type text/xml \
+	    -binary true \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncCall"
@@ -955,7 +965,8 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
     set serviceInfo $serviceArr($serviceName)
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
-    dom parse $inXML doc
+    regsub "^<\\?.*?\\?>" $inXML "" inXML
+    dom parse [encoding convertfrom utf-8 $inXML] doc
     $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/

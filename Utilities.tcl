@@ -726,7 +726,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type} {
                     foreach childNode [$node childNodes] {
                         set childName [$childNode nodeName]
                         ::log::log debug "\tChecking $childNode $childName agaisnt {$matchList}"
-                        if {$childName in $matchList} {
+                        if {[lsearch -exact $matchList $childName] >= 0} {
                             set item $childNode
                             break
                         }

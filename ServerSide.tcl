@@ -823,7 +823,11 @@ proc ::WS::Server::callOperation {service sock args} {
     upvar #0 Httpd$sock data
 
     ::log::log debug "In ::WS::Server::callOperation {$service $sock $args}"
-    set inXML $data(query)
+    set inXML [string trim $data(query)]
+
+    regsub "^<\\?.*?\\?>" $inXML "" inXML
+    set inXML [encoding convertfrom utf-8 $inXML]
+
     array set serviceInfo $serviceArr($service)
     ::log::log debug "\tDocument is {$inXML}"
 
@@ -852,7 +856,7 @@ proc ::WS::Server::callOperation {service sock args} {
                     [list "errorCode" $::errorCode "stackTrace" $::errorInfo]]
         ::Httpd_ReturnData $sock \
                          text/xml \
-                         $xml \
+                         [encoding convertto utf-8 $xml] \
                          500
         return;
     }
@@ -869,7 +873,7 @@ proc ::WS::Server::callOperation {service sock args} {
         ::log::log debug "Leaving @ error 1::WS::Server::callOperation $xml"
         ::Httpd_ReturnData $sock \
                          text/xml \
-                         $xml \
+                         [encoding convertto utf-8 $xml] \
                          500
         return;
     }
@@ -936,7 +940,7 @@ proc ::WS::Server::callOperation {service sock args} {
         ::log::log debug "Leaving @ error 3::WS::Server::callOperation $xml"
         ::Httpd_ReturnData $sock \
                          "text/xml; charset=UTF-8"\
-                         $xml \
+                         [encoding convertto utf-8 $xml] \
                          500
         return;
     }
@@ -973,7 +977,7 @@ proc ::WS::Server::callOperation {service sock args} {
         ::log::log debug "Leaving ::WS::Server::callOperation $xml"
         ::Httpd_ReturnData $sock \
                          "text/xml; charset=UTF-8" \
-                         $xml \
+                         [encoding convertto utf-8 $xml] \
                          200
     } msg]} {
         ##
@@ -1137,8 +1141,7 @@ proc ::WS::Server::generateReply {serviceName operation results} {
     variable serviceArr
 
     array set serviceData $serviceArr($serviceName)
-
-    if {[file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
+    if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
         set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
                                 $serviceData(-host) \
                                 $serviceName \
