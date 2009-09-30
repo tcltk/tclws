@@ -1,6 +1,6 @@
 <HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <HEAD>
-<TITLE>Creating a Tcl Web Service - Visiwiki</TITLE>
+<TITLE>Creating a Tcl Web Service</TITLE>
 <META http-equiv=Content-Type content="text/html; charset=utf-8">
 <META content="Creating a Tcl Web Service" name=KEYWORDS>
 </HEAD>
@@ -29,18 +29,33 @@
 <A name=Loading_the_Webservices_Server_Package></A>
 <H2>Loading the Webservices Server Package </H2>
 
-<P>
-The Web Services package, WS::Server, is not a standalone application, but rather is designed
-be a "module" of TclHttpd.
-The following command is normally placed in httpdthread.tcl:
-</P>
-
 <P>To load the webservices server package, do: </P><PRE> package require WS::Server
 </PRE>
 <P>This command will only load the server the first time it is used, so it
 causes no ill effects to put this in each file declaring a service or service
 procedure. </P>
 
+<h3>Using as part of TclHttpd</h3>
+
+<P>
+The Web Services package, WS::Server, is not a standalone application, but rather is designed
+be a "module" of TclHttpd.
+The following command is normally placed in httpdthread.tcl:
+</P>
+
+
+<h3>Embedding in a Standalone Application</h3>
+
+<P>
+To embed a Web Service into an application, the application needs to be event
+driven and you also need to use the <B>WS::Embeded</b> package.  You also must
+define the service with the <i>-mode=embedded</i> option.
+</P>
+
+<P>
+See also
+<A HREF="Embedded Web Service.html">Embeding a Web Service into an application</A>.
+</P>
 
 <HR>
 
@@ -51,7 +66,7 @@ procedure. </P>
 The code that defines a service is normally placed in one or more files in the custom directory.
 </P>
 
-<P><B>Procedure Name&nbsp;: <I>::WS::Server::</I>Service</B> </P>
+<P><B>Procedure Name&nbsp;: <I>::WS::Server::Service</I></B> </P>
 <P><B>Description</B>&nbsp;: Declare a Web Service, the following URLs will
 exist </P><PRE>               /service/&lt;ServiceName&gt;
                      Displays an HTML page describing the service
@@ -88,6 +103,16 @@ they are: </P><PRE>             -host           - The host name for this serice
                                          caller_ipaddr \
                                          http_header_list \
                                          soap_header_list
+            -mode           - Mode that service is running in.  Must be one of:
+                                   tclhhtpd -- running inside of tclhttpd or an
+                                               evironment that supplies a
+                                               compatilbe Url_PrefixInstall
+                                               and Httpd_ReturnData commands
+                                   embedded -- using the ::WS::Embedded package
+            -ports          - List of ports for embedded mode. Default: 80
+                                    NOTE -- a call should be to
+                                            ::WS::Embedded::Listen for each port
+                                            in this list prior to this call
 </PRE>
 <P><B>Returns</B>&nbsp;: Nothing </P>
 <P><B>Side-Effects</B>&nbsp;: None </P>
