@@ -1586,7 +1586,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         append msg [::html::h4 {Inputs}] "\n<UL>\n"
         append msg [::html::openTag {Table} {border=2}]
         append msg [::html::hdrRow Name Type Description]
-        foreach arg [lsort -dictionary [dict get $procInfo $service op$oper argOrder]] {
+        foreach arg [dict get $procInfo $service op$oper argOrder] {
             ::log::log debug "\t\t\tDisplaying '$arg'"
             if {[dict exists $procInfo $service op$oper argList $arg comment]} {
                 set comment [dict get $procInfo $service op$oper argList $arg comment]
