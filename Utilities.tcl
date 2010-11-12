@@ -183,7 +183,7 @@ proc ::WS::Utils::GetCrossreference {mode service} {
 
     dict for {type typeDict} [dict get $typeInfo $mode $service] {
         foreach {field fieldDict} [dict get $typeDict definition] {
-            set fieldType [string trim [dict get $fieldDict type] {()}]
+            set fieldType [string trimright [dict get $fieldDict type] {()}]
             incr crossreference($fieldType,count)
             lappend crossreference($fieldType,usedBy) $type.$field
         }
@@ -1054,9 +1054,9 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
     dict set typeInfo name $field
     set typeList [TypeInfo $mode $serviceName $type]
     if {[lindex $typeList 0] == 0} {
-        dict set typeInfo type s:[string trim $type {()}]
+        dict set typeInfo type s:[string trimright $type {()}]
     } else {
-        dict set typeInfo type $serviceName:[string trim $type {()}]
+        dict set typeInfo type $serviceName:[string trimright $type {()}]
     }
     if {[lindex $typeList 1]} {
         dict set typeInfo maxOccurs unbounded
@@ -1235,7 +1235,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 ##
                 ## Non-simple array
                 ##
-                set partType [string trim $partType {()}]
+                set partType [string trimright $partType {()}]
                 set tmp [list]
                 foreach row $item {
                     if {$options(parseInAttr)} {
@@ -1475,7 +1475,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trim $itemType ()]
+                set tmpType [string trimright $itemType ()]
                 foreach row $dataList {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                     if {$options(genOutAttr)} {
@@ -1651,7 +1651,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trim $itemType ()]
+                set tmpType [string trimright $itemType ()]
                 foreach row $dataList {
                     $parent appendChild [$doc createElement $itemName retnode]
                     if {$options(genOutAttr)} {
@@ -1746,7 +1746,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ## Simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trim $itemType {()}]
+                set tmpType [string trimright $itemType {()}]
                 foreach resultValue $dataList {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
                     $retNode setAttribute xsi:type xs:$itemType
@@ -1767,7 +1767,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trim $itemType ()]
+                set tmpType [string trimright $itemType ()]
                 foreach item $dataList {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
                     $retNode setAttribute xsi:type xs:$itemType
@@ -2255,7 +2255,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 if {[string equal $partMax 1]} {
                     lappend partList $partName [list type $partType comment $comment]
                 } else {
-                    lappend partList $partName [list type [string trim ${partType} {()}]() comment $comment]
+                    lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                 }
             }
             extension {
@@ -2309,7 +2309,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set partName item
                             set partType [lindex [split $attrArr(arrayType) {:}] end]
                             set partType [string map {{[]} {()}} $partType]
-                            lappend partList $partName [list type [string trim ${partType} {()}]() comment $comment]
+                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                             set nodeFound 1
                         }
                     }
@@ -2405,7 +2405,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 if {[string equal $partMax 1]} {
                     set partList [list $partName [list type $partType comment {}]]
                 } else {
-                    set partList [list $partName [list type [string trim ${partType} {()}]() comment {}]]
+                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
                 }
             }
         }
@@ -2494,7 +2494,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     if {[string equal $partMax 1]} {
                         lappend partList $partName [list type $partType comment $comment]
                     } else {
-                        lappend partList $partName [list type [string trim ${partType} {()}]() comment $comment]
+                        lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                     }
                 } msg]} {
                         ::log::log error "\tError processing {$msg} for [$element asXML]"
@@ -2525,7 +2525,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     set partName item
                     set partType [lindex [split $attrArr(arrayType) {:}] end]
                     set partType [string map {{[]} {()}} $partType]
-                    set partList [list $partName [list type [string trim ${partType} {()}]() comment {}]]
+                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
                 }
                 extension {
                     set extension [$node selectNodes -namespaces $nsList s:extension]
@@ -2664,7 +2664,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         if {[string equal $partMax 1]} {
             lappend partList $partName [list type $partType comment {}]
         } else {
-            lappend partList $partName [list type [string trim ${partType} {()}]() comment {}]
+            lappend partList $partName [list type [string trimright ${partType} {()}]() comment {}]
         }
     }
     if {[llength $elements] == 0} {
@@ -2691,7 +2691,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 lappend partList $typeName [list type $partType comment {}]
             }
         } else {
-            lappend partList $typeName [list type [string trim ${partType} {()}]() comment {}]
+            lappend partList $typeName [list type [string trimright ${partType} {()}]() comment {}]
         }
     }
     if {[llength $partList]} {
