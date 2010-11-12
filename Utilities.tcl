@@ -1054,7 +1054,7 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
     dict set typeInfo name $field
     set typeList [TypeInfo $mode $serviceName $type]
     if {[lindex $typeList 0] == 0} {
-        dict set typeInfo type s:$type
+        dict set typeInfo type s:[string trim $type {()}]
     } else {
         dict set typeInfo type $serviceName:[string trim $type {()}]
     }
