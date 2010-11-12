@@ -922,8 +922,7 @@ proc ::WS::Server::callOperation {service sock args} {
     ::log::log debug "requestMessage = {$requestMessage}"
     if {![string match {*Request} $requestMessage]} {
         set msg "Malformed Request -- not understood '$requestMessage'"
-        puts stder $msg
-        flush stderr
+        ::log::log error $msg
         set ::errorInfo {}
         set ::errorCode [list Server MALFORMED_REQUEST $doc]
         set xml [generateError \
@@ -943,8 +942,7 @@ proc ::WS::Server::callOperation {service sock args} {
     set operation [string range $requestMessage 0 end-7]
     if {![dict exists $procInfo $service op$operation argList]} {
         set msg "Method $operation not found"
-        puts stder $msg
-        flush stderr
+        ::log::log error $msg
         set ::errorInfo {}
         set ::errorCode [list Server UNKNOWN_METHOD $operation]
         set xml [generateError \
@@ -1015,8 +1013,7 @@ proc ::WS::Server::callOperation {service sock args} {
             }
         }
     } errMsg]} {
-        puts stderr $errMsg
-        flush stderr
+        ::log::log error $errMsg
         set localerrorCode $::errorCode
         set localerrorInfo $::errorInfo
         set xml [generateError \
