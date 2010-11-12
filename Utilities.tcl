@@ -39,6 +39,14 @@
 ##                                                                           ##
 ###############################################################################
 
+##
+## This is a special version of the package for Donal K. Fellows to support
+## the use of passing values in attributes as well as the value of a tag
+##
+## Please note -- I do not believe in such perversions, but he is after
+##                all English  :}
+##
+
 #package require Tcl 8.5
 if {![llength [info command dict]]} {
     package require dict
@@ -47,7 +55,7 @@ package require log
 package require tdom
 package require struct::set
 
-package provide WS::Utils 1.1.1
+package provide WS::Utils 1.1.2
 
 namespace eval ::WS {}
 
@@ -1116,13 +1124,13 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
         set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
     }
     set results {}
-    if {$options(parseInAttr)} {
-        foreach attr [$node attributes] {
-            if {[llength $attr] == 1} {
-                dict set results $attr [$node getAttribute $attr]
-            }
-        }
-    }
+    #if {$options(parseInAttr)} {
+    #    foreach attr [$node attributes] {
+    #        if {[llength $attr] == 1} {
+    #            dict set results $attr [$node getAttribute $attr]
+    #        }
+    #    }
+    #}
     foreach partName [dict keys [dict get $typeDefInfo definition]] {
         set partType [dict get $typeDefInfo definition $partName type]
         if {[string equal $partName *] && [string equal $partType *]} {
@@ -1176,7 +1184,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 ##
                 ## Simple non-array
                 ##
-                dict set results $partName [$item asText]
+                if {$options(parseInAttr)} {
+                    foreach attr [$item attributes] {
+                        if {[llength $attr] == 1} {
+                            dict set results $partName $attr [$item getAttribute $attr]
+                        }
+                    }
+                    dict set results $partName {} [$item asText]
+                } else {
+                    dict set results $partName [$item asText]
+                }
             }
             {0 1} {
                 ##
@@ -1184,7 +1201,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 ##
                 set tmp {}
                 foreach row $item {
-                    lappend tmp [$row asText]
+                    if {$options(parseInAttr)} {
+                        set rowList {}
+                        foreach attr [$item attributes] {
+                            if {[llength $attr] == 1} {
+                                append rowList $attr [$row getAttribute $attr]
+                            }
+                        }
+                        lappend rowList {} [$row asText]
+                        lappend tmp $rowList
+                    } else {
+                        lappend tmp [$row asText]
+                    }
                 }
                 dict set results $partName $tmp
             }
@@ -1192,7 +1220,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 ##
                 ## Non-simple non-array
                 ##
-                dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root]
+                if {$options(parseInAttr)} {
+                    foreach attr [$item attributes] {
+                        if {[llength $attr] == 1} {
+                            dict set results $partName $attr [$item getAttribute $attr]
+                        }
+                    }
+                    dict set results $partName {} [convertTypeToDict $mode $serviceName $item $partType $root]
+                } else {
+                    dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root]
+                }
             }
             {1 1} {
                 ##
@@ -1201,7 +1238,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 set partType [string trim $partType {()}]
                 set tmp [list]
                 foreach row $item {
-                    lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root]
+                    if {$options(parseInAttr)} {
+                        set rowList {}
+                        foreach attr [$item attributes] {
+                            if {[llength $attr] == 1} {
+                                append rowList $attr [$row getAttribute $attr]
+                            }
+                        }
+                        lappend rowList {} [convertTypeToDict $mode $serviceName $row $partType $root]
+                        lappend tmp $rowList
+                    } else {
+                        lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root]
+                    }
                 }
                 dict set results $partName $tmp
             }
@@ -1358,7 +1406,18 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Simple non-array
                 ##
                 $parent appendChild [$doc createElement $itemXns:$itemName retNode]
-                set resultValue [dict get $dict $itemName]
+                if {$options(genOutAttr)} {
+                    set dictList [dict keys [dict get $dict $itemName]]
+                    foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                        if {[string equal $attr  {}]} {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
+                        } else {
+                            set resultValue [dict get $dict $itemName $attr]
+                        }
+                    }
+                } else {
+                    set resultValue [dict get $dict $itemName]
+                }
                 $retNode appendChild [$doc createTextNode $resultValue]
                 if {[llength $attrList]} {
                     $retNode setAttribute {*}$attrList
@@ -1369,8 +1428,20 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                foreach resultValue $dataList {
+                foreach row $dataList {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
+                    if {$options(genOutAttr)} {
+                        set dictList [dict keys $row]
+                        foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                            if {[string equal $attr  {}]} {
+                                lappend attrList $attr [dict get $row $attr]
+                            } else {
+                                set resultValue [dict get $row $attr]
+                            }
+                        }
+                    } else {
+                        set resultValue $row
+                    }
                     $retNode appendChild [$doc createTextNode $resultValue]
                     if {[llength $attrList]} {
                         $retNode setAttribute {*}$attrList
@@ -1382,7 +1453,19 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Non-simple non-array
                 ##
                 $parent appendChild [$doc createElement $itemXns:$itemName retNode]
-                convertDictToType $mode $service $doc $retNode [dict get $dict $itemName] $itemType
+                if {$options(genOutAttr)} {
+                    set dictList [dict keys [dict get $dict $itemName]]
+                    foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                        if {[string equal $attr  {}]} {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
+                        } else {
+                            set resultValue [dict get $dict $itemName $attr]
+                        }
+                    }
+                } else {
+                    set resultValue [dict get $dict $itemName]
+                }
+                convertDictToType $mode $service $doc $retNode $resultValue $itemType
                 if {[llength $attrList]} {
                     $retNode setAttribute {*}$attrList
                 }
@@ -1393,21 +1476,33 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 set dataList [dict get $dict $itemName]
                 set tmpType [string trim $itemType ()]
-                foreach item $dataList {
+                foreach row $dataList {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
-                    convertDictToType $mode $service $doc $retNode $item $tmpType
+                    if {$options(genOutAttr)} {
+                        set dictList [dict keys $row]
+                        foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                            if {[string equal $attr  {}]} {
+                                lappend attrList $attr [dict get $row $attr]
+                            } else {
+                                set resultValue [dict get $row $attr]
+                            }
+                        }
+                    } else {
+                        set resultValue $row
+                    }
+                    convertDictToType $mode $service $doc $retNode $resultValue $tmpType
                     if {[llength $attrList]} {
                         $retNode setAttribute {*}$attrList
                     }
                 }
             }
         }
-        if {$options(genOutAttr)} {
-            set dictList [dict keys $dict]
-            foreach attr [lindex [::struct::set intersect3 $fieldList $dictList] end] {
-                $parent setAttribute $attr [dict get $dict $attr]
-            }
-        }
+        #if {$options(genOutAttr)} {
+        #    set dictList [dict keys $dict]
+        #    foreach attr [lindex [::struct::set intersect3 $fieldList $dictList] end] {
+        #        $parent setAttribute $attr [dict get $dict $attr]
+        #    }
+        #}
     }
     return;
 }
@@ -1473,6 +1568,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         if {![dict exists $dict $itemName]} {
             continue
         }
+        set attrList {}
+        foreach key [dict keys $itemDef] {
+            if {$key ni $standardAttributes} {
+                lappend attrList $key [dict get $itemDef $key]
+                ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
+            }
+        }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
         switch $typeInfoList {
             {0 0} {
@@ -1480,17 +1582,46 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 ## Simple non-array
                 ##
                 $parent appendChild [$doc createElement $itemName retNode]
-                set resultValue [dict get $dict $itemName]
+                if {$options(genOutAttr)} {
+                    set dictList [dict keys [dict get $dict $itemName]]
+                    foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                        if {[string equal $attr  {}]} {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
+                        } else {
+                            set resultValue [dict get $dict $itemName $attr]
+                        }
+                    }
+                } else {
+                    set resultValue [dict get $dict $itemName]
+                }
                 $retNode appendChild [$doc createTextNode $resultValue]
+                if {[llength $attrList]} {
+                    $retNode setAttribute {*}$attrList
+                }
             }
             {0 1} {
                 ##
                 ## Simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                foreach resultValue $dataList {
+                foreach row $dataList {
                     $parent appendChild [$doc createElement $itemName retNode]
+                    if {$options(genOutAttr)} {
+                        set dictList [dict keys $row]
+                        foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                            if {[string equal $attr  {}]} {
+                                lappend attrList $attr [dict get $row $attr]
+                            } else {
+                                set resultValue [dict get $row $attr]
+                            }
+                        }
+                    } else {
+                        set resultValue $row
+                    }
                     $retNode appendChild [$doc createTextNode $resultValue]
+                    if {[llength $attrList]} {
+                        $retNode setAttribute {*}$attrList
+                    }
                 }
             }
             {1 0} {
@@ -1498,7 +1629,22 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 ## Non-simple non-array
                 ##
                 $parent appendChild [$doc createElement $itemName retnode]
-                convertDictToTypeNoNs $mode $service $doc $retnode [dict get $dict $itemName] $itemType
+                if {$options(genOutAttr)} {
+                    set dictList [dict keys [dict get $dict $itemName]]
+                    foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                        if {[string equal $attr  {}]} {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
+                        } else {
+                            set resultValue [dict get $dict $itemName $attr]
+                        }
+                    }
+                } else {
+                    set resultValue [dict get $dict $itemName]
+                }
+                if {[llength $attrList]} {
+                    $retNode setAttribute {*}$attrList
+                }
+                convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $itemType
             }
             {1 1} {
                 ##
@@ -1506,9 +1652,24 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 ##
                 set dataList [dict get $dict $itemName]
                 set tmpType [string trim $itemType ()]
-                foreach item $dataList {
+                foreach row $dataList {
                     $parent appendChild [$doc createElement $itemName retnode]
-                    convertDictToTypeNoNs $mode $service $doc $retnode $item $tmpType
+                    if {$options(genOutAttr)} {
+                        set dictList [dict keys $row]
+                        foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
+                            if {[string equal $attr  {}]} {
+                                lappend attrList $attr [dict get $row $attr]
+                            } else {
+                                set resultValue [dict get $row $attr]
+                            }
+                        }
+                    } else {
+                        set resultValue $row
+                    }
+                    if {[llength $attrList]} {
+                        $retNode setAttribute {*}$attrList
+                    }
+                    convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType
                 }
             }
         }
@@ -1778,11 +1939,57 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     ##
     foreach element [$schemaNode selectNodes -namespaces $nsList s:import] {
         ::log::log debug "\tprocessing $element"
-        processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount
+        if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
+            switch -exact -- $options(StrictMode) {
+                debug -
+                warning {
+                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
+                    log::log $options(StrictMode) "\t error was: $msg"
+                }
+                error -
+                default {
+                    set errorCode $::errorCode
+                    set errorInfo $::errorInfo
+                    log::log error "Could not parse:\n [$element asXML]"
+                    log::log error "\t error was: $msg"
+                    return \
+                        -code error \
+                        -errorcode $errorCode \
+                        -errorinfo $errorInfo \
+                        $msg
+                }
+            }
+        }
     }
 
     ::log::log debug  "Parsing Element types"
     foreach element [$schemaNode selectNodes -namespaces $nsList s:element] {
+        ::log::log debug "\tprocessing $element"
+        if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
+            switch -exact -- $options(StrictMode) {
+                debug -
+                warning {
+                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
+                    log::log $options(StrictMode) "\t error was: $msg"
+                }
+                error -
+                default {
+                    set errorCode $::errorCode
+                    set errorInfo $::errorInfo
+                    log::log error "Could not parse:\n [$element asXML]"
+                    log::log error "\t error was: $msg"
+                    return \
+                        -code error \
+                        -errorcode $errorCode \
+                        -errorinfo $errorInfo \
+                        $msg
+                }
+            }
+        }
+    }
+
+    ::log::log debug  "Parsing Attribute types"
+    foreach element [$schemaNode selectNodes -namespaces $nsList s:attribute] {
         ::log::log debug "\tprocessing $element"
         if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
@@ -1915,13 +2122,17 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     ##
     set attrName schemaLocation
     if {![$importNode hasAttribute $attrName]} {
-        set attrName namespace
+        set attrName location
         if {![$importNode hasAttribute $attrName]} {
-            ::log::log debug "\t No schema location, existing"
-            return \
-                -code error \
-                -errorcode [list WS CLIENT MISSCHLOC $baseUrl] \
-                "Missing Schema Location in '$baseUrl'"
+            set attrName namespace
+            if {![$importNode hasAttribute $attrName]} {
+                ::log::log debug "\t No schema location, existing"
+                set xml [$importNode asXML]
+                return \
+                    -code error \
+                    -errorcode [list WS CLIENT MISSCHLOC $xml] \
+                    "Missing Schema Location in '$xml'"
+            }
         }
     }
     set url [::uri::resolve $baseUrl  [$importNode getAttribute $attrName]]
@@ -1941,11 +2152,14 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             unset token
         }
         http {
-            set token [::http::geturl $url]
-            ::http::wait $token
-            set ncode [::http::ncode $token]
-            set xml [::http::data $token]
-            ::http::cleanup $token
+            set ncode -1
+            catch {
+                set token [::http::geturl $url]
+                ::http::wait $token
+                set ncode [::http::ncode $token]
+                set xml [::http::data $token]
+                ::http::cleanup $token
+            }
             if {$ncode != 200} {
                 return \
                     -code error \
@@ -2071,6 +2285,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 $middleNode setAttribute name $typeName
                 parseComplexType $mode results $serviceName $middleNode $tns
             }
+            simpleContent -
             complexContent {
                 set contentType [[$middleNode childNodes] localName]
                 switch $contentType {
@@ -2105,13 +2320,6 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set partList [concat $partList $tmp]
                         }
                     }
-                }
-            }
-            simpleContent {
-                set tmp [partList $mode $middleNode $serviceName results $tns]
-                if {[llength $tmp]} {
-                    set nodeFound 1
-                    set partList [concat $partList $tmp]
                 }
             }
             restriction {

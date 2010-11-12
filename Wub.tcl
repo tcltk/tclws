@@ -1,3 +1,9 @@
+##***************************************************************************##
+##                                                                           ##
+##    This is a stub and needs to be filled in!!!!                           ##
+##                                                                           ##
+##***************************************************************************##
+
 ###############################################################################
 ##                                                                           ##
 ##  Copyright (c) 2008, Gerald W. Lester                                     ##
@@ -37,9 +43,9 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Embeded 1.1.2
+package provide WS::Wub 1.1.1
 
-namespace eval ::WS::Embeded {
+namespace eval ::WS::Wub {
 
     array set portInfo {}
 
@@ -55,7 +61,7 @@ namespace eval ::WS::Embeded {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::AddHandler
+# Procedure Name : ::WS::Wub::AddHandler
 #
 # Description : Register a handler for a url on a port.
 #
@@ -72,7 +78,7 @@ namespace eval ::WS::Embeded {
 #
 # Exception Conditions : None
 #
-# Pre-requisite Conditions : ::WS::Embeded::Listen must have been called for the port
+# Pre-requisite Conditions : ::WS::Wub::Listen must have been called for the port
 #
 # Original Author : Gerald W. Lester
 #
@@ -88,7 +94,7 @@ namespace eval ::WS::Embeded {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::AddHandler {port url callback} {
+proc ::WS::Wub::AddHandler {port url callback} {
     variable portInfo
 
     dict set portInfo($port,handlers) $url $callback
@@ -103,7 +109,7 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::AddHandlerAllPorts
+# Procedure Name : ::WS::Wub::AddHandlerAllPorts
 #
 # Description : Register a handler for a url on all "defined" ports.
 #
@@ -119,7 +125,7 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 #
 # Exception Conditions : None
 #
-# Pre-requisite Conditions : ::WS::Embeded::Listen must have been called for the port
+# Pre-requisite Conditions : ::WS::Wub::Listen must have been called for the port
 #
 # Original Author : Gerald W. Lester
 #
@@ -135,7 +141,7 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
+proc ::WS::Wub::AddHandlerAllPorts {url callback} {
     variable portList
 
     foreach port $portList {
@@ -153,7 +159,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::Listen
+# Procedure Name : ::WS::Wub::Listen
 #
 # Description : Instruct the module to listen on a Port, security information.
 #
@@ -172,7 +178,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #
 # Exception Conditions : None
 #
-# Pre-requisite Conditions : ::WS::Embeded::Listen must have been called for the port
+# Pre-requisite Conditions : ::WS::Wub::Listen must have been called for the port
 #
 # Original Author : Gerald W. Lester
 #
@@ -188,7 +194,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}} {logger {::WS::Embeded::logger}}} {
+proc ::WS::Wub::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}} {logger {::WS::Wub::logger}}} {
     variable portInfo
     variable portList
 
@@ -196,9 +202,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
     foreach key {port certfile keyfile userpwds realm logger} {
         set portInfo($port,$key) [set $key]
     }
-    if {![info exists portInfo($port,handlers)]} {
-        set portInfo($port,handlers) {}
-    }
+    set portInfo($port,$handlers) {}
     foreach up $userpwds {
         lappend portInfo($port,auths) [base64::encode $up]]
     }
@@ -214,9 +218,9 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             -tls1 0 \
             -require 0 \
             -request 0
-        ::tls::socket -server [list ::WS::Embeded::accept $port] $port
+        ::tls::socket -server [list ::WS::Wub::accept $port] $port
     } else {
-        socket -server [list ::WS::Embeded::accept $port] $port
+        socket -server [list ::WS::Wub::accept $port] $port
     }
 }
 
@@ -228,7 +232,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::ReturnData
+# Procedure Name : ::WS::Wub::ReturnData
 #
 # Description : Store the information to be returned.
 #
@@ -261,11 +265,11 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 #
 #
 ###########################################################################
-proc ::WS::Embeded::ReturnData {sock type data code} {
-    upvar #0 ::WS::Embeded::Httpd$sock dataArray
+proc ::WS::Wub::ReturnData {socket type data code} {
+    upvar #0 ::WS::Wub::Httpd$sock data
 
     foreach var {type data code} {
-        dict set dataArray(reply) $var [set $var]
+        dict set $data(reply) $var [set $var]
     }
     return;
 }
@@ -278,7 +282,7 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::Start
+# Procedure Name : ::WS::Wub::Start
 #
 # Description : Start listening on all ports (i.e. enter the event loop).
 #
@@ -292,7 +296,7 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 # Exception Conditions : None
 #
 # Pre-requisite Conditions :
-#        ::WS::Embeded::Listen should have been called for one or more port.
+#        ::WS::Wub::Listen should have been called for one or more port.
 #
 #
 # Original Author : Gerald W. Lester
@@ -309,11 +313,11 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::Start {} {
-    variable forever
+proc ::WS::Wub::Start {} {
+    vairable forever
 
     set forever 0
-    vwait ::WS::Embeded::forever
+    vwait ::WS::Wub::forever
     return $forever
 }
 
@@ -325,7 +329,7 @@ proc ::WS::Embeded::Start {} {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Embeded::Stop
+# Procedure Name : ::WS::Wub::Stop
 #
 # Description : Exit dispatching request.
 #
@@ -355,11 +359,11 @@ proc ::WS::Embeded::Start {} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::Stop {{value 1}} {
+proc ::WS::Wub::Stop {{value 1}} {
     vairable forever
 
     set forever $value
-    vwait ::WS::Embeded::forever
+    vwait ::WS::Wub::forever
     return $forever
 }
 
@@ -371,7 +375,7 @@ proc ::WS::Embeded::Stop {{value 1}} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::logger
+# Procedure Name : ::WS::Wub::logger
 #
 # Description : Stub for a logger.
 #
@@ -401,9 +405,7 @@ proc ::WS::Embeded::Stop {{value 1}} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::logger {args} {
-    puts $args
-    puts $::errorInfo
+proc ::WS::Wub::logger {args} {
 }
 
 
@@ -414,7 +416,7 @@ proc ::WS::Embeded::logger {args} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::respond
+# Procedure Name : ::WS::Wub::respond
 #
 # Description : Send response back to user.
 #
@@ -447,7 +449,7 @@ proc ::WS::Embeded::logger {args} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::respond {sock code body {head ""}} {
+proc ::WS::Wub::respond {sock code body {head ""}} {
     puts -nonewline $sock "HTTP/1.0 $code ???\nContent-Type: text/html; charset=ISO-8859-1\nConnection: close\nContent-length: [string length $body]\n$head\n$body"
 }
 
@@ -459,7 +461,7 @@ proc ::WS::Embeded::respond {sock code body {head ""}} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::checkauth
+# Procedure Name : ::WS::Wub::checkauth
 #
 # Description : Check to see if the user is allowed.
 #
@@ -492,10 +494,10 @@ proc ::WS::Embeded::respond {sock code body {head ""}} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::checkauth {port sock ip auth} {
+proc ::WS::Wub::checkauth {port sock ip auth} {
     variable portInfo
 
-    if {[info exists portInfo($port,auths)] && [llength $portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
+    if {[llength portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
         set realm $portInfo($port,realm)
         respond $sock 401 Unauthorized "WWW-Authenticate: Basic realm=\"$realm\"\n"
         $portInfo($port,logger) "Unauthorized from $ip"
@@ -511,7 +513,7 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::handler
+# Procedure Name : ::WS::Wub::handler
 #
 # Description : Handle a request.
 #
@@ -545,42 +547,36 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::handler {port sock ip reqstring auth} {
+proc ::WS::Wub::handler {port sock ip reqstring auth} {
     variable portInfo
-    upvar #0 ::WS::Embeded::Httpd$sock req
+    upvar #0 ::WS::Wub::Httpd$sock req
 
     if {[catch {checkauth $port $sock $ip $auth}]} {
-        $portInfo($port,logger) {Auth Failed}
         return;
     }
 
-    set ::errorInfo {}
     array set req $reqstring
-    #foreach var {type data code} {
-    #    dict set req(reply) $var [set $var]
-    #}
-    set path "/[string trim $req(path) /]"
+    foreach var {type data code} {
+        dict set $req(reply) $var [set $var]
+    }
+    set path $req(path)
     if {[dict exists $portInfo($port,handlers) $path]} {
         set cmd [dict get $portInfo($port,handlers) $path]
-        lappend cmd $sock {}
-        puts "Calling {$cmd}"
-        if {[catch {eval $cmd} msg]} {
-            $portInfo($port,logger) [list 404 b $msg]
-            respond $sock 404 Error $msg
-        } else {
-            set data [dict get $req(reply) data]
-            set reply "HTTP/1.0 [dict get $req(reply) code] ???\n"
-            append reply "Content-Type: [dict get $req(reply) type]; charset=UTF-8\n"
-            append reply "Connection: close\n"
-            append reply "Content-length: [string length $data]\n"
-            append reply "\n"
-            append reply $data
-            puts -nonewline $sock $reply
-            $portInfo($port,logger) ok
-        }
+        lappend $cmd sock {}
     } else {
-        $portInfo($port,logger) {404 Error}
-        respond $sock 404 Error "Error"
+        respond $port $sock 404 "Error"
+    }
+    if {[catch {eval $cmd} msg]} {
+        respond $port $sock 404 $msg
+    } else {
+        set data [dict get $req(reply) data]
+        set reply "HTTP/1.0 [dict get $req(reply) code] ???\n"
+        append reply "Content-Type: [dict get $req(reply) type]; charset=UTF-8\n"
+        append reply "Connection: close\n"
+        append reply "Content-length: [string length $data]\n"
+        append reply "\n"
+        append reply $data
+        puts -nonewline $sock $reply
     }
 
     return;
@@ -594,7 +590,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::accept
+# Procedure Name : ::WS::Wub::accept
 #
 # Description : Accept an incoming connection.
 #
@@ -627,7 +623,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::accept {port sock ip clientport} {
+proc ::WS::Wub::accept {port sock ip clientport} {
     variable portInfo
 
     if {[catch {
@@ -642,16 +638,15 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
         if {[eof $sock]} {
             $portInfo($port,logger)  "Connection closed from $ip"
         }
-        foreach {method url version} $line { break }
-        switch -exact $method {
-            GET {
-                handler $port $sock $ip [uri::split $url] $auth
-            }
-            default {
-                $portInfo($port,logger)  "Unsupported method '$method' from $ip"
-            }
+    foreach {method url version} $line { break }
+    switch -exact $method {
+        GET {
+            handler $sock $ip [uri::split $url] $auth
         }
-    } msg]} {
+        default {
+            $portInfo($port,logger)  "Unsupported method '$method' from $ip"
+        }
+    } } msg]} {
         $portInfo($port,logger)  "Error: $msg"
     }
 

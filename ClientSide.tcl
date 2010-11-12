@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 1.1.1
+package provide WS::Client 1.1.2
 
 namespace eval ::WS::Client {
     ##
@@ -144,13 +144,111 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     dict set serviceArr($serviceName) objList {}
     dict set serviceArr($serviceName) headers {}
     dict set serviceArr($serviceName) targetNamespace [list [list tns1 $url]]
-    dict set serviceArr($serviceName) service $serviceName name $serviceName
+    dict set serviceArr($serviceName) name $serviceName
     dict set serviceArr($serviceName) location $url
     dict set serviceArr($serviceName) style $type
+    dict set serviceArr($serviceName) inTransform {}
+    dict set serviceArr($serviceName) outTransform {}
     foreach {name value} $args {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
     }
+}
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::SetServiceTransforms
+#
+# Description : Define a service's transforms
+#               Transform signature is:
+#                   cmd serviceName operationName transformType xml {url {}} {argList {}}
+#               where transformType is REQUEST or REPLY
+#               and url and argList will only be present for transformType == REQUEST
+#
+# Arguments :
+#       serviceName  - Service name to add namespace to
+#       inTransform  - Input transform, defaults to {}
+#       outTransform - Output transform, defaults to {}
+#
+# Returns :     None
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  04/14/2009  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::SetServiceTransforms {serviceName {inTransform {}} {outTransform {}}} {
+    variable serviceArr
+
+    dict set serviceArr($serviceName) inTransform $inTransform
+    dict set serviceArr($serviceName) outTransform $outTransform
+
+    return;
+}
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::GetServiceTransforms
+#
+# Description : Define a service's transforms
+#
+# Arguments :
+#       serviceName  - Service name to add namespace to
+#
+# Returns :     List of two elements: inTransform outTransform
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  04/14/2009  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::GetServiceTransforms {serviceName} {
+    variable serviceArr
+
+    set inTransform [dict get serviceArr($serviceName) inTransform]
+    set outTransform [dict get serviceArr($serviceName) outTransform]
+
+    return [list $inTransform $outTransform]
 }
 
 ###########################################################################
@@ -508,7 +606,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
     } else {
-        set serviceName [dict get $serviceInfo service name]
+        set serviceName [dict get $serviceInfo name]
     }
     if {[llength $headers]} {
         dict set serviceInfo headers $headers
@@ -700,7 +798,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     set serviceInfo {}
 
     foreach serviceInfo [buildServiceInfo $wsdlNode $serviceInfo $serviceAlias] {
-        set serviceName [dict get $serviceInfo service name]
+        set serviceName [dict get $serviceInfo name]
         set serviceArr($serviceName) $serviceInfo
 
         if {[llength $defaults(-headers)]} {
@@ -889,7 +987,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $operationName]] \
             "Unknown operation '$operationName' for service '$serviceName'"
     }
-    set url [dict get $serviceInfo service location]
+    set url [dict get $serviceInfo location]
     set query [buildCallquery $serviceName $operationName $url $argList]
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
@@ -999,7 +1097,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $operationName]] \
             "Unknown operation '$operationName' for service '$serviceName'"
     }
-    set url [dict get $serviceInfo service location]
+    set url [dict get $serviceInfo location]
     set query [buildCallquery $serviceName $operationName $url $argList]
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
@@ -1132,7 +1230,7 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
-    set url [dict get $serviceInfo service location]
+    set url [dict get $serviceInfo location]
     set query [buildCallquery $serviceName $operationName $url $argList]
     if {[llength $headers]} {
         ::http::geturl $url \
@@ -1441,6 +1539,12 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     variable serviceArr
 
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
+
+    set outTransform [dict get $serviceInfo outTransform]
+    if {![string equal $outTransform {}} {
+        set query [$outTransform $serviceName $operationName REPLY $inXML]
+    }
+
     set serviceInfo $serviceArr($serviceName)
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
     dom parse $inXML doc
@@ -1598,6 +1702,11 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
         }
     }
 
+    set inTransform [dict get $serviceInfo inTransform]
+    if {![string equal $inTransform {}} {
+        set query [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
+    }
+
     ::log::log debug "Leaving ::::WS::Client::buildCallquery with {$xml}"
     return $xml
 
@@ -1649,7 +1758,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     ::log::log debug "Entering [info level 0]"
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo operation $operationName inputs]
-    set url [dict get $serviceInfo service location]
+    set url [dict get $serviceInfo location]
     set xnsList [dict get $serviceInfo targetNamespace]
 
     dom createDocument "SOAP-ENV:Envelope" doc
@@ -1763,7 +1872,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     ::log::log debug "Entering [info level 0]"
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo operation $operationName inputs]
-    #set url [dict get $serviceInfo service location]
+    #set url [dict get $serviceInfo location]
     set xnsList [dict get $serviceInfo targetNamespace]
     #set action [dict get $serviceInfo operation $operationName action]
 
@@ -1947,8 +2056,8 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
             -errorcode [list WS CLIENT NOSOAPADDR] \
             "Malformed WSDL -- No SOAP address node found."
     }
-    dict set serviceInfo service name $serviceName
-    dict set serviceInfo service location $location
+
+    CreateService $serviceName WSDL $location
     set bindingName [lindex [split [$portNode getAttribute binding] {:}] end]
 
     ##
@@ -2011,7 +2120,7 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
     upvar $serviceInfoVar serviceInfo
 
     set tnsCount 0
-    set baseUrl [dict get $serviceInfo service location]
+    set baseUrl [dict get $serviceInfo location]
     foreach schemaNode [$wsdlNode selectNodes w:types/s:schema] {
         ::WS::Utils::parseScheme Client $baseUrl $schemaNode $serviceName serviceInfo tnsCount
     }

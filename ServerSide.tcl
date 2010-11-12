@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 1.1.1
+package provide WS::Server 1.1.2
 
 namespace eval ::WS::Server {
     array set serviceArr {}
@@ -356,7 +356,6 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
 #
 # Arguments :
 #       serviceName     - The name of the service
-#       urlPrefix       - (optional) Prefix to use for location; defaults to http://<host>
 #
 # Returns :
 #       XML for the WSDL
@@ -379,11 +378,10 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#       2  12/12/2009  W.Kocjan     Support for services over SSL in Tclhttpd
 #
 #
 ###########################################################################
-proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
+proc ::WS::Server::GetWsdl {serviceName} {
     variable serviceArr
     variable procInfo
 
@@ -477,13 +475,8 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
         binding ${serviceName}:${serviceName}Soap
 
     $port appendChild [$reply createElement soap:address address]
-
-    if {$urlPrefix == ""} {
-        set urlPrefix "http://$serviceData(-host)"
-    }
-
     $address setAttribute  \
-        location "$urlPrefix$serviceData(-prefix)/op"
+        location "http://$serviceData(-host)$serviceData(-prefix)/op"
 
 
     ##
@@ -598,7 +591,6 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#       2  12/12/2009  W.Kocjan     Support for services over SSL in Tclhttpd
 #
 #
 ###########################################################################
@@ -633,20 +625,12 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
     }
 
 
+    set xml [GetWsdl $serviceName]
     switch -exact -- $mode {
         tclhttpd {
-            upvar #0 ::Httpd$sock s
-
-            set urlPrefix ""
-            catch {
-                set urlPrefix [lindex $s(self) 0]://$serviceData(-host)
-                set urlPrefix [lindex $s(self) 0]://$s(mime,host)
-            }
-            set xml [GetWsdl $serviceName $urlPrefix]
             ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         embedded {
-            set xml [GetWsdl $serviceName]
             ::WS::Embeded::ReturnData $sock text/xml $xml 200
         }
     }
@@ -1257,7 +1241,7 @@ proc ::WS::Server::generateReply {serviceName operation results} {
 
     array set serviceData $serviceArr($serviceName)
 
-    if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
+    if {[file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
         set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
                                 $serviceData(-host) \
                                 $serviceName \
