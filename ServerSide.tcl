@@ -946,34 +946,34 @@ proc ::WS::Server::callOperation {service sock args} {
         [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
               $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
     $doc documentElement rootNode
+
+
+    ##
+    ## Determine the name of the method being invoked.
+    ##
     set top [$rootNode selectNodes /ENV:Envelope/ENV:Body/*]
     catch {$top localName} requestMessage
-    ::log::log debug "requestMessage = {$requestMessage}"
-    if {![string match {*Request} $requestMessage]} {
-        set msg "Malformed Request -- not understood '$requestMessage'"
-        ::log::log error $msg
-        set ::errorInfo {}
-        set ::errorCode [list Server MALFORMED_REQUEST $doc]
-        set xml [generateError \
-                    CLIENT \
-                    $msg \
-                    [list "errorCode" $::errorCode "stackTrace" $::errorInfo]]
-        switch -exact -- $mode {
-            tclhttpd {
-                ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
-            }
-            embedded {
-                ::WS::Embeded::ReturnData $sock text/xml $xml 500
-            }
-            rivet {
-                headers type text/xml
-                headers numeric 500
-                puts $xml
-            }
-        }
-        return;
+    set legacyRpcMode 0
+    if {$requestMessage == ""} {
+        # older RPC/Encoded clients need to try nodeName instead.
+        # Python pySoap needs this.
+        catch {$top nodeName} requestMessage
+        set legacyRpcMode 1
     }
-    set operation [string range $requestMessage 0 end-7]
+    ::log::log debug "requestMessage = {$requestMessage}"
+    if {[string match {*Request} $requestMessage]} {
+        set operation [string range $requestMessage 0 end-7]
+    } else {
+        # broken clients might not have sent the correct Document Wrapped name.
+        # Python pySoap and Perl SOAP::Lite need this.
+        set operation $requestMessage
+        set legacyRpcMode 1
+    }
+
+
+    ##
+    ## Check that the method exists.
+    ##
     if {![dict exists $procInfo $service op$operation argList]} {
         set msg "Method $operation not found"
         ::log::log error $msg
@@ -1003,54 +1003,80 @@ proc ::WS::Server::callOperation {service sock args} {
     set baseName $operation
     set cmdName op$baseName
     set methodName "${ns}::$baseName"
-    set tclArgList {}
+
+    ##
+    ## Parse the arguments for the method.
+    ##
     set argInfo [dict get $procInfo $ns $cmdName argList]
     if {[catch {
-        foreach argName [dict get $procInfo $ns $cmdName argOrder] {
-            set argType [string trim [dict get $argInfo $argName type]]
-            set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
-            set path $service:$argName
-            set node [$top selectNodes $path]
-            if {[string equal $node {}]} {
-                lappend tclArgList {}
-                continue
-            }
-            switch $typeInfoList {
-                {0 0} {
-                    ##
-                    ## Simple non-array
-                    ##
-                    lappend tclArgList [$node asText]
+        foreach pass [list 1 2 3] {
+            set tclArgList {}
+            set gotAnyArgs 0
+            set argIndex 0
+            foreach argName [dict get $procInfo $ns $cmdName argOrder] {
+                set argType [string trim [dict get $argInfo $argName type]]
+                set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+                if {$pass == 1} {
+                    # access arguments by name using full namespace
+                    set path $service:$argName
+                    set node [$top selectNodes $path]
+                } elseif {$pass == 2} {
+                    # legacyRpcMode only, access arguments by unqualified name
+                    set path $argName
+                    set node [$top selectNodes $path]
+                } else {
+                    # legacyRpcMode only, access arguments by index
+                    set path "legacy argument index $argIndex"
+                    set node [lindex [$top childNodes] $argIndex]
+                    incr argIndex
                 }
-                {0 1} {
-                    ##
-                    ## Simple array
-                    ##
-                    set tmp {}
-                    foreach row $node {
-                        lappend tmp [$row asText]
+                if {[string equal $node {}]} {
+                    ::log::log debug "did not find argument for $argName using $path, leaving blank"
+                    lappend tclArgList {}
+                    continue
+                }
+                ::log::log debug "found argument $argName using $path, processing $node"
+                set gotAnyArgs 1
+                switch $typeInfoList {
+                    {0 0} {
+                        ##
+                        ## Simple non-array
+                        ##
+                        lappend tclArgList [$node asText]
                     }
-                    lappend tclArgList $tmp
-                }
-                {1 0} {
-                    ##
-                    ## Non-simple non-array
-                    ##
-                    lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
-                }
-                {1 1} {
-                    ##
-                    ## Non-simple array
-                    ##
-                    set tmp {}
-                    set argType [string trimright $argType {()}]
-                    foreach row $node {
-                        lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                    {0 1} {
+                        ##
+                        ## Simple array
+                        ##
+                        set tmp {}
+                        foreach row $node {
+                            lappend tmp [$row asText]
+                        }
+                        lappend tclArgList $tmp
                     }
-                    lappend tclArgList $tmp
+                    {1 0} {
+                        ##
+                        ## Non-simple non-array
+                        ##
+                        lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
+                    }
+                    {1 1} {
+                        ##
+                        ## Non-simple array
+                        ##
+                        set tmp {}
+                        set argType [string trimright $argType {()}]
+                        foreach row $node {
+                            lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                        }
+                        lappend tclArgList $tmp
+                    }
                 }
             }
+            ::log::log debug "gotAnyArgs $gotAnyArgs, legacyRpcMode $legacyRpcMode"
+            if {$gotAnyArgs || !$legacyRpcMode} break
         }
+        ::log::log debug "finalargs $tclArgList"
     } errMsg]} {
         ::log::log error $errMsg
         set localerrorCode $::errorCode
@@ -1076,11 +1102,19 @@ proc ::WS::Server::callOperation {service sock args} {
         }
         return;
     }
+
+    ##
+    ## Run the premonitor hook, if necessary.
+    ##
     if {[info exists serviceInfo(-premonitor)] && [string length $serviceInfo(-premonitor)]} {
         set precmd $serviceInfo(-premonitor)
         lappend precmd PRE $service $operation $tclArgList
         catch $precmd
     }
+
+    ##
+    ## Convert the HTTP request headers.
+    ##
     set headerList {}
     foreach headerType $serviceInfo(-inheaders) {
         if {[string equal $headerType {}]} {
@@ -1090,6 +1124,10 @@ proc ::WS::Server::callOperation {service sock args} {
             lappend headerList [::WS::Utils::convertTypeToDict Server $service $node $headerType $top]
         }
     }
+
+    ##
+    ## Actually execute the method.
+    ##
     if {[catch {
         set cmd $serviceInfo(-checkheader)
         lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList
