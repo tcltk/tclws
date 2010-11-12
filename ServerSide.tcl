@@ -108,11 +108,14 @@ namespace eval ::WS::Server {
 #                                   embedded  -- using the ::WS::Embedded package
 #                                   aolserver -- using the ::WS::AolServer package
 #                                   wub       -- using the ::WS::Wub package
+#                                   rivet     -- running inside Rivet
 #               -ports          - List of ports for embedded mode. Default: 80
 #                                               NOTE -- a call should be to
 #                                                      ::WS::Embedded::Listen
 #                                                      for each port in this
 #                                                      list prior to this call
+#               -prefix         - Path prefix used for the namespace and endpoint
+#                                 Defaults to "/service/" plus the service name
 #
 #
 # Returns :     Nothing
@@ -169,10 +172,12 @@ proc ::WS::Server::Service {args} {
         return \
             -code error \
             -errorcode [list WSSERVER MISSREQARG $missingList] \
-            "Missing required arguements '[join $missingList {,}]'"
+            "Missing required arguments '[join $missingList {,}]'"
     }
     set service $defaults(-service)
-    set defaults(-prefix) /service/$service
+    if {![info exists defaults(-prefix)]} {
+        set defaults(-prefix) /service/$service
+    }
     set defaults(-uri) $service
     namespace eval ::$service {}
     set serviceArr($service) [array get defaults]
@@ -209,6 +214,9 @@ proc ::WS::Server::Service {args} {
                 -code error
                 -errorcode [list WSSERVER UNSUPMODE $mode] \
                 "-mode '$mode' not supported"
+        }
+        rivet {
+            package require Rivet
         }
         default {
             return \
@@ -620,6 +628,11 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
+            rivet {
+                headers type text/html
+                headers numeric 404
+                puts "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+            }
         }
         return 1
     }
@@ -632,6 +645,12 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         }
         embedded {
             ::WS::Embeded::ReturnData $sock text/xml $xml 200
+        }
+        rivet {
+            set xml [GetWsdl $serviceName]
+            headers type text/xml
+            headers numeric 200
+            puts $xml
         }
     }
 }
@@ -749,6 +768,11 @@ proc ::WS::Server::generateInfo {service sock args} {
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
+            rivet {
+                headers type "text/html; charset=UTF-8"
+                headers numeric 404
+                puts "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+            }
         }
         return 1
     }
@@ -798,6 +822,11 @@ proc ::WS::Server::generateInfo {service sock args} {
         }
         embedded {
             ::WS::Embeded::ReturnData $sock text/html $msg 200
+        }
+        rivet {
+            headers numeric 200
+            headers type text/html
+            puts $msg
         }
     }
 
@@ -936,6 +965,11 @@ proc ::WS::Server::callOperation {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
             }
+            rivet {
+                headers type text/xml
+                headers numeric 500
+                puts $xml
+            }
         }
         return;
     }
@@ -957,6 +991,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
+            }
+            rivet {
+                headers type text/xml
+                headers numeric 500
+                puts $xml
             }
         }
         return;
@@ -1029,6 +1068,11 @@ proc ::WS::Server::callOperation {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
             }
+            rivet {
+                headers type text/xml 
+                headers numeric 500
+                puts $xml
+            }
         }
         return;
     }
@@ -1070,6 +1114,11 @@ proc ::WS::Server::callOperation {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 200
             }
+            rivet {
+                headers type text/xml
+                headers numeric 200
+                puts $xml
+            }
         }
     } msg]} {
         ##
@@ -1095,6 +1144,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
+            }
+            rivet {
+                headers type text/xml
+                headers numeric 500
+                puts $xml
             }
         }
         return;
