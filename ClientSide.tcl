@@ -799,11 +799,12 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     foreach serviceInfo [buildServiceInfo $wsdlNode $serviceInfo $serviceAlias] {
         set serviceName [dict get $serviceInfo name]
-        set serviceArr($serviceName) $serviceInfo
 
         if {[llength $defaults(-headers)]} {
             dict set serviceInfo headers $defaults(-headers)
         }
+
+        set serviceArr($serviceName) $serviceInfo
 
         if {$defaults(-createStubs)} {
             catch {namespace delete $serviceName}
