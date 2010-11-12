@@ -2326,7 +2326,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 parseSimpleType $mode results $serviceName $node $tns
                 return
             }
-            defualt {
+            default {
                 parseElementalType $mode results $serviceName $node $tns
                 return
             }
