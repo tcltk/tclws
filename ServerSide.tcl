@@ -1644,13 +1644,17 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         ::log::log debug "\t\tDisplaying '$oper'"
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
 
-        append msg [::html::h4 {Description}] "\n<ul>\n"
+        append msg [::html::h4 {Description}] "\n"
         
+        append msg [::html::openTag div {style="margin-left: 40px;"}]
         append msg [::html::nl2br [dict get $procInfo $service op$oper docs]]
+        append msg [::html::closeTag]
 
-        append msg "\n</ul>\n"
+        append msg "\n"
 
-        append msg [::html::h4 {Inputs}] "\n<ul>\n"
+        append msg [::html::h4 {Inputs}] "\n"
+
+        append msg [::html::openTag div {style="margin-left: 40px;"}]
         append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Name Type Description]
         foreach arg [dict get $procInfo $service op$oper argOrder] {
@@ -1667,10 +1671,12 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
                        ]
         }
         append msg [::html::closeTag]
-        append msg "\n</ul>\n"
+        append msg [::html::closeTag]
 
         ::log::log debug "\t\tReturns"
-        append msg [::html::h4 {Returns}] "\n<ul>\n"
+        append msg [::html::h4 {Returns}] "\n"
+
+        append msg [::html::openTag div {style="margin-left: 40px;"}]
         append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Type Description]
         if {[dict exists $procInfo $service op$oper returnInfo comment]} {
@@ -1683,7 +1689,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
                         $comment \
                    ]
         append msg [::html::closeTag]
-        append msg "\n</ul>\n"
+        append msg [::html::closeTag]
 
         append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
         append msg "\n<hr/>\n"
