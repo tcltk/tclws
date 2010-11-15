@@ -9,7 +9,7 @@ package require log
 ::log::lvChannelForall stderr
 ::log::lvSuppress debug 0
 
-set serviceName "wsExamples"
+set serviceName "wsEchoExample"
 
 ###########################################################################
 
