@@ -1541,12 +1541,12 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
 
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
 
+    set serviceInfo $serviceArr($serviceName)
     set outTransform [dict get $serviceInfo outTransform]
     if {![string equal $outTransform {}} {
         set query [$outTransform $serviceName $operationName REPLY $inXML]
     }
 
-    set serviceInfo $serviceArr($serviceName)
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
     dom parse $inXML doc
     $doc documentElement top
@@ -2032,6 +2032,8 @@ proc ::WS::Client::buildServiceInfo {wsdlNode {serviceInfo {}} {serviceAlias {}}
 #
 ###########################################################################
 proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
+    variable serviceArr
+
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
     } else {
@@ -2059,6 +2061,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
     }
 
     CreateService $serviceName WSDL $location
+    set serviceInfo $serviceArr($serviceName)
     set bindingName [lindex [split [$portNode getAttribute binding] {:}] end]
 
     ##
@@ -2074,6 +2077,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
     ##
     ## All done, so return results
     ##
+    set serviceArr($serviceName) $serviceInfo
     return $serviceInfo
 }
 
