@@ -116,6 +116,8 @@ namespace eval ::WS::Server {
 #                                                      list prior to this call
 #               -prefix         - Path prefix used for the namespace and endpoint
 #                                 Defaults to "/service/" plus the service name
+#               -traceEnabled   - Boolean to enable/disable trace being passed back in exception
+#                                 Defaults to "Y"
 #
 #
 # Returns :     Nothing
@@ -159,6 +161,7 @@ proc ::WS::Server::Service {args} {
         -description    {}
         -mode           {tclhttpd}
         -ports          {80}
+        -traceEnabled   {Y}
     }
     array set defaults $args
     set requiredList {-host -service}
@@ -996,6 +999,7 @@ proc ::WS::Server::callOperation {service sock args} {
         set ::errorInfo {}
         set ::errorCode [list Server UNKNOWN_METHOD $operation]
         set xml [generateError \
+                    $serviceInfo(-traceEnabled) \
                     CLIENT \
                     $msg \
                     [list "errorCode" $::errorCode "stackTrace" $::errorInfo]]
@@ -1098,6 +1102,7 @@ proc ::WS::Server::callOperation {service sock args} {
         set localerrorCode $::errorCode
         set localerrorInfo $::errorInfo
         set xml [generateError \
+                    $serviceInfo(-traceEnabled) \
                     CLIENT \
                     "Error Parsing Arguments -- $errMsg" \
                     [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo]]
@@ -1111,7 +1116,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
             }
             rivet {
-                headers type text/xml 
+                headers type text/xml
                 headers numeric 500
                 puts $xml
             }
@@ -1187,6 +1192,7 @@ proc ::WS::Server::callOperation {service sock args} {
             catch $precmd
         }
         set xml [generateError \
+                    $serviceInfo(-traceEnabled) \
                     CLIENT \
                     $msg \
                     [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo]]
@@ -1222,9 +1228,10 @@ proc ::WS::Server::callOperation {service sock args} {
 # Description : Generate a standard error packet
 #
 # Arguments :
+#    includeTrace       - Boolean indicate if the trace is to be included.
 #    faultcode          - The code describing the error
 #    faultstring        - The string describing the error.
-#    detail             - Optional details of error.  Defaults to the empty string.
+#    detail             - Optional details of error.
 #
 # Returns : XML formatted standard error packet
 #
@@ -1248,7 +1255,7 @@ proc ::WS::Server::callOperation {service sock args} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateError {faultcode faultstring {detail {}}} {
+proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
     ::log::log debug "Entering ::WS::Server::generateError $faultcode $faultstring {$detail}"
     set code [lindex $detail 1]
     switch -exact -- $code {
@@ -1285,6 +1292,9 @@ proc ::WS::Server::generateError {faultcode faultstring {detail {}}} {
         $dtl setAttribute "xmlns:e" "urn:TclErrorInfo"
 
         foreach {detailName detailInfo} $detail {
+            if {!$includeTrace && $detailName == "stackTrace"} {
+                continue
+            }
             $dtl appendChild [$doc createElement $detailName err]
             $err appendChild [$doc createTextNode $detailInfo]
         }
