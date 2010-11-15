@@ -1499,6 +1499,7 @@ proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
     }
     set head $serviceData(-htmlhead)
     set msg [::html::head $head]
+    append msg [::html::bodyTag]
 
     array unset serviceData -service
     if {[info exists serviceData(-description)]} {
