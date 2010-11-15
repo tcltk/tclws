@@ -894,7 +894,7 @@ proc ::WS::Server::displayType {serviceName type} {
         ([info exists ::WS::Utils::simpleTypes($testType)])} {
         set result $type
     } else {
-        set result [format {<A HREF="#type_%1$s">%2$s</A>} $testType $type]
+        set result [format {<a href="#type_%1$s">%2$s</a>} $testType $type]
     }
     return $result
 }
@@ -1504,19 +1504,19 @@ proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
     if {[info exists serviceData(-description)]} {
         set serviceData(-description) [::html::nl2br $serviceData(-description)]
     }
-    set wsdl [format {<A HREF="%s/%s">WSDL(xml)</A>} $serviceData(-prefix) wsdl]
-    append msg [::html::openTag Center] [::html::h1 "$head -- $wsdl"] [::html::closeTag] \
-               [::html::openTag Table {border=2}]
+    set wsdl [format {<a href="%s/%s">WSDL(xml)</a>} $serviceData(-prefix) wsdl]
+    append msg [::html::openTag center] [::html::h1 "$head -- $wsdl"] [::html::closeTag] \
+               [::html::openTag table {border="2"}]
 
     foreach key [lsort -dictionary [array names serviceData]] {
         if {[string equal $serviceData($key) {}]} {
-            append msg [::html::row [string range $key 1 end] {<I>N/A</I>}]
+            append msg [::html::row [string range $key 1 end] {<i>N/A</i>}]
         } else {
             append msg [::html::row [string range $key 1 end] $serviceData($key)]
         }
     }
     append msg [::html::closeTag] \
-               "\n<HR>\n"
+               "\n<hr/>\n"
 
     return $msg
 }
@@ -1578,8 +1578,8 @@ proc ::WS::Server::generateTocInfo {serviceInfo menuList} {
     }
     append msg [::html::minorList $operList]
 
-    append msg "\n<BR>\n<CENTER>" [::html::minorMenu $menuList] "</CENTER>"
-    append msg "\n<HR>\n"
+    append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
+    append msg "\n<hr/>\n"
 
     return $msg
 }
@@ -1643,12 +1643,14 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         ::log::log debug "\t\tDisplaying '$oper'"
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
 
-        append msg [::html::h4 {Description}] "\n<UL>\n"
+        append msg [::html::h4 {Description}] "\n<ul>\n"
+        
         append msg [::html::nl2br [dict get $procInfo $service op$oper docs]]
-        append msg "\n</UL>\n"
 
-        append msg [::html::h4 {Inputs}] "\n<UL>\n"
-        append msg [::html::openTag {Table} {border=2}]
+        append msg "\n</ul>\n"
+
+        append msg [::html::h4 {Inputs}] "\n<ul>\n"
+        append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Name Type Description]
         foreach arg [dict get $procInfo $service op$oper argOrder] {
             ::log::log debug "\t\t\tDisplaying '$arg'"
@@ -1664,11 +1666,11 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
                        ]
         }
         append msg [::html::closeTag]
-        append msg "\n</UL>\n"
+        append msg "\n</ul>\n"
 
         ::log::log debug "\t\tReturns"
-        append msg [::html::h4 {Returns}] "\n<UL>\n"
-        append msg [::html::openTag {Table} {border=2}]
+        append msg [::html::h4 {Returns}] "\n<ul>\n"
+        append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Type Description]
         if {[dict exists $procInfo $service op$oper returnInfo comment]} {
             set comment [dict get $procInfo $service op$oper returnInfo comment]
@@ -1680,15 +1682,15 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
                         $comment \
                    ]
         append msg [::html::closeTag]
-        append msg "\n</UL>\n"
+        append msg "\n</ul>\n"
 
-        append msg "\n<BR>\n<CENTER>" [::html::minorMenu $menuList] "</CENTER>"
-        append msg "\n<HR>\n"
+        append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
+        append msg "\n<hr/>\n"
     }
 
     if {![llength $operList]} {
-        append msg "\n<BR>\n<CENTER>" [::html::minorMenu $menuList] "</CENTER>"
-        append msg "\n<HR>\n"
+        append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
+        append msg "\n<hr/>\n"
     }
 
     return $msg
@@ -1752,7 +1754,7 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
         set typeOverloadArray($type) 1
         append msg [::html::h3 "<a id='type_$type'>$type</a>"]
         set typeDetails [dict get $localTypeInfo $type definition]
-        append msg [::html::openTag {Table} {border=2}]
+        append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Field Type]
         foreach part [lsort -dictionary [dict keys $typeDetails]] {
             ::log::log debug "\t\t\tDisplaying '$part'"
@@ -1764,8 +1766,8 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
         append msg [::html::closeTag]
     }
 
-    append msg "\n<BR>\n<CENTER>" [::html::minorMenu $menuList] "</CENTER>"
-    append msg "\n<HR>\n"
+    append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
+    append msg "\n<hr/>\n"
 
     return $msg
 }
@@ -1821,14 +1823,14 @@ proc ::WS::Server::generateSimpleTypeInfo {serviceInfo menuList} {
     set service [dict get $serviceInfo -service]
     append msg [::html::h2 {<a id='SimpleTypeDetails'>Simple Types</a>}]
 
-    append msg "\n<BR>\n<CENTER>" [::html::minorMenu $menuList] "</CENTER>"
+    append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
     set localTypeInfo [::WS::Utils::GetServiceSimpleTypeDef Server $service]
     foreach typeDetails [lsort -dictionary -index 0 $localTypeInfo] {
         set type [lindex $typeDetails 0]
         ::log::log debug "\t\tDisplaying '$type'"
         set typeOverloadArray($type) 1
         append msg [::html::h3 "<a id='type_$type'>$type</a>"]
-        append msg [::html::openTag {Table} {border=2}]
+        append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Attribute Value]
         foreach part [lsort -dictionary [dict keys [lindex $typeDetails 1]]] {
             ::log::log debug "\t\t\tDisplaying '$part'"
@@ -1839,7 +1841,7 @@ proc ::WS::Server::generateSimpleTypeInfo {serviceInfo menuList} {
         }
         append msg [::html::closeTag]
     }
-    append msg "\n<HR>\n"
+    append msg "\n<hr/>\n"
 
     return $msg
 }
