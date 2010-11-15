@@ -1543,7 +1543,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
 
     set serviceInfo $serviceArr($serviceName)
     set outTransform [dict get $serviceInfo outTransform]
-    if {![string equal $outTransform {}} {
+    if {![string equal $outTransform {}]} {
         set query [$outTransform $serviceName $operationName REPLY $inXML]
     }
 
@@ -1704,7 +1704,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
     }
 
     set inTransform [dict get $serviceInfo inTransform]
-    if {![string equal $inTransform {}} {
+    if {![string equal $inTransform {}]} {
         set query [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 

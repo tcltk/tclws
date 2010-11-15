@@ -321,6 +321,7 @@ proc ::WS::Utils::SetOption {args} {
 #
 ###########################################################################
 proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}}} {
+    ::log::log debug [info level 0]
     variable typeInfo
 
     if {![string length $xns]} {
@@ -1909,7 +1910,7 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
 #
 ###########################################################################
 proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVar tnsCountVar} {
-    ::log::log debug "Entering! parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
+    ::log::log debug "Entering :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
 
     upvar $tnsCountVar tnsCount
     upvar $serviceInfoVar serviceInfo
@@ -1917,13 +1918,14 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     variable nsList
     variable options
 
-    if {[dict exists $serviceInfo targetNamespace]} {
-        foreach pair [dict get $serviceInfo targetNamespace] {
-            if {[string equal $baseUrl [lindex $pair 1]]} {
-                return
-            }
-        }
-    }
+    #if {[dict exists $serviceInfo targetNamespace]} {
+    #    foreach pair [dict get $serviceInfo targetNamespace] {
+    #        if {[string equal $baseUrl [lindex $pair 1]]} {
+    #            ::log::log debug "\t Already definec"
+    #            return
+    #        }
+    #    }
+    #}
     set currentSchema $schemaNode
     if {[$schemaNode hasAttribute targetNamespace]} {
         set xns [$schemaNode getAttribute targetNamespace]
