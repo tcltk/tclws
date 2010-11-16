@@ -118,6 +118,8 @@ namespace eval ::WS::Server {
 #                                 Defaults to "/service/" plus the service name
 #               -traceEnabled   - Boolean to enable/disable trace being passed back in exception
 #                                 Defaults to "Y"
+#               -docFormat      - Format of the documentation for operations ("text" or "html").
+#                                 Defaults to "text"
 #
 #
 # Returns :     Nothing
@@ -162,6 +164,7 @@ proc ::WS::Server::Service {args} {
         -mode           {tclhttpd}
         -ports          {80}
         -traceEnabled   {Y}
+        -docFormat      {text}
     }
     array set defaults $args
     set requiredList {-host -service}
@@ -1640,6 +1643,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
     }
     append msg [::html::h2 {<a id='OperDetails'>Operation Details</a>}]
 
+    set docFormat [dict get $serviceInfo -docFormat]
     foreach {oper anchor} $operList {
         ::log::log debug "\t\tDisplaying '$oper'"
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
@@ -1647,7 +1651,15 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         append msg [::html::h4 {Description}] "\n"
         
         append msg [::html::openTag div {style="margin-left: 40px;"}]
-        append msg [::html::nl2br [dict get $procInfo $service op$oper docs]]
+        switch $docFormat {
+            "html" {
+                append msg [dict get $procInfo $service op$oper docs]
+            }
+            "text" -
+            default {
+                append msg [::html::nl2br [::html::html_entities [dict get $procInfo $service op$oper docs]]]
+            }
+        }
         append msg [::html::closeTag]
 
         append msg "\n"
