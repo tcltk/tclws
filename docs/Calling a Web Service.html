@@ -26,19 +26,23 @@
         <LI class=toclevel-1><A href="#Loading_a_pre-parsed_WSDL"><SPAN
         class=tocnumber>5</SPAN> <SPAN class=toctext>Loading a pre-parsed
         WSDL</SPAN></A>
-        <LI class=toclevel-1><A href="#Defining_a_REST_service"><SPAN class=tocnumber>5</SPAN>
+        <LI class=toclevel-1><A href="#Defining_a_REST_service"><SPAN
+        class=tocnumber>6</SPAN>
         <SPAN class=toctext>Defining a REST based service by hand</SPAN></A>
+        <LI class=toclevel-1><A href="#Transforms"><SPAN
+        class=tocnumber>7</SPAN>
+        <SPAN class=toctext>Defining Transforms</SPAN></A>
         <LI class=toclevel-1><A href="#Synchronous_Call_returning_a_dictionary_object"><SPAN
-        class=tocnumber>6</SPAN> <SPAN class=toctext>Synchronous Call returning
+        class=tocnumber>8</SPAN> <SPAN class=toctext>Synchronous Call returning
         a dictionary object</SPAN></A>
         <LI class=toclevel-1><A href="#Asynchronous_Call_with_separate_success_and_error_callbacks"><SPAN
-        class=tocnumber>7</SPAN> <SPAN class=toctext>Asynchronous Call with
+        class=tocnumber>9</SPAN> <SPAN class=toctext>Asynchronous Call with
         separate success and error callbacks</SPAN></A>
         <LI class=toclevel-1><A href="#Creation_of_stub_Tcl_procedures_to_make_synchronous_calls"><SPAN
-        class=tocnumber>8</SPAN> <SPAN class=toctext>Creation of stub Tcl
+        class=tocnumber>10</SPAN> <SPAN class=toctext>Creation of stub Tcl
         procedures to make synchronous calls</SPAN></A>
         <LI class=toclevel-1><A href="#Synchronous_Call_returning_the_raw_XML"><SPAN
-        class=tocnumber>9</SPAN> <SPAN class=toctext>Synchronous Call returning
+        class=tocnumber>11</SPAN> <SPAN class=toctext>Synchronous Call returning
         the raw XML</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
 <P>
 
@@ -146,7 +150,7 @@ causes no ill effects to put this in each file using the utilties. </P>
 
 <A name=Defining_a_REST_service></A>
 <H2>Defining a REST based service by hand </H2>
-
+<BR>
 <H3>Service Definition</H3>
 <P><B>Procedure Name&nbsp;: <I>::WS::Client::CreateService</I></B> </P>
 <P><B>Description&nbsp;: Define a REST service</B> </P>
@@ -166,14 +170,6 @@ causes no ill effects to put this in each file using the utilties. </P>
 <H3>Method Definition</H3>
 <P><B>Procedure Name&nbsp;: <I>::WS::Client::DefineRestMethod</I></B> </P>
 <P><B>Description&nbsp;: Define a method on a REST service</B> </P>
-#       serviceName - Service name to add namespace to
-#       methodName  - The name of the method to add
-#       inputArgs   - List of input argument definitions where each argument
-#                       definition is of the format: name typeInfo
-#       returnType  - The type, if any returned by the procedure.  Format is:
-#                       xmlTag typeInfo
-#
-#  where, typeInfo is of the format {type typeName comment commentString}
 <P><B>Arguments&nbsp;:</B> </P><PRE>
      <I>serviceName</I> - Service name to add namespace to
      <I>methodName</I>  - The name of the method to add.
@@ -190,6 +186,32 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
 <HR>
 
+
+<A name=Transforms></A>
+<H2>Defining Transforms </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::SetServiceTransforms</I></B> </P>
+#       serviceName  - Service name to add namespace to
+#       inTransform  - Input transform, defaults to {}
+#       outTransform - Output transform, defaults to {}
+#
+# Returns :     None
+<P><B>Description&nbsp;: Define a service's transforms</B>
+<PRE>
+               Transform signature is:
+                   cmd serviceName operationName <I>transformType</I> xml {url {}} {argList {}}
+               where <I>transformType</I> is <B>REQUEST</B> or <B>REPLY</B>
+               and url and argList will only be present for <I>transformType</I> == <B>REQUEST</B>
+</PRE> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I>  - The name of the Webservice
+     <I>inTransform</I>  - Input transform <I>cmd</I>, defaults to {}
+     <I>outTransform</I> - Output transform<I>cmd</I>, defaults to {}
+</PRE>
+<P><B>Returns&nbsp;: None</B></P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+<HR>
 
 <A name=Synchronous_Call_returning_a_dictionary_object></A>
 <H2>Synchronous Call returning a dictionary object </H2>
