@@ -108,7 +108,7 @@ namespace eval ::WS::Server {
 #                                   embedded  -- using the ::WS::Embedded package
 #                                   aolserver -- using the ::WS::AolServer package
 #                                   wub       -- using the ::WS::Wub package
-#                                   rivet     -- running inside Rivet
+#                                   rivet     -- running inside Apache Rivet (mod_rivet)
 #               -ports          - List of ports for embedded mode. Default: 80
 #                                               NOTE -- a call should be to
 #                                                      ::WS::Embedded::Listen
