@@ -73,10 +73,10 @@ namespace eval ::WS::Server {
 #                 /service/<ServiceName>/op
 #                       Invoke an operation
 #
-# Arguments : this procedure uses position independed arguments, the are:
-#               -host           - The host name for this serice
+# Arguments : this procedure uses position independent arguments, they are:
+#               -host           - The host name for this service
 #                                       Defaults to "localhost"
-#               -decription     - The HTML description for this service
+#               -description    - The HTML description for this service
 #               -service        - The service name (this will also be used for
 #                                 the Tcl namespace of the procedures that implement
 #                                 the operations.
@@ -102,8 +102,8 @@ namespace eval ::WS::Server {
 #                                           soap_header_list
 #               -mode           - Mode that service is running in.  Must be one of:
 #                                   tclhttpd  -- running inside of tclhttpd or an
-#                                                evironment that supplies a
-#                                                compatilbe Url_PrefixInstall
+#                                                environment that supplies a
+#                                                compatible Url_PrefixInstall
 #                                                and Httpd_ReturnData commands
 #                                   embedded  -- using the ::WS::Embedded package
 #                                   aolserver -- using the ::WS::AolServer package
@@ -125,7 +125,7 @@ namespace eval ::WS::Server {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       MISSREQARG -- Missing required arguements
+#       MISSREQARG -- Missing required arguments
 #
 # Pre-requisite Conditions : None
 #
@@ -279,7 +279,7 @@ proc ::WS::Server::Service {args} {
 # Procedure Name : ::WS::Server::ServiceProc
 #
 # Description : Register an operation for a service and declare the procedure to handle
-#               the oeprations.
+#               the operations.
 #
 # Arguments :
 #       ServiceName     -- Name of the service this operation is for
@@ -303,7 +303,7 @@ proc ::WS::Server::Service {args} {
 # Returns :     Nothing
 #
 # Side-Effects :
-#       A proceedure named "<ServiceName>::<OperationName>" defined
+#       A procedure named "<ServiceName>::<OperationName>" defined
 #       A type name with the name <OperationName>Result is defined.
 #
 # Exception Conditions : None
@@ -328,7 +328,7 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
     variable procInfo
 
     set name [lindex $nameInfo 0]
-    ::log::log debug "Defining opertaion $name for $service"
+    ::log::log debug "Defining operation $name for $service"
     set argOrder {}
     ::log::log debug "\targs are {$arglist}"
     foreach {arg data} $arglist {
@@ -866,7 +866,7 @@ proc ::WS::Server::generateInfo {service sock args} {
 #       serviceName     - The name of the service
 #       type            - The type
 #
-# Returns : Formated type information.
+# Returns : Formatted type information.
 #
 # Side-Effects : None
 #
@@ -1319,7 +1319,7 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
 #
 # Procedure Name : :WS::Server::generateReply
 #
-# Description : Generate the reply packet for an opearation
+# Description : Generate the reply packet for an operation
 #
 # Arguments :
 #    serviceName         - The name of the service
