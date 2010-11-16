@@ -272,7 +272,7 @@ proc ::WS::Client::GetServiceTransforms {serviceName} {
 #
 #  where, typeInfo is of the format {type typeName comment commentString}
 #
-# Returns :     The local alias (tns)
+# Returns :     The current service definition
 #
 # Side-Effects :        None
 #

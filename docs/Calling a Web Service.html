@@ -26,6 +26,8 @@
         <LI class=toclevel-1><A href="#Loading_a_pre-parsed_WSDL"><SPAN
         class=tocnumber>5</SPAN> <SPAN class=toctext>Loading a pre-parsed
         WSDL</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_a_REST_service"><SPAN class=tocnumber>5</SPAN>
+        <SPAN class=toctext>Defining a REST based service by hand</SPAN></A>
         <LI class=toclevel-1><A href="#Synchronous_Call_returning_a_dictionary_object"><SPAN
         class=tocnumber>6</SPAN> <SPAN class=toctext>Synchronous Call returning
         a dictionary object</SPAN></A>
@@ -51,6 +53,7 @@ operations. It also includes several ways to call an operation. </P>
   <LI>Loading a pre-parsed WSDL
   <LI>Quering a remote Web Services Server for its WSDL and parsing it
   <LI>Parsing a saved WSDL </LI></UL>
+  <LI>Defining a REST based service by hand </LI></UL>
 <P>The parsed format is much more compact than the XML of a WSDL. </P>
 <P>The following ways are provided to directly call an operation of a Web
 Service Server: </P>
@@ -141,6 +144,53 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
 <HR>
 
+<A name=Defining_a_REST_service></A>
+<H2>Defining a REST based service by hand </H2>
+
+<H3>Service Definition</H3>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::CreateService</I></B> </P>
+<P><B>Description&nbsp;: Define a REST service</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I> - Service name to add namespace to
+     <I>type</I>        - The type of service, currently only <B>REST</B> is supported.
+     <I>url</I>          - URL of namespace.
+     <I>args</I>         - Optional arguments:
+                            This is an optional argument and defaults to the name of the
+                                <I>-header</I> httpHeaderList.
+</PRE>
+<P><B>Returns&nbsp;: The local alias (tns)</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+
+<H3>Method Definition</H3>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::DefineRestMethod</I></B> </P>
+<P><B>Description&nbsp;: Define a method on a REST service</B> </P>
+#       serviceName - Service name to add namespace to
+#       methodName  - The name of the method to add
+#       inputArgs   - List of input argument definitions where each argument
+#                       definition is of the format: name typeInfo
+#       returnType  - The type, if any returned by the procedure.  Format is:
+#                       xmlTag typeInfo
+#
+#  where, typeInfo is of the format {type typeName comment commentString}
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I> - Service name to add namespace to
+     <I>methodName</I>  - The name of the method to add.
+     <I>inputArgs</I>   - List of input argument definitions where each argument
+                           definition is of the format: name typeInfo.
+     <I>returnType</I>  - The type, if any returned by the procedure.  Format is:
+                           xmlTag <I>typeInfo</I>.
+
+    where, <I>typeInfo</I> is of the format <B>{</B>type typeName comment commentString<B>}</B>
+</PRE>
+<P><B>Returns&nbsp;: The current service definition </B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+
 <A name=Synchronous_Call_returning_a_dictionary_object></A>
 <H2>Synchronous Call returning a dictionary object </H2>
 <P><B>Procedure Name&nbsp;: <I>::WS::Client::DoCall</I></B> </P>
@@ -159,9 +209,7 @@ causes no ill effects to put this in each file using the utilties. </P>
 </PRE>
 <P><B>Returns&nbsp;:</B> </P>
 <PRE>     The return value of the operation as a dictionary object.
-<PRE>     The return value of the operation as a dictionary object.
        This includes both the return result and any return headers.
-</PRE>
 </PRE>
 <P><B>Side-Effects&nbsp;: None</B> </P>
 <P><B>Exception Conditions&nbsp;:</B> </P><PRE>     <B>WSCLIENT HTTPERROR</B>      - if an HTTP error occured
