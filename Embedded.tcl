@@ -37,7 +37,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Embeded 1.1.2
+package provide WS::Embeded 1.2.0
 
 namespace eval ::WS::Embeded {
 

@@ -8,7 +8,7 @@
 # script is sourced, the variable $dir must contain the
 # full path name of this file's directory.
 
-package ifneeded WS::Client 1.1.2 [list source [file join $dir ClientSide.tcl]]
-package ifneeded WS::Server 1.1.2 [list source [file join $dir ServerSide.tcl]]
-package ifneeded WS::Utils 1.1.2 [list source [file join $dir Utilities.tcl]]
-package ifneeded WS::Embeded 1.1.2 [list source [file join $dir Embedded.tcl]]
+package ifneeded WS::Client 1.2.0 [list source [file join $dir ClientSide.tcl]]
+package ifneeded WS::Server 1.2.0 [list source [file join $dir ServerSide.tcl]]
+package ifneeded WS::Utils 1.2.0 [list source [file join $dir Utilities.tcl]]
+package ifneeded WS::Embeded 1.2.0 [list source [file join $dir Embedded.tcl]]

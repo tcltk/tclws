@@ -43,7 +43,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::AolServer 1.1.2
+package provide WS::AolServer 1.2.0
 
 namespace eval ::WS::AolServer {
 
