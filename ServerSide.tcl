@@ -109,7 +109,13 @@ namespace eval ::WS::Server {
 #                                   aolserver -- using the ::WS::AolServer package
 #                                   wub       -- using the ::WS::Wub package
 #                                   rivet     -- running inside Apache Rivet (mod_rivet)
-#               -ports          - List of ports for embedded mode. Default: 80
+#                                   channel   -- use a channel pair, WSDL is return if no XML
+#                                                otherwise an operation is called
+#               -ports          - List of ports.  Only valid for embedded and channel mode
+#                                   For chanel mode. Defaults to {stdin stdout}
+#                                               NOTE -- a call should be to
+#                                                      ::WS::Channel::Start to process data
+#                                   For embedded mode. Default: 80
 #                                               NOTE -- a call should be to
 #                                                      ::WS::Embedded::Listen
 #                                                      for each port in this
@@ -167,6 +173,10 @@ proc ::WS::Server::Service {args} {
         -docFormat      {text}
     }
     array set defaults $args
+    if {[string equal $defaults(-mode) channel]} {
+        set defaults(-ports) {stdin stdout}
+        array set defaults $args
+    }
     set requiredList {-host -service}
     set missingList {}
     foreach opt $requiredList {
@@ -242,6 +252,10 @@ proc ::WS::Server::Service {args} {
                 ::WS::Embeded::AddHandler $port $defaults(-prefix)/wsdl ::WS::Server::generateWsdl_${service}
             }
         }
+        channel {
+            package require WS::Channel
+            ::WS::Channel::AddHandler $defaults(-ports) {} ::WS::Server::generateWsdl_${service}
+        }
         tclhttpd {
             ::Url_PrefixInstall $defaults(-prefix)/wsdl ::WS::Server::generateWsdl_${service} \
                 -thread 0
@@ -259,6 +273,10 @@ proc ::WS::Server::Service {args} {
             foreach port $defaults(-ports) {
                 ::WS::Embeded::AddHandler $port $defaults(-prefix)/op ::WS::Server::callOperation_${service}
             }
+        }
+        channel {
+            package require WS::Channel
+            ::WS::Channel::AddHandler $defaults(-ports) {op} ::WS::Server::callOperation_${service}
         }
         tclhttpd {
             ::Url_PrefixInstall $defaults(-prefix)/op ::WS::Server::callOperation_${service} \
@@ -639,6 +657,13 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
+            channel {
+                ::WS::Channel::ReturnData \
+                    $sock \
+                    text/html \
+                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                    404
+            }
             rivet {
                 headers type text/html
                 headers numeric 404
@@ -660,6 +685,10 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             }
             set xml [GetWsdl $serviceName $urlPrefix]
             ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
+        }
+        channel {
+            set xml [GetWsdl $serviceName]
+            ::WS::Channel::ReturnData $sock text/xml $xml 200
         }
         embedded {
             set xml [GetWsdl $serviceName]
@@ -787,6 +816,13 @@ proc ::WS::Server::generateInfo {service sock args} {
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
+            channel {
+                ::WS::Channel::ReturnData \
+                    $sock \
+                    text/html \
+                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                    404
+            }
             rivet {
                 headers type "text/html; charset=UTF-8"
                 headers numeric 404
@@ -841,6 +877,9 @@ proc ::WS::Server::generateInfo {service sock args} {
         }
         embedded {
             ::WS::Embeded::ReturnData $sock text/html $msg 200
+        }
+        channel {
+            ::WS::Channel::ReturnData $sock text/html $msg 200
         }
         rivet {
             headers numeric 200
@@ -1115,6 +1154,9 @@ proc ::WS::Server::callOperation {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
             }
+            channel {
+                ::WS::Channel::ReturnData $sock text/xml $xml 500
+            }
             rivet {
                 headers type text/xml
                 headers numeric 500
@@ -1173,6 +1215,9 @@ proc ::WS::Server::callOperation {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 200
             }
+            channel {
+                ::WS::Channel::ReturnData $sock text/xml $xml 200
+            }
             rivet {
                 headers type text/xml
                 headers numeric 200
@@ -1204,6 +1249,9 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             embedded {
                 ::WS::Embeded::ReturnData $sock text/xml $xml 500
+            }
+            channel {
+                ::WS::Channel::ReturnData $sock text/xml $xml 500
             }
             rivet {
                 headers type text/xml
