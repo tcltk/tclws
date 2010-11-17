@@ -210,10 +210,7 @@ proc ::WS::Server::Service {args} {
                 -thread 0
         }
         wub {
-            return \
-                -code error
-                -errorcode [list WSSERVER UNSUPMODE $mode] \
-                "-mode '$mode' not supported"
+            package require WS::Wub
         }
         aolserver {
             return \
@@ -1649,7 +1646,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
 
         append msg [::html::h4 {Description}] "\n"
-        
+
         append msg [::html::openTag div {style="margin-left: 40px;"}]
         switch $docFormat {
             "html" {
