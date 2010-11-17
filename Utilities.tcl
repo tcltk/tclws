@@ -39,14 +39,6 @@
 ##                                                                           ##
 ###############################################################################
 
-##
-## This is a special version of the package for Donal K. Fellows to support
-## the use of passing values in attributes as well as the value of a tag
-##
-## Please note -- I do not believe in such perversions, but he is after
-##                all English  :}
-##
-
 #package require Tcl 8.5
 if {![llength [info command dict]]} {
     package require dict
