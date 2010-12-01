@@ -223,10 +223,7 @@ proc ::WS::Server::Service {args} {
             package require WS::Wub
         }
         aolserver {
-            return \
-                -code error
-                -errorcode [list WSSERVER UNSUPMODE $mode] \
-                "-mode '$mode' not supported"
+	    package require WS::AOLserver
         }
         rivet {
             package require Rivet
@@ -422,7 +419,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     ::log::log debug "Generating WSDL for $serviceName"
     if {![info exists serviceArr($serviceName)]} {
         set msg "Unknown service '$serviceName'"
-        :return \
+        ::return \
             -code error \
             -errorCode [list WS SERVER UNKSERV $serviceName] \
             $msg
@@ -669,6 +666,13 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                 headers numeric 404
                 puts "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
             }
+	    aolserver {
+                ::WS::AOLserver::ReturnData \
+                    $sock \
+                    text/html \
+                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                    404
+            } 
         }
         return 1
     }
@@ -699,6 +703,10 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             headers type text/xml
             headers numeric 200
             puts $xml
+        }
+        aolserver {
+            set xml [GetWsdl $serviceName]
+            ::WS::AOLserver::ReturnData $sock text/xml $xml 200
         }
     }
 }
@@ -828,6 +836,13 @@ proc ::WS::Server::generateInfo {service sock args} {
                 headers numeric 404
                 puts "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
             }
+            aolserver {
+                ::WS::AOLserver::ReturnData \
+                    $sock \
+                    text/html \
+                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                    404
+            }
         }
         return 1
     }
@@ -885,6 +900,9 @@ proc ::WS::Server::generateInfo {service sock args} {
             headers numeric 200
             headers type text/html
             puts $msg
+        }
+        aolserver {
+            ::WS::AOLserver::ReturnData $sock text/html $msg 200
         }
     }
 
@@ -1056,6 +1074,9 @@ proc ::WS::Server::callOperation {service sock args} {
                 headers numeric 500
                 puts $xml
             }
+            aolserver {
+                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+            }
         }
         return;
     }
@@ -1162,6 +1183,9 @@ proc ::WS::Server::callOperation {service sock args} {
                 headers numeric 500
                 puts $xml
             }
+            aolserver {
+                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+            }
         }
         return;
     }
@@ -1223,6 +1247,9 @@ proc ::WS::Server::callOperation {service sock args} {
                 headers numeric 200
                 puts $xml
             }
+            aolserver {
+                ::WS::AOLserver::ReturnData $sock text/xml $xml 200
+            }
         }
     } msg]} {
         ##
@@ -1257,6 +1284,9 @@ proc ::WS::Server::callOperation {service sock args} {
                 headers type text/xml
                 headers numeric 500
                 puts $xml
+            }
+            aolserver {
+                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
             }
         }
         return;
