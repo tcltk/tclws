@@ -41,8 +41,6 @@ proc ::WS::AOLserver::Init { } {
 	set url  [lindex [split [lindex [ns_conn request] 1] ?] 0]
 	set urlv [split $url /]
 
-	::log::log debug "peeraddr *** = $peeraddr"
-
 	switch -exact -- [lindex $urlv end] {
 	    "" {
 		# get service description
@@ -99,7 +97,6 @@ proc ::WS::AOLserver::Return {} {
 		set fp [ns_openexcl $tmpFile]
 		fconfigure $fp -translation binary
 		ns_conn copy 0 $length $fp
-		#fconfigure $fp -translation binary ;# not sure if this is needed here
 		seek $fp 0
 		set data(query) [read $fp]
 		close $fp
