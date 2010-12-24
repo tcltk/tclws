@@ -153,6 +153,12 @@ proc ::WS::Client::CreateService {serviceName type url args} {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
     }
+
+    if {[dict exists $serviceArr($serviceName) xns]} {
+        set xns [dict get $serviceArr($serviceName) xns]
+        ::log::log debug [list Setting targetNamespae to $xns]
+        dict set serviceArr($serviceName) targetNamespace [list $xns]
+    }
 }
 
 ###########################################################################
@@ -2521,7 +2527,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Client::DoRawCall
+# Procedure Name : ::WS::Client::DoRawRestCall
 #
 # Description : Call an operation of a web service
 #
@@ -2565,7 +2571,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {headers {}} {location {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering ::WS::Client::DoRawCall {$serviceName $operationName $argList}"
+    ::log::log debug "Entering [info level 0]"
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -2617,14 +2623,14 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     }
     ::http::cleanup $token
     if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawCall"
+        ::log::log debug "Leaving (error) ::WS::Client::DoRawRestCall"
         return \
             -code error \
             -errorcode $errorCode \
             -errorinfo $errorInfo \
             $results
     } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawCall with {$results}"
+        ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$results}"
         return $results
     }
 
@@ -2637,7 +2643,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 #
 #>>BEGIN PUBLIC<<
 #
-# Procedure Name : ::WS::Client::DoCall
+# Procedure Name : ::WS::Client::DoRestCall
 #
 # Description : Call an operation of a web service
 #
@@ -2682,7 +2688,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {headers {}} {location {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering ::WS::Client::DoRawCall {$serviceName $operationName $argList}"
+    ::log::log debug "Entering [info level 0]"
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -2748,14 +2754,14 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     }
     ::http::cleanup $token
     if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoCall"
+        ::log::log debug "Leaving (error) ::WS::Client::DoRestCall"
         return \
             -code error \
             -errorcode $errorCode \
             -errorinfo $errorInfo \
             $results
     } else {
-        ::log::log debug "Leaving ::WS::Client::DoCall with {$results}"
+        ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
         return $results
     }
 
@@ -3026,8 +3032,17 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     ::WS::Utils::SetOption parseInAttr 1
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $body $expectedMsgType $body]"
     if {![string equal $expectedMsgType {}]} {
+        set node [$body childNodes]
+        set nodeName [$node nodeName]
+        if {![string equal $objectName $nodeName]} {
+            return \
+                -code error \
+                -errorcode [list WSCLIENT BADRESPONSE [list $objectName $nodeName]] \
+                -errorinfo {} \
+                "Unexpected message type {$nodeName}, expected {$objectName}"
+        }
         set results [::WS::Utils::convertTypeToDict \
-                         Client $serviceName $body $expectedMsgType $body]
+                         Client $serviceName $node $expectedMsgType $body]
     }
     foreach {option value} $options {
         ::WS::Utils::SetOption $option $value
