@@ -1052,9 +1052,9 @@ proc ::WS::Server::callOperation {service sock args} {
 
     switch -exact $mode {
         wibble {
-            set reauestDict [lindex $args 0]
+            set requestDict [lindex $args 0]
             upvar 1 [lindex $args 1] responseDict
-            set inXml [dict get $requestDict post ]
+            set inXml [dict get $requestDict post xml ""]
         }
         default {
             upvar #0 Httpd$sock data
