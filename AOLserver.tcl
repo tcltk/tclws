@@ -29,7 +29,7 @@ proc ::WS::AOLserver::Init { } {
 	set nsset     [ns_configsection "ns/server/$server/module/nssock"]
 	set headerSet [ns_conn headers]
 	set host      [string tolower [ns_set iget $headerSet host]]
-	set hostList  [split $host :]      
+	set hostList  [split $host :]
 	set peeraddr  [ns_conn peeraddr]
 
 	if {[llength $hostList] == 1} {
@@ -60,7 +60,7 @@ proc ::WS::AOLserver::Init { } {
 
 	set prefix  [join [lrange $urlv 0 end-1] /]
 	set service [lindex $urlv end-1]
-	
+
 	::log::log debug "prefix = $prefix service = $service requestType = $requestType"
     }
 }
@@ -72,7 +72,7 @@ proc ::WS::AOLserver::Return {} {
 	set sock nosock
 
 	switch -exact -- $requestType {
-	    
+
 	    doc {
 		::WS::Server::generateInfo $service $sock
 	    }
@@ -86,7 +86,7 @@ proc ::WS::AOLserver::Return {} {
 		set headerLength [ns_set size $headerSet]
 		for {set i 0} {$i < $headerLength} {incr i} {
 		    lappend headers [ns_set key $headerSet $i] [ns_set value $headerSet $i]
-		} 	
+		}
 		set data(ipaddr) $peeraddr
 		set data(headerlist) $headers
 
@@ -111,4 +111,4 @@ proc ::WS::AOLserver::Return {} {
     }
 }
 
-package provide WS::AOLserver 1.2.0
+package provide WS::AOLserver 1.3.0

@@ -8,12 +8,12 @@
 # script is sourced, the variable $dir must contain the
 # full path name of this file's directory.
 
-package ifneeded WS::Channel 1.2.0 [list source [file join $dir ChannelServer.tcl]]
+package ifneeded WS::Channel 1.3.0 [list source [file join $dir ChannelServer.tcl]]
 package ifneeded WS::CheckAndBuild 0.0.3 [list source [file join $dir CheckAndBuild.tcl]]
-package ifneeded WS::Client 1.2.0 [list source [file join $dir ClientSide.tcl]]
-package ifneeded WS::Embeded 1.2.0 [list source [file join $dir Embedded.tcl]]
-package ifneeded WS::Server 1.2.0 [list source [file join $dir ServerSide.tcl]]
-package ifneeded WS::Utils 1.2.0 [list source [file join $dir Utilities.tcl]]
-package ifneeded WS::Wub 1.2.0 [list source [file join $dir WubServer.tcl]]
-package ifneeded WS::AOLserver 1.2.0 [list source [file join $dir AOLserver.tcl]]
+package ifneeded WS::Client 1.3.0 [list source [file join $dir ClientSide.tcl]]
+package ifneeded WS::Embeded 1.3.0 [list source [file join $dir Embedded.tcl]]
+package ifneeded WS::Server 1.3.0 [list source [file join $dir ServerSide.tcl]]
+package ifneeded WS::Utils 1.3.0 [list source [file join $dir Utilities.tcl]]
+package ifneeded WS::Wub 1.3.0 [list source [file join $dir WubServer.tcl]]
+package ifneeded WS::AOLserver 1.3.0 [list source [file join $dir AOLserver.tcl]]
 package ifneeded Wsdl 1.0 [list source [file join $dir WubServer.tcl]]

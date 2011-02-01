@@ -37,7 +37,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Channel 1.2.0
+package provide WS::Channel 1.3.0
 
 namespace eval ::WS::Channel {
 

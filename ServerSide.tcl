@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 1.2.0
+package provide WS::Server 1.3.0
 
 namespace eval ::WS::Server {
     array set serviceArr {}
@@ -108,6 +108,7 @@ namespace eval ::WS::Server {
 #                                   embedded  -- using the ::WS::Embedded package
 #                                   aolserver -- using the ::WS::AolServer package
 #                                   wub       -- using the ::WS::Wub package
+#                                   wibble    -- running inside of wibble
 #                                   rivet     -- running inside Apache Rivet (mod_rivet)
 #                                   channel   -- use a channel pair, WSDL is return if no XML
 #                                                otherwise an operation is called
@@ -227,6 +228,28 @@ proc ::WS::Server::Service {args} {
         }
         rivet {
             package require Rivet
+        }
+        wibble {
+            ##
+            ## Define zone handler - get code from andy
+            ##
+            proc wibble::webservice {state} {
+                dict with state options {}
+                switch $suffix {
+                    "" - \
+                    / {
+                        ::WS::Server::generateInfo $name 0 response
+                        sendresponse $response
+                    } /op {
+                        ::WS::Server::callOperation $name 0 [dict get $state request] response
+                        sendresponse $response
+                    } /wsdl {
+                        ::WS::Server::generateWsdl $name 0 response
+                        sendresponse $response
+                    }
+                }
+            }
+            ::wibble::handle $defaults(-prefix) webservice name $service
         }
         default {
             return \
@@ -672,7 +695,13 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                     text/html \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
-            } 
+            }
+            wibble  {
+                upvar 1 [lindex $args 0] responseDict
+                dict set responseDict header content-type text/html
+                dict set responseDict status 404
+                dict set responseDict content "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+            }
         }
         return 1
     }
@@ -707,6 +736,12 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         aolserver {
             set xml [GetWsdl $serviceName]
             ::WS::AOLserver::ReturnData $sock text/xml $xml 200
+        }
+        wibble  {
+            upvar 1 [lindex $args 0] responseDict
+            dict set responseDict header content-type text/xml
+            dict set responseDict status 200
+            dict set responseDict content $xml
         }
     }
 }
@@ -843,6 +878,12 @@ proc ::WS::Server::generateInfo {service sock args} {
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
+            wibble  {
+                upvar 1 [lindex $args 0] responseDict
+                dict set responseDict header content-type text/html
+                dict set responseDict status 404
+                dict set responseDict content "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+            }
         }
         return 1
     }
@@ -903,6 +944,12 @@ proc ::WS::Server::generateInfo {service sock args} {
         }
         aolserver {
             ::WS::AOLserver::ReturnData $sock text/html $msg 200
+        }
+        wibble  {
+                upvar 1 [lindex $args 0] responseDict
+                dict set responseDict header content-type text/html
+                dict set responseDict status 200
+                dict set responseDict content $msg
         }
     }
 
@@ -1003,10 +1050,19 @@ proc ::WS::Server::callOperation {service sock args} {
     variable serviceArr
     variable mode
 
-    upvar #0 Httpd$sock data
+    switch -exact $mode {
+        wibble {
+            set reauestDict [lindex $args 0]
+            upvar 1 [lindex $args 1] responseDict
+            set inXml [dict get $requestDict post ]
+        }
+        default {
+            upvar #0 Httpd$sock data
+            set inXML $data(query)
+        }
+    }
 
     ::log::log debug "In ::WS::Server::callOperation {$service $sock $args}"
-    set inXML $data(query)
     array set serviceInfo $serviceArr($service)
     ::log::log debug "\tDocument is {$inXML}"
 
@@ -1076,6 +1132,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             aolserver {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+            }
+            wibble  {
+                dict set responseDict header content-type text/xml
+                dict set responseDict status 500
+                dict set responseDict content $xml
             }
         }
         return;
@@ -1186,6 +1247,11 @@ proc ::WS::Server::callOperation {service sock args} {
             aolserver {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
             }
+            wibble  {
+                dict set responseDict header content-type text/xml
+                dict set responseDict status 500
+                dict set responseDict content $xml
+            }
         }
         return;
     }
@@ -1217,7 +1283,19 @@ proc ::WS::Server::callOperation {service sock args} {
     ##
     if {[catch {
         set cmd $serviceInfo(-checkheader)
-        lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList
+        switch -exact -- $mode {
+            wibble  {
+                lappend cmd \
+                    $ns \
+                    $baseName \
+                    [dict get $requestDict peerhost] \
+                    [dict keys [dict get $requestDict header]] \
+                    $headerList
+            }
+            default {
+                lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList
+            }
+        }
         eval $cmd
         set results [eval \$methodName $tclArgList]
         # generate a reply packet
@@ -1249,6 +1327,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             aolserver {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 200
+            }
+            wibble  {
+                dict set responseDict header content-type text/xml
+                dict set responseDict status 200
+                dict set responseDict content $xml
             }
         }
     } msg]} {
@@ -1287,6 +1370,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
             aolserver {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+            }
+            wibble  {
+                dict set responseDict header content-type text/xml
+                dict set responseDict status 500
+                dict set responseDict content $xml
             }
         }
         return;

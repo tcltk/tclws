@@ -66,7 +66,7 @@ See also
 <h3>Using with Apache Rivet</h3>
 
 <p>
-<a href="http://tcl.apache.org/rivet/">Apache Rivet</a> is a module (mod_rivet) that can be loaded by Apache httpd server to 
+<a href="http://tcl.apache.org/rivet/">Apache Rivet</a> is a module (mod_rivet) that can be loaded by Apache httpd server to
 allow web pages to run embedded Tcl commands in a way similar to PHP.  To create
 a Web Service in Rivet, use the example EchoRivetService.rvt as a starting point
 by simply copying it into any directory served by your Apache instance.  You should be able to
@@ -139,6 +139,7 @@ they are: </p><PRE>             -host           - The host name for this service
                                    embedded  -- using the ::WS::Embedded package
                                    aolserver -- using the ::WS::AolServer package
                                    wub       -- using the ::WS::Wub package
+                                   wibble    -- running inside wibble
                                    rivet     -- running inside Apache Rivet (mod_rivet)
             -ports          - List of ports for embedded mode. Default: 80
                                     NOTE -- a call should be to

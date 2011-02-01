@@ -47,7 +47,7 @@ package require log
 package require tdom
 package require struct::set
 
-package provide WS::Utils 1.2.0
+package provide WS::Utils 1.3.0
 
 namespace eval ::WS {}
 
