@@ -1784,7 +1784,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         $env  setAttribute \
             xmlns:$tns $target
     }
-    parray tnsArray
+    #parray tnsArray
 
     set firstHeader 1
     foreach inputHeaderTypeItem [dict get $serviceInfo operation $operationName soapRequestHeader] {
