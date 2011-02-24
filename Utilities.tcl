@@ -2663,13 +2663,28 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     }
     if {[llength $elements] == 0} {
         #
-        # Validate this is not really a complex type
+        # Validate this is not really a complex or simple type
         #
-        if {[$node hasChildNodes]} {
-            set childNode [$node childNodes]
-            $childNode setAttribute name $typeName
-            parseComplexType $mode results $serviceName $childNode $tns
-            return
+        set childList [$node hasChildNodes]
+        foreach childNode $childList {
+            if {[catch {$childNode setAttribute name $typeName}]} {
+                continue
+            }
+            set childNodeType [$childNode localName]
+            switch $childNodeType {
+                complexType {
+                    parseComplexType $mode serviceInfo $serviceName $childNode $tns
+                    return
+                }
+                element {
+                    parseElementalType $mode serviceInfo $serviceName $childNode $tns
+                    return
+                }
+                simpleType {
+                    parseSimpleType $mode serviceInfo $serviceName $childNode $tns
+                    return
+                }
+            }
         }
         # have an element with a type only, so do the work here
         set partType [lindex [split [$node getAttribute type string:string] {:}] end]
