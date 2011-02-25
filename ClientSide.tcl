@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 1.3.0
+package provide WS::Client 1.4.0
 
 namespace eval ::WS::Client {
     ##
@@ -303,7 +303,7 @@ proc ::WS::Client::GetServiceTransforms {serviceName} {
 proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputArgs returnType {location {}}} {
     variable serviceArr
 
-    if {$objectName ni [dict get $serviceArr($serviceName) objList]} {
+    if {[lsearch -exact  [dict get $serviceArr($serviceName) objList] $objectName] == -1} {
         dict lappend $serviceArr($serviceName) objList $objectName
     }
     if {![llength $location]} {
@@ -621,7 +621,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 
     if {[dict exists $serviceInfo types]} {
         foreach {typeName partList} [dict get $serviceInfo types] {
-            if {[string equal [lindex [split $typeName {:}] 0] {}]} {
+            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
                 ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $partList tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
@@ -633,7 +633,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 
     if {[dict exists $serviceInfo simpletypes]} {
         foreach {typeName partList} [dict get $serviceInfo simpletypes] {
-            if {[string equal [lindex [split $typeName {:}] 0] {}]} {
+            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
                 ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $partList tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
@@ -1636,7 +1636,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outputHeaderType] xns]
         set node [$headerRootNode selectNodes $xns:outHeaderType]
         if {[llength $outHeaderAttrs]} {
-            $node setAttribute {*}$outHeaderAttrs
+            ::WS::Utils::setAttr $node $outHeaderAttrs
         }
         lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $rootNode]
     }
@@ -1802,8 +1802,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         }
         $header appendChild [$doc createElement $xns:$inputHeaderType headerData]
         if {[llength $attrList]} {
-            $headerData setAttribute {*}$attrList
-
+            ::WS::Utils::setAttr $headerData $attrList
         }
         ::WS::Utils::convertDictToType Client $serviceName $doc $headerData $argList $inputHeaderType
     }
@@ -2484,7 +2483,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
             } elseif {!$partNodeCount} {
                 return \
                     -code error \
-                    -errorCode [list WS CLIENT BADMSGSEC $msgName] \
+                    -errorcode [list WS CLIENT BADMSGSEC $msgName] \
                     "Invalid format for message '$msgName'"
             }
         }

@@ -39,7 +39,7 @@
 ##                                                                           ##
 ###############################################################################
 
-#package require Tcl 8.5
+package require Tcl 8.4
 if {![llength [info command dict]]} {
     package require dict
 }
@@ -47,7 +47,7 @@ package require log
 package require tdom
 package require struct::set
 
-package provide WS::Utils 1.3.0
+package provide WS::Utils 1.4.0
 
 namespace eval ::WS {}
 
@@ -1159,11 +1159,15 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                     set item {}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
-                        set childName [lindex [split [$childNode nodeName] {:}] end]
-                        ::log::log debug "\tChecking $childNode $childName agaisnt {$matchList}"
-                        if {[lsearch -exact $matchList $childName] != -1} {
-                            lappend item $childNode
+                        # From SOAP1.1 Spec:
+                        #    Within an array value, element names are not significant
+                        # for distinguishing accessors. Elements may have any name.
+                        # Here we don't need check the element name, just simple check
+                        # it's a element node
+                        if { [$childNode nodeType] != "ELEMENT_NODE" } {
+                            continue
                         }
+                        lappend item $childNode
                     }
                     if {![string length $item]} {
                         ::log::log debug "\tSkipping"
@@ -1387,7 +1391,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         }
         set attrList {}
         foreach key [dict keys $itemDef] {
-            if {$key ni $standardAttributes} {
+            if {[lsearch -exact $standardAttributes $key] == -1} {
                 lappend attrList $key [dict get $itemDef $key]
                 ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
             }
@@ -1413,7 +1417,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 }
                 $retNode appendChild [$doc createTextNode $resultValue]
                 if {[llength $attrList]} {
-                    $retNode setAttribute {*}$attrList
+                    ::WS::Utils::setAttr $retNode $attrList
                 }
             }
             {0 1} {
@@ -1437,7 +1441,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     }
                     $retNode appendChild [$doc createTextNode $resultValue]
                     if {[llength $attrList]} {
-                        $retNode setAttribute {*}$attrList
+                        ::WS::Utils::setAttr $retNode $attrList
                     }
                 }
             }
@@ -1460,7 +1464,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 }
                 convertDictToType $mode $service $doc $retNode $resultValue $itemType
                 if {[llength $attrList]} {
-                    $retNode setAttribute {*}$attrList
+                    ::WS::Utils::setAttr $retNode $attrList
                 }
             }
             {1 1} {
@@ -1485,7 +1489,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     }
                     convertDictToType $mode $service $doc $retNode $resultValue $tmpType
                     if {[llength $attrList]} {
-                        $retNode setAttribute {*}$attrList
+                        ::WS::Utils::setAttr $retNode $attrList
                     }
                 }
             }
@@ -1563,7 +1567,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         }
         set attrList {}
         foreach key [dict keys $itemDef] {
-            if {$key ni $standardAttributes} {
+            if {[lsearch -exact $standardAttributes $key] == -1} {
                 lappend attrList $key [dict get $itemDef $key]
                 ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
             }
@@ -1589,7 +1593,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 }
                 $retNode appendChild [$doc createTextNode $resultValue]
                 if {[llength $attrList]} {
-                    $retNode setAttribute {*}$attrList
+                    ::WS::Utils::setAttr $retNode $attrList
                 }
             }
             {0 1} {
@@ -1613,7 +1617,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     }
                     $retNode appendChild [$doc createTextNode $resultValue]
                     if {[llength $attrList]} {
-                        $retNode setAttribute {*}$attrList
+                        ::WS::Utils::setAttr $retNode $attrList
                     }
                 }
             }
@@ -1635,7 +1639,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     set resultValue [dict get $dict $itemName]
                 }
                 if {[llength $attrList]} {
-                    $retNode setAttribute {*}$attrList
+                    ::WS::Utils::setAttr $retNode $attrList
                 }
                 convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $itemType
             }
@@ -1660,7 +1664,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                         set resultValue $row
                     }
                     if {[llength $attrList]} {
-                        $retNode setAttribute {*}$attrList
+                        ::WS::Utils::setAttr $retNode $attrList
                     }
                     convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType
                 }
@@ -3132,5 +3136,61 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
                 }
             }
         }
+    }
+}
+
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::setAttr
+#
+# Description : Set attributes on a DOM node
+#
+# Arguments :
+#       node        - node to set attributes on
+#       attrList    - List of attibute name value pairs
+#
+# Returns :     nothing
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  02/24/2011  G. Lester    Initial version
+#
+###########################################################################
+if {[package vcompare [info patchlevel] 8.5] == -1} {
+    ##
+    ## 8.4, so can not use {*} expansion
+    ##
+    proc ::WS::Utils::setAttr {node attrList} {
+        foreach {name value} $attrList {
+            $node setAttribute $name $value
+        }
+    }
+} else {
+    ##
+    ## 8.5 or later, so use {*} expansion
+    ##
+    proc ::WS::Utils::setAttr {node attrList} {
+        $node setAttribute {*}$attrList
     }
 }
