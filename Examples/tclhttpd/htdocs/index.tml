@@ -1,0 +1,115 @@
+[html::description "TclHttpd, the Tcl Web Server, is an extensible
+platform for web application development."]
+[html::keywords Tcl TclHttpd Tcl/Tk "Tcl Web Server" "Web Server"]
+[html::author "Brent Welch"]
+[mypage::header "TclHttpd Home Page"]
+[Doc_Dynamic]
+
+<!-- Two Column Format -->
+<table border=0 cellpadding=4>
+<tr><td valign=top>
+<!-- Left Column -->
+
+[clock format [clock seconds] -format "%B %d, %Y %H:%M:%S"]
+
+[if {[Url_PrefixExists /tclpro]} {
+    set _ "<table align=right border=1>
+	<tr><td><img src=/images/TclPro200.gif></td></tr>
+	<tr><td><a href=/tclpro>TclPro Documentation</a></td></tr>
+	</table>"
+}]
+<p>
+The TclHttpd is a pure Tcl implementation of a Web server.
+It runs as a Tcl script on top of
+<a href=http://www.tcl.tk/software/tcltk/>Tcl</a>.
+This server is running Tcl $tcl_patchLevel.
+There is more <a href=version_history.html>TclHttpd version information</a>
+about using other versions of Tcl and the Standard Tcl Library (tcllib).
+<p>
+
+While this server works fine as a stand alone web server, the
+intent is to embed the server in other applications in order to
+"web enable" them.
+A Tcl-based web server is ideal for embedding
+because Tcl was designed from the start
+to support embedding into other applications.
+The interpreted nature of Tcl allows dynamic reconfiguration of the
+server. Once the core interface between the web server and the hosting
+application is defined, it is possible to manage the web server, upload
+Safe-Tcl control scripts, download logging information, and otherwise
+debug the Tcl part of the application without restarting the hosting
+application.
+<p>
+[html::if {[file exists [file join $Doc(root) license.terms]]} {
+  The server is distributed under a <a href=license.terms>copyright</a> that allows free use.
+}]
+
+<p>
+The <a href="mailto:tclhttpd-users@lists.sourceforge.net">tclhttpd-users@lists.sourceforge.net</a> mailing list is the best source of current
+information about TclHttpd.
+
+<!--
+Please <a href=register.html>Register Your Software</a> so
+we can see how widely used the server is.
+ -->
+
+<h4>Related Articles</h4>
+
+[mypage::README_links]
+
+<a href=http://www.tcl.tk/software/tclhttpd/>The main TclHttpd Information Page</a>.
+<p>
+A <a href=book/TCLHTTPD.html>Tcl Httpd Book Chapter</a> from the
+3rd Edition of
+<em><a href=http://www.beedub.com/book>Practical Programming in Tcl and Tk</a></em>
+by Brent Welch.
+<p>
+The <a HREF="http://www.tcl.tk/software/tclhttpd/server.html">white
+paper</a> presents a case for an embedded web server from more of a
+business angle.
+
+<!-- End Left Column -->
+</td><td valign=top>
+<!-- Right Column -->
+
+<h4>Control/Status Pages</h4>
+<ul>
+<li><a HREF="/status/">Server statistics</a>. 
+Home hits: [counter::get hit -hist /]
+<li><a HREF="hacks.html">Control panel</a> 
+</ul>
+<h4>Documentation</h4>
+<ul>
+<li>
+<a href=man/>Manual pages</a>.
+<li>
+<a HREF="templates/">Templates with inline Tcl</a>.
+<li>
+<a HREF="access/">Access control schemes</a>. 
+<li>
+[html::if {[info commands "::learn::links"] == "::learn::links"} {
+  [::learn::links \n<li>]
+} else {
+  <a href=/learn/>Learn more</a>
+}]
+</ul>
+
+<h4>Test Pages</h4>
+<ul>
+<li><a href="guestbook/guestbook.cgi">View Guest Book</a>
+<li><a href="guestbook/newguest.html">Update Guest Book</a>
+<li><a HREF="include.shtml">Server includes</a> 
+<li><a HREF="forms/">CGI</a>  You probably need to install the Standard Tcl Library for this.
+<li><a HREF="map/">Imagemaps</a> 
+<li><a HREF="/xyzzy">Sample missing page</a>
+<li><a HREF="/debug/raise?message=This+page+raises+errors!">A page that raises an error</a>
+<li><a HREF="images">A directory listing page</a>
+</ul>
+
+<!-- End Right Column -->
+</td></tr>
+<!-- End Two Column Format -->
+</table>
+
+
+[mypage::footer]

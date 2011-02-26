@@ -1,0 +1,126 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Tcl Web Service Example</TITLE>
+
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Tcl Web Service Example" name=KEYWORDS>
+
+</HEAD>
+
+<BODY>
+<H1>Tcl Web Service Example</H1>
+
+<A name=Server_Side></A>
+<H2>Server Side </H2>
+
+<P>
+The following is placed in the httpdthread.tcl:
+</P>
+
+<PRE>   package require WS::Server
+   package require WS::Utils
+</PRE>
+
+<P>
+The following is placed in the a file in the custom directory:
+</P>
+
+<PRE>
+   ##
+   ## Define the service
+   ##
+  &nbsp;::WS::Server::Service \
+       -service wsExamples \
+       -description  {Tcl Example Web Services} \
+       -host         $::Config(host):$::Config(port)
+</PRE><PRE>   ##
+   ## Define any special types
+   ##
+  &nbsp;::WS::Utils::ServiceTypeDef Server wsExamples echoReply {
+       echoBack     {type string}
+       echoTS       {type dateTime}
+   }
+</PRE><PRE>   ##
+   ## Define the operations available
+   ##
+  &nbsp;::WS::Server::ServiceProc \
+       wsExamples \
+       {SimpleEcho {type string comment {Requested Echo}}} \
+       {
+           TestString      {type string comment {The text to echo back}}
+       } \
+       {Echo a string back} {
+</PRE><PRE>       return [list SimpleEchoResult $TestString]
+   }
+</PRE>
+<P><BR></P><PRE>  &nbsp;::WS::Server::ServiceProc \
+       wsExamples \
+       {ComplexEcho {type echoReply comment {Requested Echo -- text and timestamp}}} \
+       {
+           TestString      {type string comment {The text to echo back}}
+       } \
+       {Echo a string and a timestamp back} {
+</PRE><PRE>       set timeStamp [clock format [clock seconds] -format {%Y-%m-%dT%H:%M:%SZ} -gmt yes]
+       return [list ComplexEchoResult [list echoBack $TestString echoTS $timeStamp]  ]
+   }
+</PRE>
+<P><BR></P>
+
+<A name=Client_Side></A>
+<H2>Client Side </H2><PRE>   package require WS::Client
+</PRE><PRE>   ##
+   ## Get Definition of the offered services
+   ##
+  &nbsp;::WS::Client::GetAndParseWsdl http://localhost:8015/service/wsExamples/wsdl
+</PRE><PRE>   set testString "This is a test"
+   set inputs [list TestString $testString]
+</PRE><PRE>   ##
+   ## Call synchronously
+   ##
+   puts stdout "Calling SimpleEcho via DoCalls!"
+   set results [::WS::Client::DoCall wsExamples SimpleEcho $inputs]
+   puts stdout "\t Received: {$results}"
+</PRE><PRE>   puts stdout "Calling ComplexEcho via DoCalls!"
+   set results [::WS::Client::DoCall wsExamples ComplexEcho $inputs]
+   puts stdout "\t Received: {$results}"
+</PRE>
+<P><BR></P><PRE>   ##
+   ## Generate stubs and use them for the calls
+   ##
+  &nbsp;::WS::Client::CreateStubs wsExamples
+   puts stdout "Calling SimpleEcho via Stubs!"
+   set results [::wsExamples::SimpleEcho $testString]
+   puts stdout "\t Received: {$results}"
+</PRE><PRE>   puts stdout "Calling ComplexEcho via Stubs!"
+   set results [::wsExamples::ComplexEcho $testString]
+   puts stdout "\t Received: {$results}"
+</PRE><PRE>   ##
+   ## Call asynchronously
+   ##
+   proc success {service operation result} {
+       global waitVar
+</PRE><PRE>       puts stdout "A call to $operation of $service was successful and returned $result"
+       set waitVar 1
+   }
+</PRE><PRE>   proc hadError {service operation errorCode errorInfo} {
+       global waitVar
+</PRE><PRE>       puts stdout "A call to $operation of $service was failed with {$errorCode} {$errorInfo}"
+       set waitVar 1
+   }
+</PRE><PRE>   set waitVar 0
+   puts stdout "Calling SimpleEcho via DoAsyncCall!"
+  &nbsp;::WS::Client::DoCall wsExamples SimpleEcho $inputs \
+           [list success wsExamples SimpleEcho] \
+           [list hadError wsExamples SimpleEcho]
+   vwait waitVar
+</PRE><PRE>   puts stdout "Calling ComplexEcho via DoAsyncCall!"
+  &nbsp;::WS::Client::DoCall wsExamples ComplexEcho $inputs \
+           [list success wsExamples SimpleEcho] \
+           [list hadError wsExamples SimpleEcho]
+   vwait waitVar
+</PRE><PRE>   exit
+</PRE>
+<P><BR></P>
+
+</BODY>
+</HTML>

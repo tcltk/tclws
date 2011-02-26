@@ -1,0 +1,95 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Embeding a Web Service</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Embeding a Web Service" name=KEYWORDS>
+</HEAD>
+<BODY>
+<H1>Embeding a Web Service</H1>
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <DIV id=toctitle>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Embedded_Package"><SPAN
+        class=tocnumber>1</SPAN> <SPAN class=toctext>Loading the Webservices
+        Embedded Package</SPAN></A>
+        <LI class=toclevel-1><A href="#Listen"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Specify a Port to Receive Request on</SPAN></A>
+        <LI class=toclevel-1><A href="#Start"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Start Listening for Requests</SPAN></A>
+        <LI class=toclevel-1><A href="#Stop"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Stop Listening for Requests</SPAN></A>
+      </UL>
+    </TD>
+  </TR>
+</TABLE>
+
+<A name=Loading_the_Webservices_Embedded_Package></A>
+<H2>Loading the Webservices Server Package </H2>
+
+<P>To load the webservices server package, do: </P><PRE> package require WS::Embedded
+</PRE>
+<P>This command will only load the server the first time it is used, so it
+causes no ill effects to put this in each file declaring a service or service
+procedure. </P>
+
+<HR>
+
+<A name=Listen></A>
+<H2>Specify a Port to Receive Request on</H2>
+
+<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Listen</I></B> </P>
+<P><B>Description</B>&nbsp;: Instruct the module to listen on a Port, security information.
+<P><B>Arguments</B>&nbsp;: this procedure uses position dependent arguments,
+they are: </P>
+<PRE>
+     <I>port    </I> -- Port number to listen on.
+     <I>certfile</I> -- Name of the certificate file. Defaults to {}.
+     <I>keyfile </I> -- Name of the key file. Defaults to {}.
+     <I>userpwds</I> -- A list of username and passwords. Defaults to {}.
+     <I>realm   </I> -- The seucrity realm. Defaults to {}.
+     <I>logger  </I> -- A logging routines for errors. Defaults to ::WS::Embeded::logger.
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: &nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
+<HR>
+
+<A name=Start></A>
+<H2>Start Listening for Requests</H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Start</I></B> </P>
+<P><B>Description</B>&nbsp;: Start listening on all ports (i.e. enter the event loop). </P>
+<P><B>Arguments</B>&nbsp;: None</P>
+<P><B>Returns</B>&nbsp;: Value that event loop was exited with. </P>
+<P><B>Side-Effects</B>&nbsp;: Nothing</P>
+<P><B>Exception Conditions</B>&nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;:&nbsp;</P>
+<ul>
+<p>::WS::Embeded::Listen should have been called for one or more port.</p>
+</ul>
+
+<HR>
+
+<A name=Stop></A>
+<H2>Stop Listening for Requests</H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Start</I></B> </P>
+<P><B>Description</B>&nbsp;: Stop listening on all ports (i.e. enter the event loop). </P>
+<P><B>Arguments</B>&nbsp;:</P>
+<PRE>
+    value -- Value that ::WS::Embedded::Start should return
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Side-Effects</B>&nbsp;: Nothing</P>
+<P><B>Exception Conditions</B>&nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;:&nbsp;</P>
+<ul>
+<p>::WS::Embeded::Start should have been called.</p>
+</ul>
+
+
+</BODY>
+</HTML>

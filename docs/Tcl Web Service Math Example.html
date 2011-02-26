@@ -1,0 +1,142 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Tcl Web Service Math Example</TITLE>
+
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Tcl Web Service Math Example" name=KEYWORDS>
+
+</HEAD>
+
+<BODY>
+<H1>Tcl Web Service Math Example</H1>
+
+<A name=Server_Side></A>
+<H2>Server Side </H2>
+
+<P>
+The following is placed in the httpdthread.tcl:
+</P>
+
+<PRE>
+   package require WS::Server
+   package require WS::Utils
+</PRE>
+
+<P>
+The following is placed in the a file in the custom directory:
+</P>
+
+<PRE>
+    ##
+    ## Define the service
+    ##
+    ::WS::Server::Service \
+        -service wsMathExample \
+        -description  {Tcl Web Services Math Example} \
+        -host         $::Config(host):$::Config(port)
+
+    ##
+    ## Define any special types
+    ##
+    ::WS::Utils::ServiceTypeDef Server wsMathExample Term {
+       `coef         {type float}
+        powerTerms   {type PowerTerm()}
+    }
+    ::WS::Utils::ServiceTypeDef Server wsMathExample PowerTerm {
+        var          {type string}
+        exponet      {type float}
+    }
+    ::WS::Utils::ServiceTypeDef Server wsMathExample Variables {
+        var          {type string}
+        value        {type float}
+    }
+
+   ##
+   ## Define the operations available
+   ##
+   ::WS::Server::ServiceProc \
+        wsMathExample \
+        {EvaluatePolynomial {type float comment {Result of evaluating a polynomial}}} \
+        {
+            varList       {type Variables() comment {The variables to be substitued into the polynomial}}
+            polynomial    {type Term() comment {The polynomial}}
+        } \
+        {Evaluate a polynomial} {
+        set equation {0 }
+        foreach varDict $varList {
+            set var [dict get $varDict var]
+            set val [dict get $varDict value]
+            set vars($var) $val
+        }
+        foreach term $polynomial {
+            if {[dict exists $term coef]} {
+                set coef [dict get $term coef]
+            } else {
+                set coef 1
+            }
+            append equation "+ ($coef"
+            foreach pow [dict get $term powerTerms] {
+                if {[dict exists $pow exponet]} {
+                    set exp [dict get $pow exponet]
+                } else {
+                    set exp 1
+                }
+                append equation [format { * pow($vars(%s),%s} [dict get $pow var] $exp]
+            }
+            append equation ")"
+        }
+        set result [expr $equation]
+        return [list SimpleEchoResult $result]
+    }
+</PRE>
+<P><BR></P>
+
+<A name=Client_Side></A>
+<H2>Client Side </H2>
+<PRE>
+    package require WS::Client
+    ##
+    ## Get Definition of the offered services
+    ##
+    ::WS::Client::GetAndParseWsdl http://localhost:8015/service/wsMathExamples/wsdl
+
+    dict set term var X
+    dict set term value 2.0
+    dict lappend varList $term
+    dict set term var Y
+    dict set term value 3.0
+    dict lappend varList $term
+
+    set term {}
+    set powerTerm {}
+    dict set powerTerm coef 2.0
+    dict set term var X
+    dict set term pow 2.0
+    dict lappend terms $term
+    dict set term var Y
+    dict set term pow 3.0
+    dict lappend terms $term
+    dict set powerTerm powerTerms $terms
+
+    dict set powerTerm coef -2.0
+    dict set term var X
+    dict set term pow 3.0
+    dict lappend terms $term
+    dict set term var Y
+    dict set term pow 2.0
+    dict lappend terms $term
+    dict set powerTerm powerTerms $terms
+    dict lappend polynomial powerTerms $powerTerm
+
+    dict set input [list varList $varList polynomial $polynomial]
+    ##
+    ## Call service
+    ##
+    puts stdout "Calling EvaluatePolynomial wiht {$input}"
+    set resultsDict [::WS::Client::DoCall wsMathExample EvaluatePolynomial $input]
+    puts stdout "Results are {$resultsDict}"
+</PRE>
+<P><BR></P>
+
+</BODY>
+</HTML>

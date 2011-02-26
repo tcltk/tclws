@@ -1,0 +1,21 @@
+[mypage::header "Test Page"]
+<p>
+Namespaces: [namespace children ::]
+<p>
+mypage: [info vars mypage::*]
+<p>
+Contents: [set ::mypage::contents]
+<p>
+This is some text.  The image is generated a CGI script so
+we can hopefully see two threads dispatched to do work as the CGI
+script blocks.
+<table>
+<tr><td>
+<img src=/cgi-bin/big.cgi width=130 height=200>
+</td><td>
+<img src=/images/pwrdLogo200.gif width=130 height=200>
+</td><td>
+<img src=/images/pwrdLogo175.gif width=113 height=175>
+</td></tr>
+</table>
+[mypage::footer]

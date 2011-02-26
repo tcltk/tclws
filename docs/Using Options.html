@@ -1,0 +1,139 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Using Web Service Options</TITLE>
+</HEAD>
+
+<BODY>
+<H1 class=firstHeading>Using Web Service Options</H1>
+
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Overview"><SPAN class=tocnumber>1</SPAN> <SPAN class=toctext>Overview</SPAN></A>
+        <LI class=toclevel-1><A href="#Options"><SPAN class=tocnumber>2</SPAN> <SPAN class=toctext>Options</SPAN></A>
+        <UL>
+            <LI class=toclevel-2><A href="#UseNS"><SPAN
+            class=tocnumber>1</SPAN> <SPAN class=toctext>UseNS - put namespaces on field tags</SPAN></A>
+            <LI class=toclevel-2><A href="#StrictMode"><SPAN
+            class=tocnumber>2</SPAN> <SPAN class=toctext>StrictMode - WSDL processing mode</SPAN></A>
+            <LI class=toclevel-2><A href="#parseInAttr"><SPAN
+            class=tocnumber>3</SPAN> <SPAN class=toctext>parseInAttr - parse attributes on inbound tags</SPAN></A>
+            <LI class=toclevel-2><A href="#genOutAttr"><SPAN
+            class=tocnumber>4</SPAN> <SPAN class=toctext>genOutAttr - generate attributes on outbound tags</SPAN></A>
+        </UL>
+        <LI class=toclevel-1><A href="#SetOption"><SPAN class=tocnumber>3</SPAN> <SPAN class=toctext>Access Routine</SPAN></A>
+    </UL>
+<P>
+
+</P>
+<A name=Overview></A>
+<H2>Overview</H2>
+</P>
+<P>The Webservices Client and Server packages make use of the following options:
+    <UL>
+      <LI><A href="#UseNS">UseNS</A>
+      <LI><A href="#StrictMode">StrictMode</A>
+      <LI><A href="#parseInAttr">parseInAttr</A>
+      <LI><A href="#genOutAttr">genOutAttr</A>
+    </UL>
+</P>
+
+<P>The attributes can be retrieved and set using <A href="#SetOption">::WS::Utils::SetOption</A>.</P>
+
+<HR>
+<A name=Loading_the_Webservices_Client_Package></A>
+<H2>Loading the Webservices Client Package </H2>
+<P>To load the webservices server package, do: </P><PRE> package require WS::Client
+</PRE>
+<P>This command will only load the utilities the first time it is used, so it
+causes no ill effects to put this in each file using the utilties. </P>
+<HR>
+
+
+<A name=UseNS></A>
+<H2>UseNS - put namespaces on field tags </H2>
+<P>
+    The <I>UseNS</I> option, if set to a "true" value, will put a namespace alias on all field tags.
+</P>
+<P>
+    The default value, "1", is for this option to be turned on.
+</P>
+<HR>
+
+
+<A name=StrictMode></A>
+<H2>StrictMode - WSDL processing mode </H2>
+<P>
+    The <I>StrictMode</I> option determines what happens when an error is detected in parsing a WSDL.  The legal values are:
+    <UL>
+        <LI><B>debug</B></LI>
+        <LI><B>warning</B></LI>
+        <LI><B>error</B></LI>
+    </UL>
+</P>
+<P>
+    If the <I>StrictMode</I> is set to <B>debug</B> or <B>warning</B>,
+    a message is logged using the ::log package at that level and the error is then ignored.
+</P>
+<P>
+    If the <I>StrictMode</I> is set to any value other than <B>debug</B> or <B>warning</B>,
+    a message is logged using the ::log package at the <B>error</B> level and exception is generated.
+</P>
+<P>
+    The default value is <B>error</B>.
+</P>
+<P>
+    A major use of this is to ignore namespace imports in a WDSL that do not actually import any definitions.
+</P>
+<HR>
+
+
+<A name=parseInAttr></A>
+<H2>parseInAttr - parse attributes on inbound tags </H2>
+<P>
+    The <I>parseInAttr</I> option, if set to a "true" value,
+    will convert all attributes of inbound field tags to dictionary entries for that tag.
+    The key will be the attribute name and the value will be the value of the attribute.
+    The value of the tag will have an key of the null string (i.e. <B>{}</B>).
+</P>
+<P>
+    The default value, "0", is for this option to be turned off.
+</P>
+<HR>
+
+
+<A name=genOutAttr></A>
+<H2>genOutAttr - generate attributes on outbound tags </H2>
+<P>
+    The <I>genOutAttr</I> option, if set to a "true" value,
+    will convert all dictionary keys of the entry for a given field tag to attribute value pairs
+    of the tag in the outbound XML.
+    The key will be the attribute name and the value will be the value of the attribute.
+    The value of the tag will have a key of the null string (i.e. <B>{}</B>).
+</P>
+<P>
+    The default value, "0", is for this option to be turned off.
+</P>
+<HR>
+
+
+<A name=SetOption></A>
+<H2>Access Routine </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::SetOption</I></B> </P>
+<P><B>Description&nbsp;: </B> Retrieve or set an option </P>
+<P><B>Arguments&nbsp;:</B> </P>
+<PRE>
+    <I>option</I> - name of the option
+    <I>value</I> - value of the option (optional)
+</PRE>
+<P><B>Returns&nbsp;: The value of the option</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+</BODY>
+</HTML>
