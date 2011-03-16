@@ -1,0 +1,126 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Creating a Web Service Type from Tcl</TITLE>
+
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Creating a Web Service Type from Tcl" name=KEYWORDS>
+
+</HEAD>
+<BODY>
+<H1>Creating a Web Service Type from Tcl</H1>
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <DIV id=toctitle>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Overview"><SPAN
+        class=tocnumber>1</SPAN> <SPAN class=toctext>Overview</SPAN></A>
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Utility_Package"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Loading the Webservices
+        Utility Package</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_a_type"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Defining a type</SPAN></A>
+        <LI class=toclevel-1><A href="#Deriving_a_type"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Defining a derived type</SPAN></A>
+        <LI class=toclevel-1><A href="#Getting_a_type_definition"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Getting a type
+        definition</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
+<P>
+
+
+</P>
+
+<A name=Overview></A>
+<H2>Overview </H2>
+<P>Webservice Type declaration is part of the Webservices Utility package. </P>
+<P>When writing a web service it is often requried to write a complex type
+definition for an argument containing structured data. </P>
+<P>When calling an operation on a web service it is sometimes convient to define
+a complex type to return structured data as an XML fragment even though the
+sevice may state that it is only expecting a string. </P>
+
+<A name=Loading_the_Webservices_Utility_Package></A>
+<H2>Loading the Webservices Utility Package </H2>
+<P>To load the webservices server package, do: </P><PRE> package require WS::Utils
+</PRE>
+<P>This command will only load the utilities the first time it is used, so it
+causes no ill effects to put this in each file using the utilties. </P>
+<HR>
+
+<A name=Defining_a_type></A>
+<H2>Defining a type </H2>
+<P><B>Procedure Name</B>&nbsp;: <I>::WS::Utils::ServiceTypeDef</I> </P>
+<P><B>Description</B>&nbsp;: Define a type for a service. </P>
+<P><B>Arguments</B>&nbsp;: </P><PRE>     <I>mode</I>            - <B>Client</B> or <B>Server</B>
+     <I>service</I>         - The name of the service this type definition is for
+     <I>type</I>            - The type to be defined/redefined
+     <I>definition</I>      - The definition of the type's fields.  This consist of one
+                           or more occurance of a field definition.  Each field definition
+                           consist of:  fieldName fieldInfo
+                           Where field info is: {<B>type</B> typeName <B>comment</B> commentString}
+                              <I>typeName</I> can be any simple or defined type.
+                              <I>commentString</I> is a quoted string describing the field.
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
+<HR>
+
+<A name=Deriving_a_type></A>
+<H2>Defining a derived type </H2>
+<P><B>Procedure Name</B>&nbsp;: <I>::WS::Utils::ServiceSimpleTypeDef</I> </P>
+<P><B>Description</B>&nbsp;: Define a derived type for a service. </P>
+<P><B>Arguments</B>&nbsp;: </P><PRE>     <I>mode</I>            - <B>Client</B> or <B>Server</B>
+     <I>service</I>         - The name of the service this type definition is for
+     <I>type</I>            - The type to be defined/redefined
+     <I>definition</I>      - The definition of the type's fields.  This consist of one
+                           or more occurance of a field definition.  Each field definition
+                           consist of:  fieldName fieldInfo
+                           Where: {<B>type</B> typeName <B>comment</B> commentString}
+                              <B>baseType</B> <I>typeName</I> - any simple or defined type.
+                              <B>comment</B> <I>commentString</I> - a quoted string describing the field.
+                              <B>pattern</B> <I>value</I>
+                              <B>length</B> <I>value</I>
+                              <B>fixed</B> <I>"true"|"false"</I>
+                              <B>maxLength</B> <I>value</I>
+                              <B>minLength</B> <I>value</I>
+                              <B>minInclusive</B> <I>value</I>
+                              <B>maxInclusive</B> <I>value</I>
+                              <B>enumeration</B> <I>value</I>
+
+</PRE>
+<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
+<HR>
+
+<A name=Getting_a_type_definition></A>
+<H2>Getting a type definition </H2>
+<P><B>Procedure Name</B>&nbsp;: <I>::WS::Utils::GetServiceTypeDef</I> </P>
+<P><B>Description</B>&nbsp;: Query for type definitions. </P>
+<P><B>Arguments</B>&nbsp;: </P><PRE>     <I>mode</I>            - <B>Client</B> or <B>Server</B>
+     <I>service</I>         - The name of the service this query is for
+     <I>type</I>            - The type to be retrieved (optional)
+</PRE>
+<P><B>Returns</B>&nbsp;: </P><PRE>     If type not provided, a dictionary object describing all of the types
+     for the service.
+     If type provided, a dictionary object describing the type.
+       A definition consist of a dictionary object with the following key/values:
+         <B>xns</B>         - The namespace for this type.
+         <B>definition</B>  - The definition of the type's fields.  This consist of one
+                       or more occurance of a field definition.  Each field definition
+                       consist of:  fieldName fieldInfo
+                       Where field info is: {<B>type</B> <I>typeName</I> <B>comment</B> <B>commentString</B>}
+                         <I>typeName</I> can be any simple or defined type.
+                         <I>commentString</I> is a quoted string describing the field.
+</PRE>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: The service must be defined. </P>
+
+</BODY>
+</HTML>

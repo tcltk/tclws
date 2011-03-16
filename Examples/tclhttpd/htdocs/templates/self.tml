@@ -1,0 +1,57 @@
+[::learn::header "Tcl in your Page"]
+[Doc_Dynamic]
+
+This page shows what you can do with a little bit of Tcl code in a page.
+
+<!-- learn safe interp
+[if {![interp exists learn]} {
+  interp create -safe learn
+}] -->
+<!-- proc cmd status:
+[if {[ncgi::value proc] != ""} {
+  # The values have cr-lf in them from the POST encoding.
+  # Here we launder those into regular newlines so
+  # that, in particular, a \ at the end of line is 
+  # properly understood
+  regsub -all \r\n [ncgi::value proc] \n body
+  catch {uplevel #0 [list proc Example1 args $body]} _
+  catch {interp eval learn [list proc Example1 args $body]} _
+  set _
+}] -->
+Right below the &lt;hr&gt; horizontal line we'll display the
+result of the Example1 procedure:
+<p>
+<hr>
+<p>
+[if {[catch {interp eval learn Example1} result]} {
+  set _ "<b>Error</b><pre>\n$result\n</pre>"
+} else {
+  set _ $result
+}]
+<p>
+<hr>
+<p>
+The body of the Example1 procedure is shown here.
+<form action=[ncgi::urlStub] method=post>
+<textarea rows=5 cols=80 name=proc>
+[if {[info proc Example1] == ""} {
+  set _ "# Example1 is not a procedure"
+} else {
+  set _ [info body Example1]
+}]
+</textarea>
+<p>
+<input type=submit name=submit value="Define Example1">
+</form>
+<i>Hint</i> if there is no procedure, try<pre>
+return "&lt;b&gt;\[clock format \[clock seconds\]\]&lt;/b&gt;"
+</pre>
+Understand that this code runs with all the powers of the
+web server application.  If you want to halt the server, try this.
+<pre>
+exit
+</pre>
+Ha! tried it, huh?  This page runs Example1 in a Safe-Tcl interpreter,
+although the TML template system normally runs the templates in
+the main interpreter of your application.
+[mypage::footer]

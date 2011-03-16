@@ -1,0 +1,29 @@
+<!Doctype HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<Html>
+<Head>
+<Title>Tcl-based Templates</Title>
+<!-- Author: bwelch -->
+<META HTTP-Equiv=Editor Content="SunLabs WebTk 1.0 DEVELOPMENT">
+</Head>
+<Body>
+
+
+
+<h1>Tcl-based Templates</h1>
+This page shows the very simple processing done
+for <tt><i>page.</i>subst</tt> pages.
+These pages process Tcl embedded in pages,
+but don't have the more sophisticated support developed
+for the <tt><i>page.</i>tml</tt> pages.
+
+<h2>The time is [clock format [clock seconds]]</h2>
+<hr>
+Here is a look inside the httpd server module.
+This is generated with the <tt>html::tableFromArray</tt> command
+applied to the <tt>Httpd</tt> array variable in the server.
+<br>
+[html::tableFromArray Httpd]
+
+</Body>
+</Html>
+

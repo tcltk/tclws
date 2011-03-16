@@ -1,0 +1,55 @@
+[html::description "tclhttpd FAQ generator FAQ"]
+[html::keywords ]
+[html::author "Colin McCormack"]
+[mypage::header "tclhttpd FAQ generator FAQ"]
+
+[FAQinit "tclhttpd FAQ FAQ"]
+
+<!-- the FAQ calls return a value that is the section
+     or question ID.  This comment hides them:
+
+[FAQsection "General Questions"]
+[FAQ "What is it?" "The FAQ package allows you to present FAQs with minimal 
+fuss.  It runs under tclhttpd."]
+
+[FAQ "How do I use it from .tml?" {
+        The following structure under .tml will produce a beautiful FAQ page
+        <p>[FAQinit "name of FAQ"]
+        <p>[FAQsection "name of section"]
+        <p>[FAQ "question" "answer"]
+        <p>...
+        <p>[FAQsection "name of next section"]
+        <p>...
+        <p>[FAQgen]
+}]
+
+[FAQ "What facilities does it provide?" "Among other things, it'll produce an 
+Index, it'll generate internal html references to sections and questions, 
+it'll handle the numbering, and it'll let you generate links to each of these 
+indexable elements."]
+
+[FAQ "Wouldn't this format be terribly easy to generate from a text file?" \
+"Yes, it would.  And the text file could be generated from forms.  It'd be a 
+very nice, simple FAQomatic."]
+
+[FAQsection "Detailed Questions"]
+[FAQ "Shouldn't there be some detailed explanation here of each exported 
+function from FAQ?" "Yep, there certainly should."]
+
+[FAQsection "Unanswered Questions"]
+[FAQ "What is the \"S1 Q1.1 Q1.2 Q1.3 S2 Q2.1 Q2.2\" across the top, just 
+under the heading?" "This is gone now, hiding
+inside an HTML comment.  The FAQsection and FAQ procedures
+return section and question numbers that you'll want to comment out."]
+
+[FAQsection "Silly Questions"]
+[FAQ "Why is this section here?" "I wanted the FAQ to demonstrate section 
+structure"]
+[FAQ "How long did this take you to write this FAQ?" "Something under 5 
+minutes."]
+
+Just before FAQgen -->
+
+[FAQgen]
+
+[mypage::footer]

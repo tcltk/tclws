@@ -1,0 +1,203 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Creating a Tcl Web Service</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=utf-8">
+<META content="Creating a Tcl Web Service" name=KEYWORDS>
+</HEAD>
+<BODY>
+<H1>Creating a Tcl Web Service</H1>
+
+<TABLE class=toc id=toc>
+<TBODY>
+  <TR>
+    <TD>
+      <DIV id=toctitle>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Server_Package"><SPAN
+        class=tocnumber>1</SPAN> <SPAN class=toctext>Loading the Webservices
+        Server Package</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_a_Service"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Defining a
+        Service</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_an_Operation_.28aka_a_Service_Procedure.29"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Defining an Operation (aka
+        a Service Procedure)</SPAN></A>
+        <LI class=toclevel-1><A href="#Declaring_Complex_Types"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Declaring Complex
+        Types</SPAN></A> </LI>
+      </UL>
+    </TD>
+  </TR>
+</TBODY>
+</TABLE>
+
+<A name=Loading_the_Webservices_Server_Package></A>
+<H2>Loading the Webservices Server Package </H2>
+
+<p>To load the webservices server package, do: </p>
+<PRE> package require WS::Server</PRE>
+<p>This command will only load the server the first time it is used, so it
+causes no ill effects to put this in each file declaring a service or service
+procedure. </p>
+
+<h3>Using as part of TclHttpd</h3>
+
+<p>
+The Web Services package, WS::Server, is not a standalone application, but rather is designed
+be a "module" of TclHttpd.
+The following command is normally placed in httpdthread.tcl:
+</p>
+
+
+<h3>Embedding in a Standalone Application</h3>
+
+<p>
+To embed a Web Service into an application, the application needs to be event
+driven and you also need to use the <b>WS::Embeded</b> package.  You also must
+define the service with the <i>-mode=embedded</i> option.
+</p>
+
+<p>
+See also
+<a href="Embedded Web Service.html">Embedding a Web Service into an application</A>.
+</p>
+
+<h3>Using with Apache Rivet</h3>
+
+<p>
+<a href="http://tcl.apache.org/rivet/">Apache Rivet</a> is a module (mod_rivet) that can be loaded by Apache httpd server to
+allow web pages to run embedded Tcl commands in a way similar to PHP.  To create
+a Web Service in Rivet, use the example EchoRivetService.rvt as a starting point
+by simply copying it into any directory served by your Apache instance.  You should be able to
+immediately access that new location at the following URLs:
+</p>
+<PRE>               /path/to/EchoRivetService.rvt/doc
+                     Displays an HTML page describing the service
+               /path/to/EchoRivetService.rvt/wsdl
+                     Returns a WSDL describing the service
+               /path/to/EchoRivetService.rvt/op
+                     Invoke an operation
+</PRE>
+<p>
+If you would prefer to expose the published URLs of your service differently, you can use the
+standard Apache mod_rewrite or mod_alias modules to transparently map any other URL to those locations.
+</p>
+
+
+<HR>
+
+<A name=Defining_a_Service></A>
+<H2>Defining a Service </H2>
+
+<p>
+The code that defines a service is normally placed in one or more files in the custom directory.
+</p>
+
+<p><b>Procedure Name&nbsp;: <i>::WS::Server::Service</i></b> </p>
+<p><b>Description</b>&nbsp;: Declare a Web Service, the following URLs will
+exist </p><PRE>               /service/&lt;ServiceName&gt;
+                     Displays an HTML page describing the service
+               /service/&lt;ServiceName&gt;/wsdl
+                     Returns a WSDL describing the service
+               /service/&lt;ServiceName&gt;/op
+                     Invoke an operation
+</PRE>
+<p><b>Arguments</b>&nbsp;: this procedure uses position independent arguments,
+they are: </p><PRE>             -host           - The host name for this service
+                                     Defaults to "localhost"
+             -description    - The HTML description for this service
+             -xmlnamespace   - Extra XML namespaces used by the service
+             -service        - The service name (this will also be used for
+                                 the Tcl namespace of the procedures that implement
+                                 the operations.
+             -premonitor     - This is a command prefix to be called before
+                                 an operation is called.  The following arguments are
+                                 added to the command prefix:
+                                    PRE serviceName operationName operArgList
+             -postmonitor    - This is a command prefix to be called after
+                                 an operation is called.  The following arguments are
+                                 added to the command prefix:
+                                    POST serviceName operationName OK|ERROR results
+             -inheaders      - List of input header types.
+             -outheaders     - List of output header types.
+             -checkheader    - Command prefix to check headers.
+                                   If the call is not to be allowed, this command
+                                   should raise an error.
+                                   The signature of the command must be:
+                                     cmd \
+                                         service \
+                                         operation \
+                                         caller_ipaddr \
+                                         http_header_list \
+                                         soap_header_list
+            -mode           - Mode that service is running in.  Must be one of:
+                                   tclhttpd  -- running inside of tclhttpd or an
+                                                environment that supplies a
+                                                compatible Url_PrefixInstall
+                                                and Httpd_ReturnData commands
+                                   embedded  -- using the ::WS::Embedded package
+                                   aolserver -- using the ::WS::AolServer package
+                                   wub       -- using the ::WS::Wub package
+                                   wibble    -- running inside wibble
+                                   rivet     -- running inside Apache Rivet (mod_rivet)
+            -ports          - List of ports for embedded mode. Default: 80
+                                    NOTE -- a call should be to
+                                            ::WS::Embedded::Listen for each port
+                                            in this list prior to this call
+            -prefix         - Path prefix used for the namespace and endpoint
+                              Defaults to "/service/" plus the service name
+            -traceEnabled   - Boolean to enable/disable trace being passed back in exception
+                              Defaults to "Y"
+            -docFormat      - Format of the documentation for operations ("text" or "html").
+                              Defaults to "text"
+
+</PRE>
+<p><b>Returns</b>&nbsp;: Nothing </p>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: </p><PRE>     <i>MISSREQARG</i> -- Missing required arguments
+</PRE>
+<p><b>Pre-requisite Conditions</b>&nbsp;: None </p>
+<HR>
+
+<A name=Defining_an_Operation_.28aka_a_Service_Procedure.29></A>
+<H2>Defining an Operation (aka a Service Procedure) </H2>
+<p><b>Procedure Name&nbsp;: <i>::WS::Server::ServiceProc</i></b> </p>
+<p><b>Description</b>&nbsp;: Register an operation for a service and declare the
+procedure to handle the operations. </p>
+<p><b>Arguments</b>&nbsp;: </p><PRE>     <i>ServiceName    </i> -- Name of the service this operation is for
+     <i>NameInfo       </i> -- List of three elements:
+                             1) OperationName -- the name of the operation
+                             2) ReturnType    -- the type of the procedure return,
+                                                 this can be a simple or complex type
+                             3) Description   -- description of the return method
+     <i>Arglist        </i> -- List of argument definitions,
+                         each list element must be of the form:
+                             1) ArgumentName -- the name of the argument
+                             2) ArgumentTypeInfo -- -- A list of:
+                                    {type typeName comment commentString}
+                                         typeName can be any simple or defined type.
+                                         commentString is a quoted string describing the field
+     <i>Documentation</i>   -- HTML describing what this operation does
+     <i>Body           </i> -- The tcl code to be called when the operation is invoked. This
+                            code should return a dictionary with &lt;OperationName&gt;Result as a
+                            key and the operation's result as the value.
+</PRE>
+<p><b>Returns</b>&nbsp;: Nothing </p>
+<p><i>Side-Effects</i>&nbsp;: </p><PRE>   A procedure named "&lt;ServiceName&gt;::&lt;OperationName&gt;" defined
+   A type name with the name &lt;OperationName&gt;Result is defined.
+</PRE>
+<p><i>Exception Conditions</i>&nbsp;: None </p>
+<p><i>Pre-requisite Conditions</i>&nbsp;:&nbsp;::WS::Server::Server must have
+been called for the ServiceName </p>
+<HR>
+
+<A name=Declaring_Complex_Types></A>
+<H2>Declaring Complex Types </H2>
+<p>See: <A
+title="Creating a Web Service Type from Tcl"
+href="Creating a Web Service Type.html">Creating
+a Web Service Type from Tcl</A> </p>
+
+</BODY>
+</HTML>

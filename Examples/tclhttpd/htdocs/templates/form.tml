@@ -1,0 +1,46 @@
+[html::author "Brent Welch"]
+[mypage::header "Templates and State"]
+<b>Sample Form</b>
+<p>
+<form action=$page(url) method=POST>
+<table>
+[html::row "General Info" "<input type=text [html::formValue data]>"]
+[html::row "Exclusive Choice" \
+    [html::radioSet somevariable {&nbsp;} {
+	orange Orange
+	blue Blue
+	green Green
+	"violet red" "Violet Red"
+    }]]
+[html::row "Selection" \
+    [html::select mutli 1 {
+	"" "Please Select"
+	orange Orange
+	blue Blue
+	green Green
+	"violet red" "Violet Red"
+    }]]
+[html::row "Multiple Choice " \
+    [html::checkSet check "&nbsp;" {
+	orange Orange
+	blue Blue
+	green Green
+	"violet red" "Violet Red"
+    }]]
+</table>
+Hit this page with form data:
+<input type=submit>
+
+<p>
+When a template is processed, information about the CGI values
+is available via the <b>ncgi</b> module,
+and the <b>html</b> module used to create the above form
+automatically initializes the form elements to match the CGI values.
+<p>
+<b>CGI Values</b><br>
+[html::tableFromList [ncgi::nvlist] "border=1"]
+<p>
+<b>Environment</b><br>
+[html::tableFromArray ::env "border=1" *]
+
+[mypage::footer]

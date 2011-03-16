@@ -1,0 +1,48 @@
+[mypage::header "Tcl Web Server Registration"]
+
+<form action="http://www.tcl.tk/mail/forminfo" method="POST">
+<input type="hidden" name="product" value="WebServer">
+<input type="hidden" name="version" value="$Httpd(server)">
+<input type="hidden" name="sendto" value="welch@acm.org">
+<input type="hidden" name="subject" value="Register WebServer">
+
+<p>
+If you are unable to post the registration form, an informal
+note to [html::mailto welch@acm.org "Register WebServer"] would be appreciated.
+
+<p>
+Ahem, this form is all great and everything, but I don't have a good
+"email this form data" handler running, so the mail will go into
+the bit bucket.  The best thing to do is introduce yourself on
+the tclhttpd mailing list.
+
+<p>
+<h2>User Registration</h2>
+<table>
+[html::textInputRow "Name" name]
+[html::textInputRow "Email" emailaddr]
+<tr>[html::cell colspan=2 [html::checkSet noemail {} {
+    "<b>Do not</b> contact me about new releases" 1
+}]]</tr>
+[html::textInputRow "Title" title]
+[html::textInputRow "Company" company]
+</table>
+<p>How do you plan to use the server?<br>
+<textarea name="why" cols=60 rows=4>
+</textarea>
+<p>
+
+For more general comments, please send email to
+<a href=mailto:welch@acm.org>welch@acm.org</a>.
+There is also a mailing list for users of the Tcl Web Server.
+You can join this list by
+visiting
+<a href="http://lists.sourceforge.net/mailman/listinfo/tclhttpd-users">http://lists.sourceforge.net/mailman/listinfo/tclhttpd-users</a>.
+Send mail to the list at [html::mailto tclhttpd-users@lists.sourceforge.net]
+<p>
+[html::submit "Register (test)"]
+<br>
+</form>
+
+
+[mypage::footer]

@@ -1,0 +1,313 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Calling a Web Service from Tcl</TITLE>
+</HEAD>
+
+<BODY>
+<H1 class=firstHeading>Calling a Web Service from Tcl</H1>
+
+<HR>
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Overview"><SPAN class=tocnumber>1</SPAN> <SPAN class=toctext>Overview</SPAN></A>
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Client_Package"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Loading the Webservices
+        Client Package</SPAN></A>
+        <LI class=toclevel-1><A href="#Quering_a_remote_Web_Services_Server_for_its_WSDL_and_parsing_it"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Quering a remote Web
+        Services Server for its WSDL and parsing it</SPAN></A>
+        <LI class=toclevel-1><A href="#Parsing_a_saved_WSDL"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Parsing a saved
+        WSDL</SPAN></A>
+        <LI class=toclevel-1><A href="#Loading_a_pre-parsed_WSDL"><SPAN
+        class=tocnumber>5</SPAN> <SPAN class=toctext>Loading a pre-parsed
+        WSDL</SPAN></A>
+        <LI class=toclevel-1><A href="#Defining_a_REST_service"><SPAN
+        class=tocnumber>6</SPAN>
+        <SPAN class=toctext>Defining a REST based service by hand</SPAN></A>
+        <LI class=toclevel-1><A href="#Transforms"><SPAN
+        class=tocnumber>7</SPAN>
+        <SPAN class=toctext>Defining Transforms</SPAN></A>
+        <LI class=toclevel-1><A href="#Synchronous_Call_returning_a_dictionary_object"><SPAN
+        class=tocnumber>8</SPAN> <SPAN class=toctext>Synchronous Call returning
+        a dictionary object</SPAN></A>
+        <LI class=toclevel-1><A href="#Asynchronous_Call_with_separate_success_and_error_callbacks"><SPAN
+        class=tocnumber>9</SPAN> <SPAN class=toctext>Asynchronous Call with
+        separate success and error callbacks</SPAN></A>
+        <LI class=toclevel-1><A href="#Creation_of_stub_Tcl_procedures_to_make_synchronous_calls"><SPAN
+        class=tocnumber>10</SPAN> <SPAN class=toctext>Creation of stub Tcl
+        procedures to make synchronous calls</SPAN></A>
+        <LI class=toclevel-1><A href="#Synchronous_Call_returning_the_raw_XML"><SPAN
+        class=tocnumber>11</SPAN> <SPAN class=toctext>Synchronous Call returning
+        the raw XML</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
+<P>
+
+</P>
+<A name=Overview></A>
+<H2>Overview </H2>
+<P>The Webservices Client package provides a several ways to define what
+operations a remote Web Services Server provides and how to call those
+operations. It also includes several ways to call an operation. </P>
+<P>The following ways are provided to define remote operations: </P>
+<UL>
+  <LI>Loading a pre-parsed WSDL
+  <LI>Quering a remote Web Services Server for its WSDL and parsing it
+  <LI>Parsing a saved WSDL </LI></UL>
+  <LI>Defining a REST based service by hand </LI></UL>
+<P>The parsed format is much more compact than the XML of a WSDL. </P>
+<P>The following ways are provided to directly call an operation of a Web
+Service Server: </P>
+<UL>
+  <LI>Synchronous Call returning a dictionary object
+  <LI>Synchronous Call returning the raw XML
+  <LI>Asynchronous Call with separate success and error callbacks
+  <LI>Creation of stub Tcl procedures to make synchronous calls </LI></UL>
+<A name=Loading_the_Webservices_Client_Package></A>
+<H2>Loading the Webservices Client Package </H2>
+<P>To load the webservices server package, do: </P><PRE> package require WS::Client
+</PRE>
+<P>This command will only load the utilities the first time it is used, so it
+causes no ill effects to put this in each file using the utilties. </P>
+<HR>
+
+
+<A name=Quering_a_remote_Web_Services_Server_for_its_WSDL_and_parsing_it></A>
+<H2>Quering a remote Web Services Server for its WSDL and parsing it </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::GetAndParseWsdl</I></B> </P>
+<P><B>Description&nbsp;:</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>url</I>     - The url of the WSDL
+     <I>headers</I> - Extra headers to add to the HTTP request. This
+                 is a key value list argument. It must be a list with
+                 an even number of elements that alternate between
+                 keys and values. The keys become header field names.
+                 Newlines are stripped from the values so the header
+                 cannot be corrupted.
+                 This is an optional argument and defaults to {}.
+     <I>serviceAlias</I> - Alias (unique) name for service.
+                     This is an optional argument and defaults to the name of the
+                     service in serviceInfo.
+</PRE>
+<P><B>Returns&nbsp;: The parsed service definition</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+<A name=Parsing_a_saved_WSDL></A>
+<H2>Parsing a saved WSDL </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::ParseWsdl</I></B> </P>
+<P><B>Description&nbsp;: Parse a WSDL</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>wsdlXML</I> - XML of the WSDL
+</PRE>
+<P><B>Optional Arguments:</B> </P><PRE>     -createStubs 0|1 - create stub routines for the service
+                             <B>NOTE</B> -- Webservice arguments are position
+                                     independent, thus the proc arguments
+                                     will be defined in alphabetical order.
+     -headers         - Extra headers to add to the HTTP request. This
+                        is a key value list argument. It must be a list with
+                        an even number of elements that alternate between
+                        keys and values. The keys become header field names.
+                        Newlines are stripped from the values so the header
+                        cannot be corrupted.
+                        This is an optional argument and defaults to {}.
+     -serviceAlias - Alias (unique) name for service.
+                      This is an optional argument and defaults to the name of the
+                      service in serviceInfo.
+</PRE>
+<P><B>Returns&nbsp;: The parsed service definition</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+
+<A name=Loading_a_pre-parsed_WSDL></A>
+<H2>Loading a pre-parsed WSDL </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::LoadParsedWsdl</I></B> </P>
+<P><B>Description&nbsp;: Load a saved service definition in</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>serviceInfo</I> - parsed service definition, as returned from
+                   <I>::WS::Client::ParseWsdl</I> or <I>::WS::Client::GetAndParseWsdl</I>
+     <I>headers</I>     - Extra headers to add to the HTTP request. This
+                     is a key value list argument. It must be a list with
+                     an even number of elements that alternate between
+                     keys and values. The keys become header field names.
+                     Newlines are stripped from the values so the header
+                     cannot be corrupted.
+                     This is an optional argument and defaults to {}.
+     <I>serviceAlias</I> - Alias (unique) name for service.
+                     This is an optional argument and defaults to the name of the
+                     service in serviceInfo.
+</PRE>
+<P><B>Returns&nbsp;: The name of the service loaded</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+<A name=Defining_a_REST_service></A>
+<H2>Defining a REST based service by hand </H2>
+<BR>
+<H3>Service Definition</H3>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::CreateService</I></B> </P>
+<P><B>Description&nbsp;: Define a REST service</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I> - Service name to add namespace to
+     <I>type</I>        - The type of service, currently only <B>REST</B> is supported.
+     <I>url</I>          - URL of namespace.
+     <I>args</I>         - Optional arguments:
+                            This is an optional argument and defaults to the name of the
+                                <I>-header</I> httpHeaderList.
+</PRE>
+<P><B>Returns&nbsp;: The local alias (tns)</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+
+<H3>Method Definition</H3>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::DefineRestMethod</I></B> </P>
+<P><B>Description&nbsp;: Define a method on a REST service</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I> - Service name to add namespace to
+     <I>methodName</I>  - The name of the method to add.
+     <I>inputArgs</I>   - List of input argument definitions where each argument
+                           definition is of the format: name typeInfo.
+     <I>returnType</I>  - The type, if any returned by the procedure.  Format is:
+                           xmlTag <I>typeInfo</I>.
+
+    where, <I>typeInfo</I> is of the format <B>{</B>type typeName comment commentString<B>}</B>
+</PRE>
+<P><B>Returns&nbsp;: The current service definition </B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
+
+
+<A name=Transforms></A>
+<H2>Defining Transforms </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::SetServiceTransforms</I></B> </P>
+<P><B>Description&nbsp;: Define a service's transforms</B>
+<PRE>
+               Transform signature is:
+                   cmd serviceName operationName <I>transformType</I> xml {url {}} {argList {}}
+               where <I>transformType</I> is <B>REQUEST</B> or <B>REPLY</B>
+               and url and argList will only be present for <I>transformType</I> == <B>REQUEST</B>
+</PRE> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>serviceName</I>  - The name of the Webservice
+     <I>inTransform</I>  - Input transform <I>cmd</I>, defaults to {}
+     <I>outTransform</I> - Output transform<I>cmd</I>, defaults to {}
+</PRE>
+<P><B>Returns&nbsp;: None</B></P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+<HR>
+
+<A name=Synchronous_Call_returning_a_dictionary_object></A>
+<H2>Synchronous Call returning a dictionary object </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::DoCall</I></B> </P>
+<P><B>Description&nbsp;: Call an operation of a web service</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>serviceName</I>     - The name of the Webservice
+     <I>operationName</I>   - The name of the Operation to call
+     <I>argList</I>         - The arguements to the operation as a dictionary object
+                       This is for both the Soap Header and Body messages.
+     <I>headers</I>         - Extra headers to add to the HTTP request. This
+                       is a key value list argument. It must be a list with
+                       an even number of elements that alternate between
+                       keys and values. The keys become header field names.
+                       Newlines are stripped from the values so the header
+                       cannot be corrupted.
+                       This is an optional argument and defaults to {}.
+</PRE>
+<P><B>Returns&nbsp;:</B> </P>
+<PRE>     The return value of the operation as a dictionary object.
+       This includes both the return result and any return headers.
+</PRE>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:</B> </P><PRE>     <B>WSCLIENT HTTPERROR</B>      - if an HTTP error occured
+     others                  - as raised by called Operation
+</PRE>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+<HR>
+
+<A name=Asynchronous_Call_with_separate_success_and_error_callbacks></A>
+<H2>Asynchronous Call with separate success and error callbacks </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::DoAsyncCall</I></B> </P>
+<P><B>Description&nbsp;: Call an operation of a web service asynchronously</B>
+</P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>serviceName</I>     - The name of the Webservice
+     <I>operationName</I>   - The name of the Operation to call
+     <I>argList</I>         - The arguements to the operation as a dictionary object
+                       This is for both the Soap Header and Body messages.
+     <I>succesCmd</I>       - A command prefix to be called if the operations
+                       does not raise an error.  The results, as a dictionary
+                       object are concatinated to the prefix. This includes
+                       both the return result and any return headers.
+
+     <I>errorCmd</I>        - A command prefix to be called if the operations
+                       raises an error.  The error code and stack trace
+                       are concatinated to the prefix.
+     <I>headers</I>         - Extra headers to add to the HTTP request. This
+                       is a key value list argument. It must be a list with
+                       an even number of elements that alternate between
+                       keys and values. The keys become header field names.
+                       Newlines are stripped from the values so the header
+                       cannot be corrupted.
+                       This is an optional argument and defaults to {}.
+</PRE>
+<P><B>Returns&nbsp;: Nothing.</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:</B> </P><PRE>     WSCLIENT HTTPERROR      - if an HTTP error occured
+     others                  - as raised by called Operation
+</PRE>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+<HR>
+
+<A name=Creation_of_stub_Tcl_procedures_to_make_synchronous_calls></A>
+<H2>Creation of stub Tcl procedures to make synchronous calls </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::CreateStubs</I></B> </P>
+<P><B>Description&nbsp;: Create stubs routines to make calls to Webservice
+Operations.</B> </P><PRE>             All routines will be create in a namespace that is the same
+             as the service name.  The procedure name will be the same
+             as the operation name.
+</PRE><PRE>             <B>NOTE</B> -- Webservice arguments are position independent, thus
+                     the proc arguments will be defined in alphabetical order.
+</PRE>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>serviceName</I>     - The service to create stubs for
+</PRE>
+<P><B>Returns&nbsp;: A string describing the created procedures.</B> </P>
+<P><B>Side-Effects&nbsp;: Existing namespace is deleted.</B> </P>
+<P><B>Exception Conditions&nbsp;: None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+<HR>
+
+<A name=Synchronous_Call_returning_the_raw_XML></A>
+<H2>Synchronous Call returning the raw XML </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Client::DoRawCall</I></B> </P>
+<P><B>Description&nbsp;: Call an operation of a web service</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>serviceName</I>     - The name of the Webservice
+     <I>operationName</I>   - The name of the Operation to call
+     <I>argList</I>         - The arguements to the operation as a dictionary object
+                       This is for both the Soap Header and Body messages.
+     <I>headers</I>         - Extra headers to add to the HTTP request. This
+                       is a key value list argument. It must be a list with
+                       an even number of elements that alternate between
+                       keys and values. The keys become header field names.
+                       Newlines are stripped from the values so the header
+                       cannot be corrupted.
+                       This is an optional argument and defaults to {}.
+</PRE>
+<P><B>Returns&nbsp;:</B> </P><PRE>     The XML of the operation.
+</PRE>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:</B> </P><PRE>     <B>WSCLIENT HTTPERROR</B>      - if an HTTP error occured
+</PRE>
+<P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
+
+</BODY>
+</HTML>

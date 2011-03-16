@@ -1,0 +1,118 @@
+<?
+
+# This is an alternative implementation of the EchoWebService.tcl that 
+# will run in the Apache Rivet (mod_rivet) Tcl environment.
+
+package require WS::Server
+package require log
+
+::log::lvChannelForall stderr
+::log::lvSuppress debug 0
+
+set serviceName "wsEchoExample"
+
+###########################################################################
+
+
+##
+## Define the service
+##
+::WS::Server::Service \
+    -mode rivet \
+    -service $serviceName \
+    -description  {Tcl Example Web Services} \
+    -host         [env SERVER_NAME] \
+    -prefix       [env SCRIPT_NAME]
+
+##
+## Define any special types
+##
+::WS::Utils::ServiceTypeDef Server $serviceName echoReply {
+    echoBack     {type string}
+    echoTS       {type dateTime}
+}
+
+##
+## Define the operations available
+##
+::WS::Server::ServiceProc \
+    $serviceName \
+    {SimpleEcho {type string comment {Requested Echo}}} \
+    {
+        TestString      {type string comment {The text to echo back}}
+    } \
+    {Echo a string back} {
+        return [list SimpleEchoResult $TestString]
+    }
+
+::WS::Server::ServiceProc \
+    $serviceName \
+    {ComplexEcho {type echoReply comment {Requested Echo -- text and timestamp}}} \
+    {
+        TestString      {type string comment {The text to echo back}}
+    } \
+    {Echo a string and a timestamp back} {
+        set timeStamp [clock format [clock seconds] -format {%Y-%m-%dT%H:%M:%SZ} -gmt yes]
+        return [list ComplexEchoResult [list echoBack $TestString echoTS $timeStamp]  ]
+    }
+
+
+
+###########################################################################
+
+
+
+#
+# Page execution begins here.
+#
+
+if {[var exists wsdl] || [env PATH_INFO] == "/wsdl"} {
+    # send the WSDL without requiring authentication
+
+    # Enforce GET
+    if {[env REQUEST_METHOD] != "GET"} {
+        headers numeric 405
+        puts "Method must be GET"
+        abort_page
+    }
+
+    ::WS::Server::generateWsdl $serviceName RivetClient
+} elseif {[var exists doc] || [env PATH_INFO] == "/doc"} {
+    # send the functional documentation without requiring authentication
+
+    # Enforce GET
+    if {[env REQUEST_METHOD] != "GET"} {
+        headers numeric 405
+        puts "Method must be GET"
+        abort_page
+    }
+
+    ::WS::Server::generateInfo $serviceName RivetClient
+} else {
+    # process a SOAP request
+
+    # Enforce POST
+    if {[env REQUEST_METHOD] != "POST"} {
+        headers numeric 405
+        puts "Method must be POST"
+        abort_page
+    }
+
+    # Capture the info from the request into an array.
+    load_headers hdrArray
+    set sock 0;     # an arbitrary value
+    array unset ::Httpd$sock
+    array set ::Httpd$sock [list query [raw_post] ipaddr [env REMOTE_ADDR] headerlist [array get hdrArray]]
+
+    # Invoke the method
+    if {[catch {::WS::Server::callOperation $serviceName $sock} error]} {
+        headers numeric 500
+        puts "Operation failed: $error"
+	puts stderr "Operation failed: $error"
+        abort_page
+    }
+}
+
+
+
+?>

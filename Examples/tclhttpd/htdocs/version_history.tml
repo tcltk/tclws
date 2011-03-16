@@ -1,0 +1,36 @@
+[html::author "Brent Welch"]
+[mypage::header "TclHttpd Version History"]
+<p>
+Current versions running in this server:
+<br>
+TclHttpd $Httpd(version)
+<br>
+Tcl $tcl_patchLevel
+<p>
+TclHttpd has been tested on Tcl 8.3, Tcl 8.4, and early versions
+of Tcl 8.5.
+For information about Tcl distributions,
+visit <a href=http://www.tcl.tk/software/tcltk/>www.tcl.tk</a>.
+<p>
+The server also depends on the Standard Tcl Library.  The server
+should work with tcllib version >= 1.2.  The current tcllib version is 1.5.
+For the latest tcllib, see the <a href=http://www.sourceforge.net/projects/tcllib>tcllib SourceForge project</a>.
+
+<p>
+<i>Using older verions:</i>
+<ul>
+TclHttpd was originally written using Tcl 7.5, and you can probably
+get it to run on any post 8.0 Tcl release, but you may need to
+fix a few dependencies on newer, more convenient Tcl apis.
+If you install the Standard Tcl Library with your Tcl 8.0 or later release
+you can probably
+get by, and if you grab a 2.3.* version of TclHttpd you can run with
+Tcl 7.5 or later.
+</ul>
+
+<p>
+<b>FTP site</b>
+<p>
+<a  href=ftp://ftp.tcl.tk/pub/tcl/httpd>ftp://ftp.tcl.tk/pub/tcl/httpd</a>
+<p>
+[mypage::footer]
