@@ -44,7 +44,7 @@ if {![llength [info command dict]]} {
     package require dict
 }
 package require log
-package require tdom
+package require tdom 0.8
 package require struct::set
 
 package provide WS::Utils 1.4.0
@@ -1112,9 +1112,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
     if {[$node hasAttribute href]} {
         set node [GetReferenceNode $root [$node getAttribute href]]
     }
+    ::log::log debug "\t XML of node is [$node asXML]"
     if {[info exists mutableTypeInfo([list $mode $serviceName $type])]} {
         set type [(*)[lindex mutableTypeInfo([list $mode $serviceName $type]) 0] $mode $serviceName $type $xns $node]
         set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+        ::log::log debug "\t type def replaced with = {$typeDefInfo}"
     }
     set results {}
     #if {$options(parseInAttr)} {
@@ -1124,7 +1126,9 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
     #        }
     #    }
     #}
-    foreach partName [dict keys [dict get $typeDefInfo definition]] {
+    set partsList [dict keys [dict get $typeDefInfo definition]]
+    ::log::log debug "\t partsList is {$partsList}"
+    foreach partName $partsList {
         set partType [dict get $typeDefInfo definition $partName type]
         if {[string equal $partName *] && [string equal $partType *]} {
             ##
@@ -1176,6 +1180,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 }
             }
         }
+        set origItemList $item
+        set newItemList {}
+        foreach item $origItemList {
+            if {[$item hasAttribute href]} {
+                set oldXML [$item asXML]
+                set item [GetReferenceNode $root [$item getAttribute href]]
+                ::log::log debug "\t\t Replacing: $oldXML"
+                ::log::log debug "\t\t With: [$item asXML]"
+            }
+            lappend newItemList $item
+        }
+        set item $newItemList
         switch $typeInfoList {
             {0 0} {
                 ##
@@ -2163,7 +2179,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             if {$ncode != 200} {
                 return \
                     -code error \
-                    -errorcode [list WS CLIENT HTTPFAIL $url] \
+                    -errorcode [list WS CLIENT HTTPFAIL $url $ncode] \
                     "HTTP get of import file failed '$url'"
             }
         }

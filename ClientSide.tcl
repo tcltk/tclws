@@ -44,7 +44,7 @@ package require WS::Utils
 if {![llength [info command dict]]} {
     package require dict
 }
-package require tdom
+package require tdom 0.8
 package require http 2
 package require log
 package require uri
@@ -1550,7 +1550,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     set serviceInfo $serviceArr($serviceName)
     set outTransform [dict get $serviceInfo outTransform]
     if {![string equal $outTransform {}]} {
-        set query [$outTransform $serviceName $operationName REPLY $inXML]
+        set inXML [$outTransform $serviceName $operationName REPLY $inXML]
     }
 
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
@@ -1572,7 +1572,8 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {[llength $rootNode] > 1} {
         foreach tmp $rootNode {
             #puts "\t Got {[$tmp localName]} looking for {$expectedMsgType}"
-            if {[string equal [$tmp localName] $expectedMsgType]} {
+            if {[string equal [$tmp localName] $expectedMsgType] ||
+                [string equal [$tmp nodeName] $expectedMsgType]} {
                 set rootNode $tmp
                 break
             }
@@ -1627,23 +1628,23 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ## Convert the packet to a dictionary
     ##
     set results {}
-    set headerRootNode [$rootNode selectNodes ENV:Header]
+    set headerRootNode [$top selectNodes ENV:Header]
     foreach outHeaderType [dict get $serviceInfo operation $operationName soapReplyHeader] {
         if {[string equal $outHeaderType {}]} {
             continue
         }
-        ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $outHeaderType $rootNode]"
         set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outputHeaderType] xns]
         set node [$headerRootNode selectNodes $xns:outHeaderType]
         if {[llength $outHeaderAttrs]} {
             ::WS::Utils::setAttr $node $outHeaderAttrs
         }
-        lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $rootNode]
+        ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]"
+        lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]
     }
-    ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $rootNode]"
+    ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
     if {![string equal $rootName {}]} {
         lappend results [::WS::Utils::convertTypeToDict \
-                         Client $serviceName $rootNode $expectedMsgType $rootNode]
+                         Client $serviceName $rootNode $expectedMsgType $body]
     }
     set results [join $results]
     $doc delete
@@ -1908,7 +1909,11 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
 
     set callXns [dict get $serviceInfo operation $operationName xns]
-    $bod appendChild [$doc createElement $callXns:$operationName reply]
+    if {![string is space $callXns]} {
+        $bod appendChild [$doc createElement $callXns:$operationName reply]
+    } else {
+        $bod appendChild [$doc createElement $operationName reply]
+    }
     $reply  setAttribute \
         SOAP-ENV:encodingStyle "http://schemas.xmlsoap.org/soap/encoding/"
 
@@ -2940,6 +2945,11 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
     #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
     $doc delete
 
+    set inTransform [dict get $serviceInfo inTransform]
+    if {![string equal $inTransform {}]} {
+        set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
+    }
+
     ::log::log debug "Leaving ::::WS::Client::buildRestCallquery with {$xml}"
 
     return $xml
@@ -2995,6 +3005,10 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
 
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
     set serviceInfo $serviceArr($serviceName)
+    set outTransform [dict get $serviceInfo outTransform]
+    if {![string equal $outTransform {}]} {
+        set inXML [$outTransform $serviceName $operationName REPLY $inXML]
+    }
     set expectedMsgType [dict get $serviceInfo object $objectName operation $operationName outputs]
     dom parse $inXML doc
     $doc documentElement top
