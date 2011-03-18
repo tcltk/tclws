@@ -127,6 +127,7 @@ namespace eval ::WS::Server {
 #                                 Defaults to "Y"
 #               -docFormat      - Format of the documentation for operations ("text" or "html").
 #                                 Defaults to "text"
+#               -stylesheet     - The CSS stylesheet URL used in the HTML documentation
 #
 #
 # Returns :     Nothing
@@ -172,6 +173,7 @@ proc ::WS::Server::Service {args} {
         -ports          {80}
         -traceEnabled   {Y}
         -docFormat      {text}
+        -stylesheet     {}
     }
     array set defaults $args
     if {[string equal $defaults(-mode) channel]} {
@@ -1662,6 +1664,9 @@ proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
         ::html::description  "Automatically generated human readable documentation for '$service'"
     } else {
         ::html::description $serviceData(-description)
+    }
+    if {$serviceData(-stylesheet) != ""} {
+        ::html::headTag "link rel=\"stylesheet\" type=\"text/css\" href=\"$serviceData(-stylesheet)\""
     }
     set head $serviceData(-htmlhead)
     set msg [::html::head $head]
