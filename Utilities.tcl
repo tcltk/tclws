@@ -2148,6 +2148,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             upvar #0 [::uri::geturl $url] token
             set xml $token(data)
             unset token
+            ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
         }
         http {
             set ncode -1
@@ -2157,6 +2158,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
                 set ncode [::http::ncode $token]
                 set xml [::http::data $token]
                 ::http::cleanup $token
+                ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
             }
             if {$ncode != 200} {
                 return \
@@ -2172,7 +2174,6 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
                 "Unknown URL type '$url'"
         }
     }
-    ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
 }
 
 
