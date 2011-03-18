@@ -1,0 +1,85 @@
+[mypage::header "HTML/Tcl Templates"]
+<p>
+A Tcl template works by mixing Tcl code into normal HTML pages.
+The server uses the Tcl subst command to replace the Tcl code and
+variable references with their results and values.
+Here are a few examples:
+<table border=1>
+<tr><th>Tcl fragment</th><th>Result</th></tr>
+[html::foreach {code} {
+  {[Httpd_Version]}
+  {[clock format [clock seconds]]}
+  {$Doc(root)}
+  {[expr 7 * 826]}
+} {
+  <tr><td>$code</td><td>[subst $code]</td></tr>
+}]
+</table>
+<p>
+There are two template systems provided by the Doc module:
+<tt>tml</tt> and <tt>subst</tt> templates.  They both work
+in a similar way to replace in-line Tcl,
+but they differ in the setup done before a page is processed.
+
+<h3><a href=simple.subst>Simple "subst" Templates</a></h3>
+
+If you have a file
+that ends with ".subst",
+then it is processed every time the page is fetched.
+There is relatively little setup done before processing the page.
+
+
+<h3>tml Templates</h3>
+The ".tml" template system is similar to the ".subst" system,
+but it provides caching and additional
+setup before pages are processed.
+
+<h4>Caching Template Results</h4>
+<p>
+The ".tml" template system provides caching of template results
+in static ".html" files.  This saves the cost of re-processing the
+template each time you access the file.
+By default, the file <i>page</i>.html contains the cached results
+of processing the file <i>page</i>.tml.  If the <i>page</i>.tml
+page is modified, the cached copy is regenerated.  To get the
+cache, you have to ask for the <i>page</i>.html file.  The server
+automatically checks to see if there is a corresponding <i>page</i>.tml
+file, processes the template, caches the result in <i>page</i>.html,
+and returns the result.
+<p>
+However, you don't want
+to cache if the page must be processed on each access.
+If you don't want your templates cached, put a call to
+<pre>\[Doc_Dynamic\]</pre>
+into your page.  That surpresses the caching of the template results.
+
+<h4>Per-directory .tml files</h4>
+<p>
+Before processing a <i>page</i>.tml page, the server loads
+any file named ".tml" (no prefix) in the same directory.
+This allows you to put procedure and variable definitions in
+the ".tml" file that are shared among the pages in that directory.
+<p>
+The server looks up the directory hierarchy to the document root
+for additional ".tml" files.  These are all loaded in order from the
+root down towards the directory containing the template file <i>page</i>.tml.
+If you look at the sample htdocs tree that comes with the server,
+you can see how these .tml files are used.
+
+<h3>More Examples</h3>
+<ul>
+<li><a href=self.html>A self modifying page</a> lets you try out
+a few things yourself.
+
+<li><a href=faqfaq.html>FAQ Generator</a> example that illustrates
+how to use
+the <tt>faq</tt> module in the sample custom directory.
+
+<li><a href="form.tml">Templates with Form Data</a>
+If you want to process query data, it is available via the <b>ncgi</b>
+interface, and indirectly via the <b>html</b> interface used
+to create form elements.
+
+</ul>
+
+[mypage::footer]

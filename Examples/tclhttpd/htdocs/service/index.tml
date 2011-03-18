@@ -1,0 +1,41 @@
+[Doc_Dynamic]
+
+
+[::html::init]
+[::html::head {Web Services for Tcl - Available Services}]
+
+[::html::bodyTag]
+[mypage::contents {}]
+[::html::h1 {Web Services for Tcl - Available Services}]
+
+[::html::openTag TABLE border=10 ]
+[::html::hdrRow {Service} {Description} {Info Link} {WSDL Link} {Status} {Forms}]
+
+[
+    set data {}
+    foreach serviceName [array names ::WS::Server::serviceArr] {
+        set statusFile [file normalize [file join $Config(docRoot) servicestatus $serviceName.tml]]
+        if {[file exist $statusFile]} {
+            set statusLink "<A HREF='../servicestatus/$serviceName.tml'>Status</A>"
+        } else {
+            set statusLink {None}
+        }
+        set formsFile [file normalize [file join $Config(docRoot) serviceforms $serviceName.tml]]
+        if {[file exist $formsFile]} {
+            set formsLink "<A HREF='../serviceforms/$serviceName.tml'>Forms</A>"
+        } else {
+            set formsLink {None}
+        }
+        append data [::html::row $serviceName \
+                                 [dict get $::WS::Server::serviceArr($serviceName) -description] \
+                                 [format {<A HREF="%s">Infomation</A>} $serviceName]\
+                                 [format {<A HREF="%s/wsdl">WSDL</A>} $serviceName] \
+                                 $statusLink \
+                                 $formsLink]
+    }
+    set data
+]
+
+[mypage::footer]
+
+[::html::end]

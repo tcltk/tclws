@@ -1,0 +1,76 @@
+[mypage::header "Tcl Server Info"]
+
+<h3>Status</h3>
+[StatusMenu]
+
+<h3>Debugging</h3>
+<p>
+This server has the interesting ability to reload parts of its implementation
+dynamically. This lets you add features and fix bugs without ever
+restarting.
+It is even possible to setup a debug session with TclPro.
+This is made possible with the help of the /debug URL. The debug module 
+has e.g. several useful URLs that let you examine variable values and other internal state.
+
+<br><br>
+The /debug URLs are:
+<br><br>
+/debug/source?source=&lt;value&gt;&amp;thread=&lt;value&gt;
+<br><br>
+/debug/package?package=&lt;value&gt;
+<br><br>
+/debug/pvalue?aname=&lt;value&gt;
+<br><br>
+/debug/parray?aname=&lt;value&gt;
+<br><br>
+/debug/raise?args
+<br><br>
+/debug/after
+<br><br>
+/debug/echo?title=&lt;value&gt;&amp;args
+<br><br>
+/debug/errorInfo?title=&lt;value&gt;&amp;errorInfo=&lt;value&gt;&amp;no=&lt;value&gt;
+<br><br>
+/debug/dbg?host=&lt;value&gt;&amp;port=&lt;value&gt;
+<br><br>
+/debug/showproc?showproc=&lt;value&gt;
+<br><br>
+/debug/disable
+<br><br>
+For more specific information about the calls see the debug module.
+<p>
+Some examples:
+<p>
+<form action=/debug/source method=post>
+<input type="submit" name="submit" value="Reload Source"><input type="text" name="source">
+</form>
+<p>
+<form action=/debug/pvalue method=post>
+<input type="submit" name="submit" value="Print Value"><input type="text" name="aname">
+</form>
+
+<p>
+<form action=/debug/showproc method=post>
+<input type="submit" name="submit" value="Show Proc"><input type="text" name="proc">
+</form>
+<p>
+<h3>TclPro</h3>
+It is also possible to debug tclhttpd with TclPro.
+Briefly you have to perform following steps:
+<br>
+Enable the tclhttpd server for debugging (see httpdthread.tcl).
+<br>
+Setup a Project in TclPro with Debugging Type "Remote Debugging";
+define the portnumber; start TclPro by calling
+<br><br>
+http://yourserver:port/debug/dbg?host=&lt;hostname&gt;&amp;port=&lt;portnumber&gt;
+<br><br>
+The tclhttpd server will connect to a TclPro Session running on host &lt;hostname&gt;
+listening for remote connections on port number &lt;portnumber&gt;
+<br>
+In case TclPro is running on the "localhost" listening for the default portnumber "2576"
+it is enough to call
+<br><br>
+http://yourserver:port/debug/dbg
+
+[mypage::footer]
