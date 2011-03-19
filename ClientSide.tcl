@@ -1603,7 +1603,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             catch {set faultstring [[$rootNode selectNodes faultstring] asText]}
         }
         if {[catch {set errorInfo [[$rootNode selectNodes ENV:detail] asXML]}]} {
-            catch {set errorInfo [[$rootNode selectNodes detail/] asXML]}
+            catch {set errorInfo [[$rootNode selectNodes detail] asXML]}
         }
         $doc delete
         return \
