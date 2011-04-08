@@ -581,4 +581,3 @@ proc ::WS::CheckAndBuild::checkTags {mode serviceName startInfos typeInfos} {
         }
         return 1
 }
-
