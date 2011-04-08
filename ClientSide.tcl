@@ -143,7 +143,7 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     dict set serviceArr($serviceName) operList {}
     dict set serviceArr($serviceName) objList {}
     dict set serviceArr($serviceName) headers {}
-    dict set serviceArr($serviceName) targetNamespace [list [list tns1 $url]]
+    dict set serviceArr($serviceName) targetNamespace tns1 $url
     dict set serviceArr($serviceName) name $serviceName
     dict set serviceArr($serviceName) location $url
     dict set serviceArr($serviceName) style $type
@@ -157,8 +157,71 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     if {[dict exists $serviceArr($serviceName) xns]} {
         set xns [dict get $serviceArr($serviceName) xns]
         ::log::log debug [list Setting targetNamespae to $xns]
-        dict set serviceArr($serviceName) targetNamespace [list $xns]
+        dict set serviceArr($serviceName) targetNamespace $xns
     }
+}
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::Config
+#
+# Description : Configure a service information
+#
+# Arguments :
+#       serviceName - Service name to add namespace to
+#       item        - The item to configure
+#       value       - Optional, the new value
+#
+# Returns :     The value of the option
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  04/14/2009  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::Config {serviceName item {value {}}} {
+    variable serviceArr
+
+    set serviceInfo $serviceArr($serviceName)
+    switch -exact -- $item {
+        location -
+        targetNamespace {
+            ##
+            ## Valid, so do nothing
+            ##
+        }
+        default {
+            return -code error "Uknown option '$item'"
+        }
+    }
+
+    if {![string equal $value {}]} {
+        dict set serviceInfo $item $value
+        set serviceArr($serviceName) $serviceInfo
+    }
+
+    return [dict get $serviceInfo $item]
+
 }
 
 ###########################################################################
@@ -304,7 +367,7 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
     variable serviceArr
 
     if {[lsearch -exact  [dict get $serviceArr($serviceName) objList] $objectName] == -1} {
-        dict lappend $serviceArr($serviceName) objList $objectName
+        dict lappend serviceArr($serviceName) objList $objectName
     }
     if {![llength $location]} {
         set location [dict get $serviceArr($serviceName) location]
@@ -369,7 +432,7 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
 proc ::WS::Client::ImportNamespace {serviceName url} {
     variable serviceArr
 
-    switch [dict get [::uri::split $url] scheme] {
+    switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
             set xml $token(data)
@@ -625,7 +688,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
                 ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $partList tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
-                set typeName [lindex [split $typeName {:}] 1]
+                #set typeName [lindex [split $typeName {:}] 1]
                 ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $partList $xns
             }
         }
@@ -637,7 +700,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
                 ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $partList tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
-                set typeName [lindex [split $typeName {:}] 1]
+                #set typeName [lindex [split $typeName {:}] 1]
                 ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $partList $xns
             }
         }
@@ -696,7 +759,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
     variable currentBaseUrl
 
     set currentBaseUrl $url
-    switch [dict get [::uri::split $url] scheme] {
+    switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
             set wsdlInfo [ParseWsdl $token(data) -headers $headers -serviceAlias $serviceAlias]
@@ -788,12 +851,44 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     array set defaults $args
 
-    dom parse $wsdlXML wsdlDoc
+    dom parse $wsdlXML tmpdoc
+    $tmpdoc xslt $::WS::Utils::xsltSchemaDom wsdlDoc
+    $tmpdoc delete
     $wsdlDoc documentElement wsdlNode
+    set nsCount 1
+    set targetNs [$wsdlNode getAttribute targetNamespace]
+    dict set nsDict url $targetNs tns$nsCount
+    foreach itemList [$wsdlNode attributes xmlns:*] {
+        set ns [lindex $itemList 0]
+        set url [$wsdlNode getAttribute xmlns:$ns]
+        if {[dict exists $nsDict url $url]} {
+            set tns [dict get $nsDict url $url]
+        } else {
+            ##
+            ## Check for hardcoded namespaces
+            ##
+            switch -exact -- $url {
+                http://schemas.xmlsoap.org/wsdl/ {
+                    set tns w
+                }
+                http://schemas.xmlsoap.org/wsdl/soap/ {
+                    set tns d
+                }
+                http://www.w3.org/2001/XMLSchema {
+                    set tns xs
+                }
+                default {
+                    set tns tns[incr nsCount]
+                }
+            }
+            dict set nsDict url $url $tns
+        }
+        dict set nsDict tns $ns $tns
+    }
     $wsdlDoc selectNodesNamespaces {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
-        s http://www.w3.org/2001/XMLSchema
+        xs http://www.w3.org/2001/XMLSchema
     }
     if {[string length $defaults(-serviceAlias)]} {
         set serviceAlias $defaults(-serviceAlias)
@@ -803,12 +898,14 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     set serviceInfo {}
 
-    foreach serviceInfo [buildServiceInfo $wsdlNode $serviceInfo $serviceAlias] {
+    foreach serviceInfo [buildServiceInfo $wsdlNode $nsDict $serviceInfo $serviceAlias] {
         set serviceName [dict get $serviceInfo name]
 
         if {[llength $defaults(-headers)]} {
             dict set serviceInfo headers $defaults(-headers)
         }
+        dict set serviceInfo types [::WS::Utils::GetServiceTypeDef Client $serviceName]
+        dict set serviceInfo simpletypes [::WS::Utils::GetServiceSimpleTypeDef Client $serviceName]
 
         set serviceArr($serviceName) $serviceInfo
 
@@ -1140,9 +1237,13 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set errorInfo {}
         set hadError 1
     } else {
+        set outTransform [dict get $serviceInfo outTransform]
+        if {![string equal $outTransform {}]} {
+            set body [$outTransform $serviceName $operationName REPLY $body]
+        }
         set hadError [catch {parseResults $serviceName $operationName $body} results]
         if {$hadError} {
-            ::log::log debug "Reply was [::http::data $token]"
+            ::log::log debug "Reply was $body"
             set errorCode $::errorCode
             set errorInfo $::errorInfo
         }
@@ -1548,12 +1649,10 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
 
     set serviceInfo $serviceArr($serviceName)
-    set outTransform [dict get $serviceInfo outTransform]
-    if {![string equal $outTransform {}]} {
-        set inXML [$outTransform $serviceName $operationName REPLY $inXML]
-    }
 
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
+    set expectedMsgTypeBase [lindex [split $expectedMsgType {:}] end]
+
     dom parse $inXML doc
     $doc documentElement top
     set xns {
@@ -1571,9 +1670,11 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ::log::log debug "Have [llength $rootNode]"
     if {[llength $rootNode] > 1} {
         foreach tmp $rootNode {
-            #puts "\t Got {[$tmp localName]} looking for {$expectedMsgType}"
-            if {[string equal [$tmp localName] $expectedMsgType] ||
-                [string equal [$tmp nodeName] $expectedMsgType]} {
+            #puts "\t Got {[$tmp localName]} looking for {$expectedMsgTypeBase}"
+            if {[string equal [$tmp localName] $expectedMsgTypeBase] ||
+                [string equal [$tmp nodeName] $expectedMsgTypeBase] ||
+                [string equal [$tmp localName] Fault] ||
+                [string equal [$tmp nodeName] Fault]} {
                 set rootNode $tmp
                 break
             }
@@ -1595,33 +1696,36 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {[string equal $rootName {Fault}]} {
         set faultcode {}
         set faultstring {}
-        set errorInfo {}
-        if {[catch {set faultcode [[$rootNode selectNodes ENV:faultcode] asText]}]} {
-            catch {set faultcode [[$rootNode selectNodes faultcode] asText]}
-        }
-        if {[catch {set faultstring [[$rootNode selectNodes ENV:faultstring] asText]}]} {
-            catch {set faultstring [[$rootNode selectNodes faultstring] asText]}
-        }
-        if {[catch {set errorInfo [[$rootNode selectNodes ENV:detail] asXML]}]} {
-            catch {set errorInfo [[$rootNode selectNodes detail] asXML]}
+        set detail {}
+        foreach item {faultcode faultstring detail} {
+            set tmpNode [$rootNode selectNodes ENV:$item]
+            if {[string equal $tmpNode {}]} {
+                set tmpNode [$rootNode selectNodes $item]
+            }
+            if {![string equal $tmpNode {}]} {
+                if {[$tmpNode hasAttribute href]} {
+                    set tmpNode [GetReferenceNode $top [$tmpNode getAttribute href]]
+                }
+                set $item [$tmpNode asText]
+            }
         }
         $doc delete
         return \
             -code error \
             -errorcode [list WSCLIENT REMERR $faultcode] \
-            -errorinfo $errorInfo \
+            -errorinfo $detail \
             $faultstring
     }
 
     ##
     ## Validated that it is the expected packet type
     ##
-    if {![string equal $rootName $expectedMsgType]} {
+    if {![string equal $rootName $expectedMsgTypeBase]} {
         $doc delete
         return \
             -code error \
-            -errorcode [list WSCLIENT BADREPLY [list $rootName $expectedMsgType]] \
-            "Bad reply type, received '$rootName; but expected '$expectedMsgType'."
+            -errorcode [list WSCLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
+            "Bad reply type, received '$rootName; but expected '$expectedMsgTypeBase'."
     }
 
     ##
@@ -1701,12 +1805,17 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
 
     set style [dict get $serviceInfo operation $operationName style]
 
-    switch $style {
+    switch -exact -- $style {
         document/literal {
             set xml [buildDocLiteralCallquery $serviceName $operationName $url $argList]
         }
         rpc/encoded {
             set xml [buildRpcEncodedCallquery $serviceName $operationName $url $argList]
+        }
+        default {
+            return \
+                -code error
+                "Unsupported Style '$style'"
         }
     }
 
@@ -1813,12 +1922,16 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     if {[info exists tnsArray($xns)]} {
         set xns $tnsArray($xns)
     }
+    set typeInfo [split $msgType {:}]
+    if {[llength $typeInfo] != 1} {
+        set xns [lindex $typeInfo 0]
+        set msgType [lindex $typeInfo 1]
+    }
 
     ::log::log debug [list $bod appendChild \[$doc createElement $xns:$msgType reply\]]
     $bod appendChild [$doc createElement $xns:$msgType reply]
 
-    ::log::log debug "calling [list ::WS::Utils::convertDictToType Client $serviceName $doc $bod $argList $msgType]"
-    ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $msgType
+    ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType
 
     append xml  \
         {<?xml version="1.0"  encoding="utf-8"?>} \
@@ -1889,11 +2002,12 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
         xmlns:SOAP-ENV "http://schemas.xmlsoap.org/soap/envelope/" \
         xmlns:xsi      "http://www.w3.org/2001/XMLSchema-instance" \
         xmlns:xs      "http://www.w3.org/2001/XMLSchema"
+
     foreach xns $xnsList {
         set tns [lindex $xns 0]
         set target [lindex $xns 1]
-        $env  setAttribute \
-            xmlns:$tns $target
+        puts stdout [list $env setAttribute xmlns:$tns $target]
+        $env setAttribute xmlns:$tns $target
     }
 
     foreach inputHeaderType [dict get $serviceInfo operation $operationName soapRequestHeader] {
@@ -1971,7 +2085,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 #
 #
 ###########################################################################
-proc ::WS::Client::buildServiceInfo {wsdlNode {serviceInfo {}} {serviceAlias {}}} {
+proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceAlias {}}} {
     ##
     ## Need to refactor to foreach service parseService
     ##  Service drills down to ports, which drills down to bindings and messages
@@ -1996,8 +2110,9 @@ proc ::WS::Client::buildServiceInfo {wsdlNode {serviceInfo {}} {serviceAlias {}}
 
 
     foreach serviceNode $serviceNameList {
-        lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias]
+        lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias $tnsDict]
     }
+
     return $serviceInfo
 }
 
@@ -2018,6 +2133,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode {serviceInfo {}} {serviceAlias {}}
 #    serviceAlias - Alias (unique) name for service.
 #                       This is an optional argument and defaults to the name of the
 #                       service in serviceInfo.
+#    tnsDict       - Dictionary of URI to namespaces used
 #
 # Returns : The parsed service WSDL
 #
@@ -2041,7 +2157,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode {serviceInfo {}} {serviceAlias {}}
 #
 #
 ###########################################################################
-proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
+proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     variable serviceArr
 
     if {[string length $serviceAlias]} {
@@ -2070,8 +2186,13 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
             "Malformed WSDL -- No SOAP address node found."
     }
 
-    CreateService $serviceName WSDL $location
+    set xns {}
+    foreach url [dict keys [dict get $tnsDict url]] {
+        lappend xns [list [dict get $tnsDict url $url] $url]
+    }
+    CreateService $serviceName WSDL $location xns $xns
     set serviceInfo $serviceArr($serviceName)
+    dict set serviceInfo tnsList $tnsDict
     set bindingName [lindex [split [$portNode getAttribute binding] {:}] end]
 
     ##
@@ -2087,6 +2208,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
     ##
     ## All done, so return results
     ##
+    dict unset serviceInfo tnsList
     set serviceArr($serviceName) $serviceInfo
     return $serviceInfo
 }
@@ -2132,14 +2254,18 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias} {
 #
 ###########################################################################
 proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
-    upvar $serviceInfoVar serviceInfo
+    ::log:::log debug "Entering [info level 0]"
 
-    set tnsCount 0
+    upvar 1 $serviceInfoVar serviceInfo
+
+
+    set tnsCount [llength [dict keys [dict get $serviceInfo tnsList url]]]
     set baseUrl [dict get $serviceInfo location]
-    foreach schemaNode [$wsdlNode selectNodes w:types/s:schema] {
+    foreach schemaNode [$wsdlNode selectNodes w:types/xs:schema] {
         ::WS::Utils::parseScheme Client $baseUrl $schemaNode $serviceName serviceInfo tnsCount
     }
 
+    ::log:::log debug "Leaving [lindex [info level 0] 0]"
 }
 
 ###########################################################################
@@ -2184,13 +2310,15 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
 #
 ###########################################################################
 proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar} {
-    upvar $serviceInfoVar serviceInfo
+    ::log:::log debug "Entering [info level 0]"
+    upvar 1 $serviceInfoVar serviceInfo
 
     set bindQuery [format {w:binding[attribute::name='%s']} $bindingName]
     array set msgToOper {}
     foreach binding [$wsdlNode selectNodes $bindQuery] {
         array unset msgToOper *
         set portName [lindex [split [$binding  getAttribute type] {:}] end]
+        ::log:::log debug "\t Processing binding '$bindingName' on port '$portName'"
         set operList [$binding selectNodes w:operation]
         set styleNode [$binding selectNodes d:binding]
         if {![info exists style]} {
@@ -2200,6 +2328,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ##
                     ## This binding is for a SOAP level other than 1.1
                     ##
+                    ::log:::log debug "Skiping non-SOAP 1.1 binding [$binding asXML]"
                     continue
                 }
                 set style [$styleNode getAttribute style]
@@ -2209,6 +2338,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 #puts "Using style for first binding {$style}"
             }
             if {!([string equal $style document] || [string equal $style rpc])} {
+                ::log:::log debug "Leaving [lindex [info level 0] 0] with error @1"
                 return \
                     -code error \
                     -errorcode [list WSCLIENT UNSSTY $style] \
@@ -2219,6 +2349,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 set use [[$binding selectNodes {w:operation[1]/w:input/d:body}] getAttribute use]
                 if {!([string equal $style document] && [string equal $use literal]) &&
                     !([string equal $style rpc] && [string equal $use encoded])} {
+                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @2"
                     return \
                         -code error \
                         -errorcode [list WSCLIENT UNSMODE $use] \
@@ -2232,11 +2363,13 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
         ##
         foreach oper $operList {
             set operName [$oper getAttribute name]
+            ::log:::log debug "\t Processing operation '$operName'"
             dict lappend serviceInfo operList $operName
 
             #puts "Processing operation $operName"
             set actionNode [$oper selectNodes d:operation]
             if {[string equal $actionNode {}]} {
+                ::log:::log debug "Skiping operation with no action [$oper asXML]"
                 continue
             }
             dict set serviceInfo operation $operName style $style/$use
@@ -2253,13 +2386,13 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 ##set part [$inHeader getAttribute part]
                 set tmp [$inHeader getAttribute use]
                 if {![string equal $tmp $use]} {
+                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @3"
                     return \
                         -code error \
                         -errorcode [list WSCLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
-                set messagePath [$inHeader getAttribute message]
-                set msgName [lindex [split $messagePath {:}] end]
+                set msgName [$inHeader getAttribute message]
                 ::log:::log debug [list messageToType $wsdlNode $serviceName $operName $msgName serviceInfo]
                 set type [messageToType $wsdlNode $serviceName $operName $msgName serviceInfo]
                 lappend soapRequestHeaderList $type
@@ -2277,6 +2410,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 ##set part [$outHeader getAttribute part]
                 set tmp [$outHeader getAttribute use]
                 if {![string equal $tmp $use]} {
+                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @4"
                     return \
                         -code error \
                         -errorcode [list WSCLIENT MIXUSE $use $tmp] \
@@ -2299,6 +2433,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             catch {set outUse [[$oper selectNodes w:output/d:body] getAttribute use]}
             foreach tmp [list $inUse $outUse] {
                 if {![string equal $tmp $use]} {
+                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @5"
                     return \
                         -code error \
                         -errorcode [list WSCLIENT MIXUSE $use $tmp] \
@@ -2306,6 +2441,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 }
             }
             set typeList [getTypesForPort $wsdlNode $serviceName $operName $portName serviceInfo]
+           ::log:::log debug "\t Messages are {$typeList}"
             foreach type $typeList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
             }
@@ -2315,30 +2451,15 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             if {![dict exists $serviceInfo targetNamespace]} {
                 catch {
                     #puts "attempting to get tragetNamespace"
-                    dict lappend serviceInfo targetNamespace [list tns1 [[$oper selectNodes w:input/d:body] getAttribute namespace]]
+                    dict set serviceInfo targetNamespace tns1 [[$oper selectNodes w:input/d:body] getAttribute namespace]
                 }
             }
             set xns tns1
-            catch {
-                set xns {}
-                set target [[$oper selectNodes w:input/d:body] getAttribute namespace]
-                foreach item [dict get $serviceInfo targetNamespace] {
-                    lassign $item ns url
-                    if {[string equal $url $target]} {
-                        set xns $ns
-                        break
-                    }
-                }
-                if {[string equal $xns {}]} {
-                    set cnt [llength [dict get $serviceInfo targetNamespace]]
-                    incr cnt
-                    dict lappend serviceInfo targetNamespace [list tns$cnt $target]
-                    set xns tns$cnt
-                }
-            }
             dict set serviceInfo operation $operName xns $xns
         }
     }
+
+    ::log:::log debug "Leaving [lindex [info level 0] 0]"
 }
 
 ###########################################################################
@@ -2355,6 +2476,8 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 # Arguments :
 #    wsdlNode       - The top node of the WSDL
 #    serviceNode    - The DOM node for the service.
+#    operNode       - The DOM node for the operation.
+#    portName       - The name of the port.
 #    serviceInfoVar - The name of the dictionary containing the partially
 #                     parsed service.
 #
@@ -2381,7 +2504,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #
 ###########################################################################
 proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName serviceInfoVar} {
-    upvar $serviceInfoVar serviceInfo
+    upvar 1 $serviceInfoVar serviceInfo
 
     set style [dict get $serviceInfo operation $operName style]
     set inType {}
@@ -2454,21 +2577,20 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName servi
 #
 ###########################################################################
 proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceInfoVar} {
-    upvar $serviceInfoVar serviceInfo
+    upvar 1 $serviceInfoVar serviceInfo
 
     #puts "Message to Type $serviceName $operName $msgName"
 
     set style [dict get $serviceInfo operation $operName style]
     set msgQuery [format {w:message[attribute::name='%s']} $msgName]
     set msg [$wsdlNode selectNodes $msgQuery]
-    switch $style {
+    switch -exact -- $style {
         document/literal {
             set partNode [$msg selectNodes w:part]
             set partNodeCount [llength $partNode]
             if {$partNodeCount == 1} {
                 if {[$partNode hasAttribute element]} {
-                    set typePath [$partNode getAttribute element]
-                    set type [lindex [split $typePath {:}] end]
+                    set type [::WS::Utils::getQualifiedType $serviceInfo [$partNode getAttribute element] tns1]
                 }
             }
             if {($partNodeCount > 1) || ![info exist type]} {
@@ -2476,13 +2598,13 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
                 foreach part [$msg selectNodes w:part] {
                     set partName [$part getAttribute name]
                     if {[$part hasAttribute type]} {
-                        set partType [lindex [split [$part getAttribute type] {:}] end]
+                        set partType [$part getAttribute type]
                     } else {
-                        set partType [lindex [split [$part getAttribute element] {:}] end]
+                        set partType [$part getAttribute element]
                     }
-                    lappend tmpType $partName [list type $partType comment {}]
+                    lappend tmpType $partName [list type [::WS::Utils::getQualifiedType $serviceInfo $partType tns1] comment {}]
                 }
-                set  type $msgName
+                set type tns1:$msgName
                 dict set serviceInfo types $type $tmpType
                 ::WS::Utils::ServiceTypeDef Client $serviceName $type $tmpType tns1
             } elseif {!$partNodeCount} {
@@ -2497,15 +2619,15 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
             foreach part [$msg selectNodes w:part] {
                 set partName [$part getAttribute name]
                 if {[$part hasAttribute type]} {
-                    set partType [lindex [split [$part getAttribute type] {:}] end]
+                    set partType [$part getAttribute type]
                 } else {
-                    set partType [lindex [split [$part getAttribute element] {:}] end]
+                    set partType [$part getAttribute element]
                 }
-                lappend tmpType $partName [list type $partType comment {}]
+                lappend tmpType $partName [list type [::WS::Utils::getQualifiedType $serviceInfo $partType tns1] comment {}]
             }
-            set  type $msgName
+            set type tns1:$msgName
             dict set serviceInfo types $type $tmpType
-            ::WS::Utils::ServiceTypeDef Client $serviceName $type $tmpType xs
+            ::WS::Utils::ServiceTypeDef Client $serviceName $type $tmpType tns1
         }
         default {
             return \

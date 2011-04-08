@@ -1553,7 +1553,7 @@ proc ::WS::Server::generateReply {serviceName operation results} {
     $env appendChild [$doc createElement "SOAP-ENV:Body" body]
     $body appendChild [$doc createElement ${serviceName}:${operation}Results reply]
 
-    ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${operation}Results
+    ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results
 
     append xml  \
         {<?xml version="1.0"  encoding="utf-8"?>} \

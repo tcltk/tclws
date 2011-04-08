@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2006-2008, Gerald W. Lester                                ##
+##  Copyright (c) 2006-2011, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
 ##  Copyright (c) 2006, Arnulf Wiedemann                                     ##
@@ -58,7 +58,7 @@ namespace eval ::WS::Utils {
     set nsList {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
-        s http://www.w3.org/2001/XMLSchema
+        xs http://www.w3.org/2001/XMLSchema
     }
     array set simpleTypes {
         string 1
@@ -111,6 +111,7 @@ namespace eval ::WS::Utils {
         StrictMode error
         parseInAttr 0
         genOutAttr 0
+        includeDirectory {}
     }
 
     set standardAttributes {
@@ -126,6 +127,25 @@ namespace eval ::WS::Utils {
         enumeration
         type
     }
+
+    dom parse {
+<xsl:stylesheet
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    version="1.0">
+
+  <xsl:template match="CHOICE">
+      <xsl:apply-templates/>
+  </xsl:template>
+
+  <!-- Copy all the attributes and other nodes -->
+  <xsl:template match="@*|node()">
+    <xsl:copy>
+      <xsl:apply-templates select="@*|node()"/>
+    </xsl:copy>
+  </xsl:template>
+
+</xsl:stylesheet>
+    } xsltSchemaDom
 
 }
 
@@ -318,6 +338,9 @@ proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}}} {
 
     if {![string length $xns]} {
         set xns $service
+    }
+    if {[llength [split $type {:}]] == 1} {
+        set type $xns:$type
     }
     dict set typeInfo $mode $service $type definition $definition
     dict set typeInfo $mode $service $type xns $xns
@@ -513,15 +536,19 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
     variable typeInfo
     variable simpleTypes
 
+    set type [string trimright $type {()}]
     if {[string equal $type {}]} {
         set results [dict get $typeInfo $mode $service]
     } else {
         set typeInfoList [TypeInfo $mode $service $type]
+        if {[string equal -nocase -length 3 $type {xs:}]} {
+            set type [string range $type 3 end]
+        }
         if {[lindex $typeInfoList 0] == 0} {
             if {[info exists simpleTypes($mode,$service,$type)]} {
                 set results $simpleTypes($mode,$service,$type)
             } elseif {[info exists simpleTypes($type)]} {
-                set results [list type $type]
+                set results [list type xs:$type xns xs]
             } else {
                 set results {}
             }
@@ -594,6 +621,10 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
 proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
     variable simpleTypes
 
+    set type [string trimright $type {()}]
+    if {[string equal -nocase -length 3 $type {xs:}]} {
+        return [::WS::Utils::GetServiceTypeDef $mode $service $type]
+    }
     if {[string equal $type {}]} {
         set results {}
         foreach {key value} [array get simpleTypes $mode,$service,*] {
@@ -603,7 +634,7 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
         if {[info exists simpleTypes($mode,$service,$type)]} {
             set results $simpleTypes($mode,$service,$type)
         } elseif {[info exists simpleTypes($type)]} {
-            set results [list type $type]
+            set results [list type $type xns xs]
         } else {
             return \
                 -code error \
@@ -659,28 +690,63 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 #
 ###########################################################################
 proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar tnsCountVar} {
-    ::log::log debug "Entering ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar"
-    upvar $serviceInfoVar serviceInfo
-    upvar $tnsCountVar tnsCount
+    ::log::log debug "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
+    upvar 1 $serviceInfoVar serviceInfo
+    upvar 1 $tnsCountVar tnsCount
     variable currentSchema
+    variable xsltSchemaDom
 
-    if {[catch {dom parse $xml doc}]} {
+    if {[catch {dom parse $xml tmpdoc}]} {
         set first [string first {?>} $xml]
         incr first 2
         set xml [string range $xml $first end]
-        dom parse $xml doc
+        dom parse $xml tmpdoc
     }
+    $tmpdoc xslt $xsltSchemaDom doc
+    $tmpdoc delete
     $doc selectNodesNamespaces {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
-        s http://www.w3.org/2001/XMLSchema
+        xs http://www.w3.org/2001/XMLSchema
     }
     $doc documentElement schema
+
     set prevSchema $currentSchema
     set currentSchema $schema
 
+    set prevTnsDict [dict get $serviceInfo tnsList tns]
+    dict set serviceInfo tns {}
+    foreach itemList [$schema attributes xmlns:*] {
+        set ns [lindex $itemList 0]
+        set url [$schema getAttribute xmlns:$ns]
+        if {[dict exists $serviceInfo tnsList url $url]} {
+            set tns [dict get $serviceInfo tnsList url $url]
+        } else {
+            ##
+            ## Check for hardcoded namespaces
+            ##
+            switch -exact -- $url {
+                http://schemas.xmlsoap.org/wsdl/ {
+                    set tns w
+                }
+                http://schemas.xmlsoap.org/wsdl/soap/ {
+                    set tns d
+                }
+                http://www.w3.org/2001/XMLSchema {
+                    set tns xs
+                }
+                default {
+                    set tns tns[incr tnsCount]
+                }
+            }
+            dict set serviceInfo tnsList url $url $tns
+        }
+        dict set serviceInfo tnsList tns $ns $tns
+    }
+
     parseScheme $mode $baseUrl $schema $serviceName serviceInfo tnsCount
 
+    dict set serviceInfo tnsList tns $prevTnsDict
     set currentSchema $prevSchema
     $doc delete
 }
@@ -849,7 +915,7 @@ proc ::WS::Utils::Validate {mode serviceName xmlString tagName typeName} {
 #
 ###########################################################################
 proc ::WS::Utils::BuildRequest {mode serviceName tagName typeName valueInfos} {
-    upvar $valueInfos values
+    upvar 1 $valueInfos values
     variable resultTree
     variable currNode
 
@@ -973,9 +1039,9 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
     if {[string equal $parent {}]} {
         $doc documentElement schema
         $schema setAttribute \
-            xmlns:s         "http://www.w3.org/2001/XMLSchema"
+            xmlns:xs         "http://www.w3.org/2001/XMLSchema"
     } else {
-        $parent appendChild [$doc createElement s:schema schema]
+        $parent appendChild [$doc createElement xs:schema schema]
     }
     $schema setAttribute \
         elementFormDefault qualified \
@@ -983,16 +1049,16 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
 
     foreach baseType [lsort -dictionary [array names typeArr]] {
         ::log::log debug "Outputing $baseType"
-        $schema appendChild [$doc createElement s:element elem]
+        $schema appendChild [$doc createElement xs:element elem]
         $elem setAttribute name $baseType
         $elem setAttribute type ${serviceName}:${baseType}
-        $schema appendChild [$doc createElement s:complexType comp]
+        $schema appendChild [$doc createElement xs:complexType comp]
         $comp setAttribute name $baseType
-        $comp appendChild [$doc createElement s:sequence seq]
+        $comp appendChild [$doc createElement xs:sequence seq]
         set baseTypeInfo [dict get $localTypeInfo $baseType definition]
         ::log::log debug "\t parts {$baseTypeInfo}"
         foreach {field tmpTypeInfo} $baseTypeInfo {
-            $seq appendChild  [$doc createElement s:element tmp]
+            $seq appendChild  [$doc createElement xs:element tmp]
             set tmpType [dict get $tmpTypeInfo type]
             ::log::log debug "Field $field of $tmpType"
             foreach {name value} [getTypeWSDLInfo $mode $serviceName $field $tmpType] {
@@ -1047,7 +1113,7 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
     dict set typeInfo name $field
     set typeList [TypeInfo $mode $serviceName $type]
     if {[lindex $typeList 0] == 0} {
-        dict set typeInfo type s:[string trimright $type {()}]
+        dict set typeInfo type xs:[string trimright $type {()}]
     } else {
         dict set typeInfo type $serviceName:[string trimright $type {()}]
     }
@@ -1146,6 +1212,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
         set partXns $xns
         catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
+        set isArray [lindex $typeInfoList end]
         ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
         ##
         ## Try for fully qualified name
@@ -1163,22 +1230,31 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                     set item {}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
+                        ::log::log debug "\t\t Looking at [$childNode localName] "
                         # From SOAP1.1 Spec:
                         #    Within an array value, element names are not significant
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
-                        if { [$childNode nodeType] != "ELEMENT_NODE" } {
+                        if { [$childNode nodeType] != "ELEMENT_NODE" ||
+                             (!$isArray && ![string equal [$childNode localName] $partName])} {
                             continue
                         }
+                        ::log::log debug "\t\t Found $partName [$childNode asXML]"
                         lappend item $childNode
                     }
                     if {![string length $item]} {
                         ::log::log debug "\tSkipping"
                         continue
                     }
+                } else {
+                    ::log::log debug "\t\t Found [llength $item] $partName"
                 }
+            } else {
+                ::log::log debug "\t\t Found [llength $item] $partName"
             }
+        } else {
+            ::log::log debug "\t\t Found [llength $item] $partName"
         }
         set origItemList $item
         set newItemList {}
@@ -1192,7 +1268,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
             lappend newItemList $item
         }
         set item $newItemList
-        switch $typeInfoList {
+        switch -exact -- $typeInfoList {
             {0 0} {
                 ##
                 ## Simple non-array
@@ -1216,9 +1292,9 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 foreach row $item {
                     if {$options(parseInAttr)} {
                         set rowList {}
-                        foreach attr [$item attributes] {
+                        foreach attr [$row attributes] {
                             if {[llength $attr] == 1} {
-                                append rowList $attr [$row getAttribute $attr]
+                                lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
                         lappend rowList {} [$row asText]
@@ -1253,9 +1329,9 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                 foreach row $item {
                     if {$options(parseInAttr)} {
                         set rowList {}
-                        foreach attr [$item attributes] {
+                        foreach attr [$row attributes] {
                             if {[llength $attr] == 1} {
-                                append rowList $attr [$row getAttribute $attr]
+                                lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
                         lappend rowList {} [convertTypeToDict $mode $serviceName $row $partType $root]
@@ -1265,6 +1341,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                     }
                 }
                 dict set results $partName $tmp
+            }
+            default {
+                ##
+                ## Placed here to shut up tclchecker
+                ##
             }
         }
     }
@@ -1371,6 +1452,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
     }
 
     set typeInfoList [TypeInfo $mode $service $type]
+    ::log::log debug "\t typeInfoList = {$typeInfoList}"
     if {[lindex $typeInfoList 0]} {
         set itemList [dict get $typeInfo $mode $service $type definition]
         set xns [dict get $typeInfo $mode $service $type xns]
@@ -1413,16 +1495,16 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             }
         }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} itemXns = {$itemXns} tmpInfo = {$tmpInfo} attrList = {$attrList}"
-        switch $typeInfoList {
+        switch -exact -- $typeInfoList {
             {0 0} {
                 ##
                 ## Simple non-array
                 ##
-                $parent appendChild [$doc createElement $itemXns:$itemName retNode]
+                $parent appendChild [$doc createElement $xns:$itemName retNode]
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {[string equal $attr  {}]} {
+                        if {![string equal $attr {}]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -1441,12 +1523,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Simple array
                 ##
                 set dataList [dict get $dict $itemName]
+                ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    $parent appendChild [$doc createElement $itemXns:$itemName retNode]
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {[string equal $attr  {}]} {
+                            if {![string equal $attr {}]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1465,11 +1548,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Non-simple non-array
                 ##
-                $parent appendChild [$doc createElement $itemXns:$itemName retNode]
+                $parent appendChild [$doc createElement $xns:$itemName retNode]
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {[string equal $attr  {}]} {
+                        if {![string equal $attr  {}]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -1489,12 +1572,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 set dataList [dict get $dict $itemName]
                 set tmpType [string trimright $itemType ()]
+                ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    $parent appendChild [$doc createElement $itemXns:$itemName retNode]
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {[string equal $attr  {}]} {
+                            if {![string equal $attr  {}]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1508,6 +1592,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
                 }
+            }
+            default {
+                ##
+                ## Placed here to shut up tclchecker
+                ##
             }
         }
         #if {$options(genOutAttr)} {
@@ -1589,7 +1678,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
             }
         }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
-        switch $typeInfoList {
+        switch -exact -- $typeInfoList {
             {0 0} {
                 ##
                 ## Simple non-array
@@ -1685,6 +1774,11 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType
                 }
             }
+            default {
+                ##
+                ## Placed here to shut up tclchecker
+                ##
+            }
         }
     }
     return;
@@ -1732,7 +1826,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
 #
 ###########################################################################
 proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
-    ::log::log debug "Entering ::WS::Utils::convertDictToType $mode $service $doc $parent {$dict} $type"
+    ::log::log debug "Entering ::WS::Utils::convertDictToEncodedType $mode $service $doc $parent {$dict} $type"
     variable typeInfo
 
     set itemList [dict get $typeInfo $mode $service $type definition]
@@ -1741,16 +1835,24 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
     foreach {itemName itemDef} $itemList {
         set itemType [dict get $itemList $itemName type]
         set typeInfoList [TypeInfo $mode $service $itemType]
+        ::log::log debug "\t\t Looking for {$itemName} in {$dict}"
         if {![dict exists $dict $itemName]} {
+            ::log::log debug "\t\t Not found, skipping"
             continue
         }
-        switch $typeInfoList {
+        ::log::log debug "\t\t Type info is {$typeInfoList}"
+        switch -exact -- $typeInfoList {
             {0 0} {
                 ##
                 ## Simple non-array
                 ##
                 $parent appendChild [$doc createElement $xns:$itemName retNode]
-                $retNode setAttribute xsi:type xs:$itemType
+                if {![string match {*:*} $itemType]} {
+                    set attrType $xns:$itemType
+                } else {
+                    set attrType $itemType
+                }
+                $retNode setAttribute xsi:type $attrType
                 set resultValue [dict get $dict $itemName]
                 $retNode appendChild [$doc createTextNode $resultValue]
             }
@@ -1760,9 +1862,14 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ##
                 set dataList [dict get $dict $itemName]
                 set tmpType [string trimright $itemType {()}]
+                if {![string match {*:*} $itemType]} {
+                    set attrType $xns:$itemType
+                } else {
+                    set attrType $itemType
+                }
                 foreach resultValue $dataList {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
-                    $retNode setAttribute xsi:type xs:$itemType
+                    $retNode setAttribute xsi:type $attrType
                     set resultValue [dict get $dict $itemName]
                     $retNode appendChild [$doc createTextNode $resultValue]
                 }
@@ -1772,20 +1879,40 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ## Non-simple non-array
                 ##
                 $parent appendChild [$doc createElement $xns:$itemName retNode]
-                $retNode setAttribute xsi:type xs:$itemType
-                                 convertDictToEncodedType $mode $service $doc $retNode [dict get $dict $itemName] $itemType
+                if {![string match {*:*} $itemType]} {
+                    set attrType $xns:$itemType
+                } else {
+                    set attrType $itemType
+                }
+                $retNode setAttribute xsi:type $attrType
+                convertDictToEncodedType $mode $service $doc $retNode [dict get $dict $itemName] $itemType
             }
             {1 1} {
                 ##
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trimright $itemType ()]
+                set tmpType [string trimright $itemType {()}]
+                if {![string match {*:*} $itemType]} {
+                    set attrType $xns:$itemType
+                } else {
+                    set attrType $itemType
+                }
+                set attrType [string trim $attrType {()}]
+                $parent setAttribute xmlns:soapenc {http://schemas.xmlsoap.org/soap/encoding/}
+                $parent setAttribute soapenc:arrayType [format {%s[%d]} $attrType [llength $dataList]]
+                $parent setAttribute xsi:type soapenc:Array
+                #set itemName [$parent nodeName]
                 foreach item $dataList {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
-                    $retNode setAttribute xsi:type xs:$itemType
+                    $retNode setAttribute xsi:type $attrType
                     convertDictToEncodedType $mode $service $doc $retNode $item $tmpType
                 }
+            }
+            default {
+                ##
+                ## Placed here to shut up tclchecker
+                ##
             }
         }
     }
@@ -1844,8 +1971,8 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
     ##
     ## Get type being defined
     ##
-    set schemeNode [$node selectNodes -namespaces $nsList s:schema]
-    set newTypeNode [$node selectNodes -namespaces $nsList  s:schema/s:element]
+    set schemeNode [$node selectNodes -namespaces $nsList xs:schema]
+    set newTypeNode [$node selectNodes -namespaces $nsList  xs:schema/xs:element]
     set newTypeName [lindex [split [$newTypeNode getAttribute name] :] end]
 
     ##
@@ -1924,60 +2051,38 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
 proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVar tnsCountVar} {
     ::log::log debug "Entering :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
 
-    upvar $tnsCountVar tnsCount
-    upvar $serviceInfoVar serviceInfo
+    upvar 1 $tnsCountVar tnsCount
+    upvar 1 $serviceInfoVar serviceInfo
     variable currentSchema
     variable nsList
     variable options
 
-    #if {[dict exists $serviceInfo targetNamespace]} {
-    #    foreach pair [dict get $serviceInfo targetNamespace] {
-    #        if {[string equal $baseUrl [lindex $pair 1]]} {
-    #            ::log::log debug "\t Already definec"
-    #            return
-    #        }
-    #    }
-    #}
     set currentSchema $schemaNode
     if {[$schemaNode hasAttribute targetNamespace]} {
         set xns [$schemaNode getAttribute targetNamespace]
     } else {
         set xns $baseUrl
     }
-    set tns [format {tns%d} [incr tnsCount]]
-    dict lappend serviceInfo targetNamespace [list $tns $xns]
+    if {![dict exists $serviceInfo tnsList url $xns]} {
+        set tns [format {tns%d} [incr tnsCount]]
+        dict set serviceInfo targetNamespace $tns $xns
+        dict set serviceInfo tnsList url $xns $tns
+        dict set serviceInfo tnsList tns $tns $tns
+    } else {
+        set tns [dict get $serviceInfo tnsList url $xns]
+    }
     ::log::log debug "@3 TNS count for $baseUrl is $tnsCount {$tns}"
 
     ##
-    ## Process Imports
+    ## Process Imports -- pass 1 for new types, so only report errors inb pass 2
     ##
-    foreach element [$schemaNode selectNodes -namespaces $nsList s:import] {
+    foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
         ::log::log debug "\tprocessing $element"
-        if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
-            switch -exact -- $options(StrictMode) {
-                debug -
-                warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
-                }
-                error -
-                default {
-                    set errorCode $::errorCode
-                    set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    return \
-                        -code error \
-                        -errorcode $errorCode \
-                        -errorinfo $errorInfo \
-                        $msg
-                }
-            }
-        }
+        catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount}
     }
 
-    ::log::log debug  "Parsing Element types"
-    foreach element [$schemaNode selectNodes -namespaces $nsList s:element] {
+    ::log::log debug  "Parsing Element types for $xns as $tns"
+    foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
         ::log::log debug "\tprocessing $element"
         if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
@@ -2002,8 +2107,8 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug  "Parsing Attribute types"
-    foreach element [$schemaNode selectNodes -namespaces $nsList s:attribute] {
+    ::log::log debug  "Parsing Attribute types for $xns as $tns"
+    foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:attribute] {
         ::log::log debug "\tprocessing $element"
         if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
@@ -2028,8 +2133,8 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug "Parsing Simple types"
-    foreach element [$schemaNode selectNodes -namespaces $nsList s:simpleType] {
+    ::log::log debug "Parsing Simple types for $xns as $tns"
+    foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:simpleType] {
         ::log::log debug "\tprocessing $element"
         if {[catch {parseSimpleType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
@@ -2054,8 +2159,8 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug  "Parsing Complex types"
-    foreach element [$schemaNode selectNodes -namespaces $nsList s:complexType] {
+    ::log::log debug  "Parsing Complex types for $xns as $tns"
+    foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:complexType] {
         ::log::log debug "\tprocessing $element"
         if {[catch {parseComplexType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
@@ -2079,6 +2184,36 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             }
         }
     }
+
+
+    ##
+    ## Process Imports -- pass 2 for extentions
+    ##
+    foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
+        ::log::log debug "\tprocessing $element"
+        if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
+            switch -exact -- $options(StrictMode) {
+                debug -
+                warning {
+                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
+                    log::log $options(StrictMode) "\t error was: $msg"
+                }
+                error -
+                default {
+                    set errorCode $::errorCode
+                    set errorInfo $::errorInfo
+                    log::log error "Could not parse:\n [$element asXML]"
+                    log::log error "\t error was: $msg"
+                    return \
+                        -code error \
+                        -errorcode $errorCode \
+                        -errorinfo $errorInfo \
+                        $msg
+                }
+            }
+        }
+    }
+
 }
 
 ###########################################################################
@@ -2125,10 +2260,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
 #
 ###########################################################################
 proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfoVar tnsCountVar} {
-    upvar $serviceInfoVar serviceInfo
-    upvar $tnsCountVar tnsCount
+    upvar 1 $serviceInfoVar serviceInfo
+    upvar 1 $tnsCountVar tnsCount
     variable currentSchema
     variable importedXref
+    variable options
 
     ::log::log debug "Entering [info level 0]"
     ##
@@ -2149,7 +2285,8 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             }
         }
     }
-    set url [::uri::resolve $baseUrl  [$importNode getAttribute $attrName]]
+    set urlTail [$importNode getAttribute $attrName]
+    set url [::uri::resolve $baseUrl  $urlTail]
     ::log::log debug "\t Importing {$url}"
     ##
     ## Short-circuit infinite loop on inports
@@ -2159,13 +2296,14 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
         return
     }
     set importedXref($mode,$serviceName,$url) [list $mode $serviceName $tnsCount]
-    switch [dict get [::uri::split $url] scheme] {
+    switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
             set xml $token(data)
             unset token
             ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
         }
+        https -
         http {
             set ncode -1
             catch {
@@ -2176,11 +2314,17 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
                 ::http::cleanup $token
                 ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
             }
-            if {$ncode != 200} {
+            if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
                 return \
                     -code error \
                     -errorcode [list WS CLIENT HTTPFAIL $url $ncode] \
                     "HTTP get of import file failed '$url'"
+            } elseif {($ncode != 200) && ![string equal $options(includeDirectory) {}]} {
+                set fn [file join  $options(includeDirectory) $urlTail]
+                set ifd  [open $fn r]
+                set xml [read $ifd]
+                close $ifd
+                ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
             }
         }
         default {
@@ -2234,38 +2378,38 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
 #
 ###########################################################################
 proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
-    upvar $dictVar results
+    upvar 1 $dictVar results
     variable currentSchema
     variable nsList
 
     ::log::log debug "Entering [info level 0]"
 
-    set typeName [$node getAttribute name]
+    set typeName $tns:[$node getAttribute name]
     set partList {}
     set nodeFound 0
     array set attrArr {}
     set comment {}
-    catch {
-        set commentNodeList [$middleNode selectNodes -namespaces $nsList s:annotation]
-        set commentNode [lindex $commentNodeList 0]
-        set comment [string trim [$commentNode asText]]
-    }
     foreach middleNode [$node childNodes] {
+        set commentNodeList [$middleNode selectNodes -namespaces $nsList xs:annotation]
+        if {[llength $commentNodeList]} {
+            set commentNode [lindex $commentNodeList 0]
+            set comment [string trim [$commentNode asText]]
+        }
         set middle [$middleNode localName]
         ::log::log debug "Complex Type is $typeName, middle is $middle"
         #puts "Complex Type is $typeName, middle is $middle"
-        switch $middle {
+        switch -exact -- $middle {
+            attribute -
             annotation {
                 ##
                 ## Do nothing
                 ##
                 continue
             }
-            element -
-            attribute {
+            element {
                 set nodeFound 1
                 set partName [$middleNode getAttribute name]
-                set partType [lindex [split [$middleNode getAttribute type string:string] {:}] end]
+                set partType [getQualifiedType $results [$middleNode getAttribute type string:string] $tns]
                 set partMax [$middleNode getAttribute maxOccurs 1]
                 if {[string equal $partMax 1]} {
                     lappend partList $partName [list type $partType comment $comment]
@@ -2274,7 +2418,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 }
             }
             extension {
-                set baseName [lindex [split [$middleNode getAttribute base] {:}] end]
+                #set baseName [lindex [split [$middleNode getAttribute base] {:}] end]
                 set tmp [partList $mode $middleNode $serviceName results $tns]
                 if {[llength $tmp]} {
                     set nodeFound 1
@@ -2284,7 +2428,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             choice -
             sequence -
             all {
-                set elementList [$middleNode selectNodes -namespaces $nsList s:element]
+                set elementList [$middleNode selectNodes -namespaces $nsList xs:element]
                 set partMax [$middleNode getAttribute maxOccurs 1]
                 set tmp [partList $mode $middleNode $serviceName results $tns $partMax]
                 if {[llength $tmp]} {
@@ -2303,12 +2447,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             simpleContent -
             complexContent {
                 set contentType [[$middleNode childNodes] localName]
-                switch $contentType {
+                switch -exact -- $contentType {
                     restriction {
                         set nodeFound 1
-                        set restriction [$middleNode selectNodes -namespaces $nsList s:restriction]
-                        catch {
-                            set element [$middleNode selectNodes -namespaces $nsList s:restriction/s:attribute]
+                        set restriction [$middleNode selectNodes -namespaces $nsList xs:restriction]
+                            set element [$middleNode selectNodes -namespaces $nsList xs:restriction/xs:attribute]
                             set typeInfoList [list baseType [$restriction getAttribute base]]
                             array unset attrArr
                             foreach attr [$element attributes] {
@@ -2322,10 +2465,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                                 catch {set attrArr($name) [$element getAttribute $ref]}
                             }
                             set partName item
-                            set partType [lindex [split $attrArr(arrayType) {:}] end]
+                            set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                             set partType [string map {{[]} {()}} $partType]
                             lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                             set nodeFound 1
+                        catch {
                         }
                     }
                     extension {
@@ -2334,6 +2478,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         set nodeFound 1
                             set partList [concat $partList $tmp]
                         }
+                    }
+                    default {
+                        ##
+                        ## Placed here to shut up tclchecker
+                        ##
                     }
                 }
             }
@@ -2348,7 +2497,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
         }
     }
     if {[llength $partList]} {
-        dict set results types $typeName $partList
+        dict set results types $tns:$typeName $partList
         ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns
     } elseif {!$nodeFound} {
         #puts "Defined $typeName as simple type"
@@ -2405,17 +2554,21 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable currentSchema
     variable nsList
-    upvar $dictVar results
+    upvar 1 $dictVar results
 
     set partList {}
     set middle [$node localName]
     ::log::log debug "Entering [info level 0] -- for $middle"
-    switch $middle {
-        element -
+    switch -exact -- $middle {
         attribute {
+            ##
+            ## Do Nothing
+            ##
+        }
+        element {
             catch {
                 set partName [$node getAttribute name]
-                set partType [lindex [split [$node getAttribute type string:string] {:}] end]
+                set partType [getQualifiedType $results [$node getAttribute type string] $tns]
                 set partMax [$node getAttribute maxOccurs 1]
                 if {[string equal $partMax 1]} {
                     set partList [list $partName [list type $partType comment {}]]
@@ -2425,7 +2578,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             }
         }
         extension {
-            set baseName [lindex [split [$node getAttribute base] {:}] end]
+            set baseName [getQualifiedType $results [$node getAttribute base string] $tns]
             #puts "base name $baseName"
             if {[lindex [TypeInfo Client $serviceName $baseName] 0]} {
                 if {[catch {::WS::Utils::GetServiceTypeDef Client $serviceName $baseName}]} {
@@ -2433,15 +2586,20 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     set baseNode [$currentSchema selectNodes $baseQuery]
                     #puts "$baseQuery gave {$baseNode}"
                     set baseNodeType [$baseNode localName]
-                    switch $baseNodeType {
+                    switch -exact -- $baseNodeType {
                         complexType {
-                            parseComplexType $mode serviceInfo $serviceName $baseNode $tns
+                            parseComplexType $mode results $serviceName $baseNode $tns
                         }
                         element {
-                            parseElementalType $mode serviceInfo $serviceName $baseNode $tns
+                            parseElementalType $mode results $serviceName $baseNode $tns
                         }
                         simpleType {
-                            parseSimpleType $mode serviceInfo $serviceName $baseNode $tns
+                            parseSimpleType $mode results $serviceName $baseNode $tns
+                        }
+                        default {
+                            ##
+                            ## Placed here to shut up tclchecker
+                            ##
                         }
                     }
                 }
@@ -2458,7 +2616,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         choice -
         sequence -
         all {
-            set elementList [$node selectNodes -namespaces $nsList s:element]
+            set elementList [$node selectNodes -namespaces $nsList xs:element]
             set elementsFound 0
             ::log::log debug "\telement list is {$elementList}"
             foreach element $elementList {
@@ -2474,7 +2632,12 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     }
                     set partName [$element getAttribute $attrName]
                     if {$isRef} {
-                        set partType [dict get [::WS::Utils::GetServiceTypeDef $mode $serviceName $partName] definition $partName type]
+                        set partType [getQualifiedType $results $partName $tns]
+                        set partTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
+                        set partName [lindex [split $partName {:}] end]
+                        ::log::log debug "\t\t\t part name is {$partName} type is {$partTypeInfo}"
+                        set partType [dict get $partTypeInfo definition $partName type]
+                        ::log::log debug "\t\t\t part name is {$partName} type is {$partType}"
                     } else {
                         ##
                         ## See if really a complex definition
@@ -2492,10 +2655,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                                 set partType $partName
                                 parseComplexType $mode results $serviceName $element $tns
                             } else {
-                                set partType [lindex [split [$element getAttribute type string:string] {:}] end]
+                                set partType [getQualifiedType $results [$element getAttribute type string] $tns]
                             }
                         } else {
-                            set partType [lindex [split [$element getAttribute type string:string] {:}] end]
+                            set partType [getQualifiedType $results [$element getAttribute type string] $tns]
                         }
                     }
                     if {[string length $occurs]} {
@@ -2521,10 +2684,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         }
         complexContent {
             set contentType [[$node childNodes] localName]
-            switch $contentType {
+            switch -exact -- $contentType {
                 restriction {
-                    set restriction [$node selectNodes -namespaces $nsList s:restriction]
-                    set element [$node selectNodes -namespaces $nsList s:restriction/s:attribute]
+                    set restriction [$node selectNodes -namespaces $nsList xs:restriction]
+                    set element [$node selectNodes -namespaces $nsList xs:restriction/xs:attribute]
                     set typeInfoList [list baseType [$restriction getAttribute base]]
                     array unset attrArr
                     foreach attr [$element attributes] {
@@ -2538,13 +2701,18 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         catch {set attrArr($name) [$element getAttribute $ref]}
                     }
                     set partName item
-                    set partType [lindex [split $attrArr(arrayType) {:}] end]
+                    set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                     set partType [string map {{[]} {()}} $partType]
                     set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
                 }
                 extension {
-                    set extension [$node selectNodes -namespaces $nsList s:extension]
+                    set extension [$node selectNodes -namespaces $nsList xs:extension]
                     set partList [partList $mode $extension $serviceName results $tns]
+                }
+                default {
+                    ##
+                    ## Placed here to shut up tclchecker
+                    ##
                 }
             }
         }
@@ -2610,7 +2778,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
 ###########################################################################
 proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
 
-    upvar $dictVar results
+    upvar 1 $dictVar results
     variable importedXref
     variable nsList
 
@@ -2623,11 +2791,11 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     set typeName [$node getAttribute $attributeName]
     set typeType ""
     if {[$node hasAttribute type]} {
-            set typeType [$node getAttribute type]
+        set typeType [getQualifiedType $results [$node getAttribute type string] $tns]
     }
     ::log::log debug "Elemental Type is $typeName"
     set partList {}
-    set elements [$node selectNodes -namespaces $nsList s:complexType/s:sequence/s:element]
+    set elements [$node selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
     ::log::log debug "\t element list is {$elements}"
     foreach element $elements {
         ::log::log debug "\t\t Processing element {[$element nodeName]}"
@@ -2635,32 +2803,27 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         set typeAttribute ""
         if {[$element hasAttribute ref]} {
             ::log::log debug "\t\t has a ref of {[$element getAttribute ref]}"
+            set partType [$element getAttribute ref]
             set refTypeInfo [split [$element getAttribute ref] {:}]
+            set partName [lindex $refTypeInfo end]
             set refNS [lindex $refTypeInfo 0]
             if {[string equal $refNS {}]} {
-                set refType [lindex $refTypeInfo 1]
-                set namespaceList [$element selectNodes namespace::*]
-                set index [lsearch -glob $namespaceList "xmlns:$refNS *"]
-                set url [lindex $namespaceList $index 1]
-                ::log::log debug "\t\t reference is {$refNS} {$refType} {$url}"
-                if {![info exists importedXref($mode,$serviceName,$url)]} {
-                    return \
-                        -code error \
-                        -errorcode [list WS CLIENT NOTIMP $url] \
-                        "Schema not imported: {$url}'"
-                }
-                set partName $refType
-                set partType $refType
-            } elseif {[string equal -nocase [lindex $refTypeInfo 1] schema]} {
-                set partName *
-                set partType *
-            } else {
-                set partName $refTypeInfo
-                set partType $refTypeInfo
+                set partType $tns:$partType
+            }
+            ##
+            ## Convert the reference to the local tns space
+            ##
+            set partType  [getQualifiedType $results $partType $tns]
+            set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
+            set refTypeInfo [dict get $refTypeInfo definition]
+            set tmpList [dict keys $refTypeInfo]
+            if {[llength $tmpList] == 1} {
+                set partName [lindex [dict keys $refTypeInfo] 0]
+                set partType [dict get $refTypeInfo $partName type]
             }
         } else {
             ::log::log debug "\t\t has no ref has {[$element attributes]}"
-            set childList [$element selectNodes -namespaces $nsList s:complexType/s:sequence/s:element]
+            set childList [$element selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
             if {[llength $childList]} {
                 ##
                 ## Element defines another element layer
@@ -2670,7 +2833,12 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 parseElementalType $mode results $serviceName $element $tns
             } else {
                 set partName [$element getAttribute name]
-                set partType [lindex [split [$element getAttribute type string:string] {:}] end]
+                if {[$element hasAttribute type]} {
+                    set partType [getQualifiedType $results [$element getAttribute type] $tns]
+                } else {
+                    set partType xs:string
+                }
+
             }
         }
         set partMax [$element getAttribute maxOccurs 1]
@@ -2686,29 +2854,38 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         #
         # Validate this is not really a complex or simple type
         #
-        set childList [$node hasChildNodes]
+        set childList [$node childNodes]
         foreach childNode $childList {
             if {[catch {$childNode setAttribute name $typeName}]} {
                 continue
             }
             set childNodeType [$childNode localName]
-            switch $childNodeType {
+            switch -exact -- $childNodeType {
                 complexType {
-                    parseComplexType $mode serviceInfo $serviceName $childNode $tns
+                    parseComplexType $mode results $serviceName $childNode $tns
                     return
                 }
                 element {
-                    parseElementalType $mode serviceInfo $serviceName $childNode $tns
+                    parseElementalType $mode results $serviceName $childNode $tns
                     return
                 }
                 simpleType {
-                    parseSimpleType $mode serviceInfo $serviceName $childNode $tns
+                    parseSimpleType $mode results $serviceName $childNode $tns
                     return
+                }
+                default {
+                    ##
+                    ## Placed here to shut up tclchecker
+                    ##
                 }
             }
         }
         # have an element with a type only, so do the work here
-        set partType [lindex [split [$node getAttribute type string:string] {:}] end]
+        if {[$node hasAttribute type]} {
+            set partType [getQualifiedType $results [$node getAttribute type] $tns]
+        } else {
+            set partType xs:string
+        }
         set partMax [$node getAttribute maxOccurs 1]
         if {[string equal $partMax 1]} {
             ##
@@ -2725,13 +2902,12 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         }
     }
     if {[llength $partList]} {
-        dict set results types $typeName $partList
-        ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns
+        ::WS::Utils::ServiceTypeDef $mode $serviceName $tns:$typeName $partList $tns
     } else {
-        if {![dict exists $results types $typeName]} {
+        if {![dict exists $results types $tns:$typeName]} {
             set partList [list base string comment {} xns $tns]
-            ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName $partList
-            dict set results simpletypes $typeName $partList
+            ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $tns:$typeName  $partList $tns
+            dict set results simpletypes $tns:$typeName $partList
         }
     }
      ::log::log debug "\t returning"
@@ -2778,7 +2954,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
 #
 ###########################################################################
 proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
-    upvar $dictVar results
+    upvar 1 $dictVar results
     variable nsList
 
     ::log::log debug "Entering [info level 0]"
@@ -2786,9 +2962,9 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     set typeName [$node getAttribute name]
     ::log::log debug "Simple Type is $typeName"
     #puts "Simple Type is $typeName"
-    set restrictionNode [$node selectNodes -namespaces $nsList s:restriction]
+    set restrictionNode [$node selectNodes -namespaces $nsList xs:restriction]
     if {[string equal $restrictionNode {}]} {
-        set restrictionNode [$node selectNodes -namespaces $nsList s:list/s:simpleType/s:restriction]
+        set restrictionNode [$node selectNodes -namespaces $nsList xs:list/xs:simpleType/xs:restriction]
     }
     if {[string equal $restrictionNode {}]} {
         set xml [string trim [$node asXML]]
@@ -2816,9 +2992,9 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     if {[llength $enumList]} {
         lappend partList enumeration $enumList
     }
-    if {![dict exists $results types $typeName]} {
-        ServiceSimpleTypeDef $mode $serviceName $typeName $partList
-        dict set results simpletypes $typeName $partList
+    if {![dict exists $results types $tns:$typeName]} {
+        ServiceSimpleTypeDef $mode $serviceName $tns:$typeName $partList $tns
+        dict set results simpletypes $tns:$typeName $partList
     }
 }
 
@@ -3009,7 +3185,7 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
     } elseif {[info exists enumeration] && ([lsearch -exact $enumeration $value] == -1)} {
         set errorCode [list WS CHECK VALUE_NOT_IN_ENUMERATION [list $key $value $enumerationVals $typeInfo]]
         set result 0
-    } elseif {[info exists pattern] && (![regexp $pattern $value])} {
+    } elseif {[info exists pattern] && (![regexp -- $pattern $value])} {
         set errorCode [list WS CHECK VALUE_NOT_MATCHES_PATTERN [list $key $value $pattern $typeInfo]]
         set result 0
     }
@@ -3061,7 +3237,7 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
 #
 ###########################################################################
 proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNode} {
-    upvar $valueInfos values
+    upvar 1 $valueInfos values
 
     ##
     ## Get the type information
@@ -3132,7 +3308,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
                         $retNode appendChild [$doc createTextNode $value]
                     } else {
                         set msg "Field '$field' of type '$typeName' "
-                        switch -exact [lindex $::errorCode 2] {
+                        switch -exact -- [lindex $::errorCode 2] {
                             VALUE_TO_SHORT {
                                 append msg "value required to be $fieldInfoArr(minLength) long but is only [string length $value] long"
                             }
@@ -3145,6 +3321,11 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
                             VALUE_NOT_MATCHES_PATTERN {
                                 append msg "value '$value' does not match pattern: $fieldInfoArr(pattern)"
                             }
+                            default {
+                                ##
+                                ## Placed here to shut up tclchecker
+                                ##
+                            }
                         }
                         return \
                             -errorcode $::errorCode \
@@ -3154,6 +3335,60 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
             }
         }
     }
+}
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::getQualifiedType
+#
+# Description : Set attributes on a DOM node
+#
+# Arguments :
+#       serviceInfo - service information dictionary
+#       type        - type to get local qualified type on
+#       tns         - current namespace
+#
+# Returns :     nothing
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  02/24/2011  G. Lester    Initial version
+#
+###########################################################################
+proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
+    set typePartsList [split $type {:}]
+    if {[llength $typePartsList] == 1} {
+        set result $tns:$type
+    } else {
+        lassign $typePartsList tmpTns tmpType
+        if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
+            set result [dict get $serviceInfo tnsList tns $tmpTns]:$tmpType
+        } else {
+            ::log::log error "Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList]'"
+            set result $tns:$type
+        }
+
+    }
+    return $result
 }
 
 
