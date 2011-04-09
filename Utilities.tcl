@@ -47,20 +47,20 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.0.0
+package provide WS::Utils 2.0.1
 
 namespace eval ::WS {}
 
 namespace eval ::WS::Utils {
-    set typeInfo {}
-    set currentSchema {}
-    array set importedXref {}
+    set ::WS::Utils::typeInfo {}
+    set ::WS::Utils::currentSchema {}
+    array set ::WS::Utils::importedXref {}
     set nsList {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
         xs http://www.w3.org/2001/XMLSchema
     }
-    array set simpleTypes {
+    array set ::WS::Utils::simpleTypes {
         string 1
         boolean 1
         decimal 1
@@ -106,7 +106,7 @@ namespace eval ::WS::Utils {
         unsignedByte 1
         positiveInteger 1
     }
-    array set options {
+    array set ::WS::Utils::options {
         UseNS 1
         StrictMode error
         parseInAttr 0
@@ -114,7 +114,7 @@ namespace eval ::WS::Utils {
         includeDirectory {}
     }
 
-    set standardAttributes {
+    set ::WS::Utils::standardAttributes {
         baseType
         comment
         pattern
@@ -145,7 +145,7 @@ namespace eval ::WS::Utils {
   </xsl:template>
 
 </xsl:stylesheet>
-    } xsltSchemaDom
+    } ::WS::Utils::xsltSchemaDom
 
 }
 

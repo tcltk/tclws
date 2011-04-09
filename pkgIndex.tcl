@@ -10,10 +10,10 @@
 
 package ifneeded WS::Channel 2.0.0 [list source [file join $dir ChannelServer.tcl]]
 package ifneeded WS::CheckAndBuild 0.0.3 [list source [file join $dir CheckAndBuild.tcl]]
-package ifneeded WS::Client 2.0.0 [list source [file join $dir ClientSide.tcl]]
+package ifneeded WS::Client 2.0.1 [list source [file join $dir ClientSide.tcl]]
 package ifneeded WS::Embeded 2.0.0 [list source [file join $dir Embedded.tcl]]
-package ifneeded WS::Server 2.0.0 [list source [file join $dir ServerSide.tcl]]
-package ifneeded WS::Utils 2.0.0 [list source [file join $dir Utilities.tcl]]
+package ifneeded WS::Server 2.0.1 [list source [file join $dir ServerSide.tcl]]
+package ifneeded WS::Utils 2.0.1 [list source [file join $dir Utilities.tcl]]
 package ifneeded WS::Wub 2.0.0 [list source [file join $dir WubServer.tcl]]
 package ifneeded WS::AOLserver 2.0.0 [list source [file join $dir AOLserver.tcl]]
 package ifneeded Wsdl 2.0.0 [list source [file join $dir WubServer.tcl]]

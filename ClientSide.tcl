@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.0
+package provide WS::Client 2.0.1
 
 namespace eval ::WS::Client {
     ##
@@ -91,8 +91,11 @@ namespace eval ::WS::Client {
     ## Note -- all type information is formated suitable to be passed
     ##         to ::WS::Utils::ServiceTypeDef
     ##
-    array set serviceArr {}
-    set currentBaseUrl {}
+    array set ::WS::Client::serviceArr {}
+    set ::WS::Client::currentBaseUrl {}
+    array set ::WS::Client::options {
+        skipLevelWhenActionPresent 0
+    }
 }
 
 
@@ -138,6 +141,7 @@ namespace eval ::WS::Client {
 ###########################################################################
 proc ::WS::Client::CreateService {serviceName type url args} {
     variable serviceArr
+    variable options
 
     dict set serviceArr($serviceName) types {}
     dict set serviceArr($serviceName) operList {}
@@ -149,6 +153,7 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     dict set serviceArr($serviceName) style $type
     dict set serviceArr($serviceName) inTransform {}
     dict set serviceArr($serviceName) outTransform {}
+    dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
     foreach {name value} $args {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
@@ -204,6 +209,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
 
     set serviceInfo $serviceArr($serviceName)
     switch -exact -- $item {
+        skipLevelWhenActionPresent -
         location -
         targetNamespace {
             ##
@@ -1928,8 +1934,12 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         set msgType [lindex $typeInfo 1]
     }
 
-    ::log::log debug [list $bod appendChild \[$doc createElement $xns:$msgType reply\]]
-    $bod appendChild [$doc createElement $xns:$msgType reply]
+    if {[dict get $serviceInfo skipLevelWhenActionPresent] && [dict exists $serviceInfo operation $operationName action]} {
+        set reply $bod
+    } else {
+        ::log::log debug [list $bod appendChild \[$doc createElement $xns:$msgType reply\]]
+        $bod appendChild [$doc createElement $xns:$msgType reply]
+    }
 
     ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType
 

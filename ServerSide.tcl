@@ -47,12 +47,12 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.0.0
+package provide WS::Server 2.0.1
 
 namespace eval ::WS::Server {
-    array set serviceArr {}
-    set procInfo {}
-    set mode {}
+    array set ::WS::Server::serviceArr {}
+    set ::WS::Server::procInfo {}
+    set ::WS::Server::mode {}
 }
 
 
