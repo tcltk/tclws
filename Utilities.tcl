@@ -47,7 +47,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.0.1
+package provide WS::Utils 2.0.2
 
 namespace eval ::WS {}
 
@@ -3389,6 +3389,196 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
 
     }
     return $result
+}
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::GenerateTemplateDict
+#
+# Description : Generate a template dictionary object for
+#               a given type.
+#
+# Arguments :
+#    mode        - The mode, Client or Server
+#    serviceName - The service name the type is defined in
+#    type        - The name of the type
+#    arraySize   - Number of elements to generate in an array.  Default is 2
+#
+# Returns : A dictionary object for a given type.  If any circular references
+#           exist, they will have the value of <** Circular Reference **>
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  07/06/2006  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Utils::GenerateTemplateDict {mode serviceName type {arraySize 2}} {
+    variable generatedTypes
+
+    ::log::log debug "Entering [info level 0]"
+    unset -nocomplain -- generatedTypes
+
+    set result [_generateTemplateDict $mode $serviceName $type $arraySize]
+
+    unset -nocomplain -- generatedTypes
+    ::log::log debug "Leaving [info level 0] with {$result}"
+
+    return $result
+}
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::_generateTemplateDict
+#
+# Description : Private procedure to gnerate a template dictionary.  This needs
+#               setup work done by ::WS::Utils::GnerateTemplateDict
+#
+# Arguments :
+#    mode        - The mode, Client or Server
+#    serviceName - The service name the type is defined in
+#    type        - The name of the type
+#    arraySize   - Number of elements to generate in an array.
+#
+# Returns : A dictionary object for a given type.  If any circular references
+#           exist, they will have the value of <** Circular Reference **>
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  07/06/2006  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
+    variable typeInfo
+    variable mutableTypeInfo
+    variable options
+    variable generatedTypes
+
+    ::log::log debug "Entering [info level 0]"
+    set results {}
+
+    ##
+    ## Check for circular reference
+    ##
+    if {[info exists generatedTypes([list $mode $serviceName $type])]} {
+        set results {<** Circular Reference **>}
+        ::log::log debug "Leaving [info level 0] with {$results}"
+        return $results
+    } else {
+        set generatedTypes([list $mode $serviceName $type]) 1
+    }
+
+    set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+    ::log::log debug "\t type def = {$typeDefInfo}"
+    set xns [dict get $typeDefInfo xns]
+
+    ##
+    ## Check for mutable type
+    ##
+    if {[info exists mutableTypeInfo([list $mode $serviceName $type])]} {
+        set results {<** Mutable Type **>}
+        ::log::log debug "Leaving [info level 0] with {$results}"
+        return $results
+    }
+
+    set partsList [dict keys [dict get $typeDefInfo definition]]
+    ::log::log debug "\t partsList is {$partsList}"
+    foreach partName $partsList {
+        set partType [dict get $typeDefInfo definition $partName type]
+        set partXns $xns
+        catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
+        set typeInfoList [TypeInfo $mode $serviceName $partType]
+        set isArray [lindex $typeInfoList end]
+
+        ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
+        switch -exact -- $typeInfoList {
+            {0 0} {
+                ##
+                ## Simple non-array
+                ##
+                dict set results $partName {Simple non-array}
+            }
+            {0 1} {
+                ##
+                ## Simple array
+                ##
+                set tmp {}
+                for {set row 1} {$row <= $arraySize} {incr row} {
+                    lappend tmp [format {Simple array element #%d} $row]
+                }
+                dict set results $partName $tmp
+            }
+            {1 0} {
+                ##
+                ## Non-simple non-array
+                ##
+                dict set results $partName [_generateTemplateDict $mode $serviceName $partType $arraySize]
+            }
+            {1 1} {
+                ##
+                ## Non-simple array
+                ##
+                set partType [string trimright $partType {()}]
+                set tmp [list]
+                set isRecursive [info exists generatedTypes([list $mode $serviceName $partType])]
+                for {set row 1} {$row <= $arraySize} {incr row} {
+                    if {$isRecursive} {
+                        lappend tmp $partName {<** Circular Reference **>}
+                    } else {
+                        unset -nocomplain -- generatedTypes([list $mode $serviceName $partType])
+                        lappend tmp [_generateTemplateDict $mode $serviceName $partType $arraySize]
+                    }
+                }
+                dict set results $partName $tmp
+            }
+            default {
+                ##
+                ## Placed here to shut up tclchecker
+                ##
+            }
+        }
+    }
+    ::log::log debug "Leaving [info level 0] with {$results}"
+    return $results
 }
 
 
