@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.0.1
+package provide WS::Server 2.0.3
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -90,6 +90,8 @@ namespace eval ::WS::Server {
 #                                     POST serviceName operationName OK|ERROR results
 #               -inheaders      - List of input header types.
 #               -outheaders     - List of output header types.
+#               -intransform    - Inbound (request) transform procedure.
+#               -outtransform   - Outbound (reply) transform procedure.
 #               -checkheader    - Command prefix to check headers.
 #                                     If the call is not to be allowed, this command
 #                                     should raise an error.
@@ -166,6 +168,8 @@ proc ::WS::Server::Service {args} {
         -checkheader    {::WS::Server::ok}
         -inheaders      {}
         -outheaders     {}
+        -intransform    {}
+        -outtransform   {}
         -htmlhead       {TclHttpd Based Web Services}
         -author         {}
         -description    {}
@@ -1071,6 +1075,12 @@ proc ::WS::Server::callOperation {service sock args} {
     set ::errorInfo {}
     set ::errorCode {}
     set ns $service
+
+    set inTransform [dict get $serviceInfo -intransform]
+    set outTransform [dict get $serviceInfo -outtransform]
+    if {![string equal $inTransform  {}]} {
+        set inXML [$inTransform REQUEST $inXML]
+    }
     dom parse $inXML doc
     $doc documentElement top
     ::log::log debug [list $doc selectNodesNamespaces \
@@ -1305,6 +1315,9 @@ proc ::WS::Server::callOperation {service sock args} {
         # regsub "<!DOCTYPE\[^>\]+>\n" $xml {} xml
         catch {$doc delete}
         set xml [string map {{<?xml version="1.0"?>} {<?xml version="1.0"  encoding="utf-8"?>}} $xml]
+        if {![string equal $outTransform  {}]} {
+            set xml [$outTransform REPLY $xml $operation $results]
+        }
         if {[info exists serviceInfo(-postmonitor)] &&
             [string length $serviceInfo(-postmonitor)]} {
             set precmd $serviceInfo(-postmonitor)

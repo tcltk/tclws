@@ -121,6 +121,20 @@ they are: </p><PRE>             -host           - The host name for this service
                                     POST serviceName operationName OK|ERROR results
              -inheaders      - List of input header types.
              -outheaders     - List of output header types.
+             -intransform    - Inbound (request) transform procedure (2.0.3 and later).
+                                The signature of the command must be:
+                                     cmd \
+                                         mode (REQUEST) \
+                                         xml \
+                                         notUsed_1 \
+                                         notUsed_2
+             -outtransform   - Outbound (reply) transform procedure (2.0.3 and later).
+                                The signature of the command must be:
+                                     cmd \
+                                         mode (REPLY) \
+                                         xml \
+                                         operation \
+                                         resultDict
              -checkheader    - Command prefix to check headers.
                                    If the call is not to be allowed, this command
                                    should raise an error.
