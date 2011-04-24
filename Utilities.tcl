@@ -47,7 +47,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.0.2
+package provide WS::Utils 2.0.3
 
 namespace eval ::WS {}
 
@@ -1829,9 +1829,28 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
     ::log::log debug "Entering ::WS::Utils::convertDictToEncodedType $mode $service $doc $parent {$dict} $type"
     variable typeInfo
 
-    set itemList [dict get $typeInfo $mode $service $type definition]
-    set xns [dict get $typeInfo $mode $service $type xns]
-    ::log::log debug "\titemList is {$itemList}"
+
+    set typeInfoList [TypeInfo $mode $service $type]
+    ::log::log debug "\t typeInfoList = {$typeInfoList}"
+    if {[lindex $typeInfoList 0]} {
+        set itemList [dict get $typeInfo $mode $service $type definition]
+        set xns [dict get $typeInfo $mode $service $type xns]
+    } else {
+        set xns $simpleTypes($mode,$service,$type)
+        set itemList [list $type {type string}]
+    }
+    if {[info exists mutableTypeInfo([list $mode $service $type])]} {
+        set type [(*)[lindex mutableTypeInfo([list $mode $service $type]) 0] $mode $service $type $xns $dict]
+        set typeInfoList [TypeInfo $mode $service $type]
+        if {[lindex $typeInfoList 0]} {
+            set itemList [dict get $typeInfo $mode $service $type definition]
+            set xns [dict get $typeInfo $mode $service $type xns]
+        } else {
+            set xns $simpleTypes($mode,$service,$type)
+            set itemList [list $type {type string}]
+        }
+    }
+    ::log::log debug "\titemList is {$itemList} in $xns"
     foreach {itemName itemDef} $itemList {
         set itemType [dict get $itemList $itemName type]
         set typeInfoList [TypeInfo $mode $service $itemType]

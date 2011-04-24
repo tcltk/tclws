@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.1
+package provide WS::Client 2.0.2
 
 namespace eval ::WS::Client {
     ##
@@ -690,24 +690,26 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 
     if {[dict exists $serviceInfo types]} {
         foreach {typeName partList} [dict get $serviceInfo types] {
+            set definition [dict get $partList definition]
+            set xns [dict get $partList xns]
             if {[string equal [lindex [split $typeName {:}] 1] {}]} {
-                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $partList tns1
+                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition tns1
             } else {
-                set xns [lindex [split $typeName {:}] 0]
                 #set typeName [lindex [split $typeName {:}] 1]
-                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $partList $xns
+                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition $xns
             }
         }
     }
 
     if {[dict exists $serviceInfo simpletypes]} {
-        foreach {typeName partList} [dict get $serviceInfo simpletypes] {
+        foreach partList [dict get $serviceInfo simpletypes] {
+            lassign $partList typeName definition
             if {[string equal [lindex [split $typeName {:}] 1] {}]} {
-                ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $partList tns1
+                ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $definition tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
                 #set typeName [lindex [split $typeName {:}] 1]
-                ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $partList $xns
+                ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $definition $xns
             }
         }
     }
