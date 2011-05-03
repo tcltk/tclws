@@ -112,6 +112,7 @@ namespace eval ::WS::Utils {
         parseInAttr 0
         genOutAttr 0
         includeDirectory {}
+        suppressNS {}
     }
 
     set ::WS::Utils::standardAttributes {
@@ -1500,7 +1501,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Simple non-array
                 ##
-                $parent appendChild [$doc createElement $xns:$itemName retNode]
+                if {[string equal $xns $options(suppressNS)]} {
+                    $parent appendChild [$doc createElement $itemName retNode]
+                } else {
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
@@ -1525,7 +1530,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 set dataList [dict get $dict $itemName]
                 ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    if {[string equal $xns $options(suppressNS)]} {
+                        $parent appendChild [$doc createElement $itemName retNode]
+                    } else {
+                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
@@ -1548,7 +1557,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Non-simple non-array
                 ##
-                $parent appendChild [$doc createElement $xns:$itemName retNode]
+                if {[string equal $xns $options(suppressNS)]} {
+                    $parent appendChild [$doc createElement $itemName retNode]
+                } else {
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
@@ -1574,7 +1587,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 set tmpType [string trimright $itemType ()]
                 ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    if {[string equal $xns $options(suppressNS)]} {
+                        $parent appendChild [$doc createElement $itemName retNode]
+                    } else {
+                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
@@ -1828,6 +1845,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
 proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
     ::log::log debug "Entering ::WS::Utils::convertDictToEncodedType $mode $service $doc $parent {$dict} $type"
     variable typeInfo
+    variable options
 
 
     set typeInfoList [TypeInfo $mode $service $type]
@@ -1865,7 +1883,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ##
                 ## Simple non-array
                 ##
-                $parent appendChild [$doc createElement $xns:$itemName retNode]
+                if {[string equal $xns $options(suppressNS)]} {
+                    $parent appendChild [$doc createElement $itemName retNode]
+                } else {
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                }
                 if {![string match {*:*} $itemType]} {
                     set attrType $xns:$itemType
                 } else {
@@ -1887,7 +1909,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                     set attrType $itemType
                 }
                 foreach resultValue $dataList {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    if {[string equal $xns $options(suppressNS)]} {
+                        $parent appendChild [$doc createElement $itemName retNode]
+                    } else {
+                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    }
                     $retNode setAttribute xsi:type $attrType
                     set resultValue [dict get $dict $itemName]
                     $retNode appendChild [$doc createTextNode $resultValue]
@@ -1897,7 +1923,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 ##
                 ## Non-simple non-array
                 ##
-                $parent appendChild [$doc createElement $xns:$itemName retNode]
+                if {[string equal $xns $options(suppressNS)]} {
+                    $parent appendChild [$doc createElement $itemName retNode]
+                } else {
+                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                }
                 if {![string match {*:*} $itemType]} {
                     set attrType $xns:$itemType
                 } else {
@@ -1923,7 +1953,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 $parent setAttribute xsi:type soapenc:Array
                 #set itemName [$parent nodeName]
                 foreach item $dataList {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    if {[string equal $xns $options(suppressNS)]} {
+                        $parent appendChild [$doc createElement $itemName retNode]
+                    } else {
+                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    }
                     $retNode setAttribute xsi:type $attrType
                     convertDictToEncodedType $mode $service $doc $retNode $item $tmpType
                 }
@@ -2814,8 +2848,9 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     }
     ::log::log debug "Elemental Type is $typeName"
     set partList {}
+    set partType {}
     set elements [$node selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
-    ::log::log debug "\t element list is {$elements}"
+    ::log::log debug "\t element list is {$elements} partList {$partList}"
     foreach element $elements {
         ::log::log debug "\t\t Processing element {[$element nodeName]}"
         set elementsFound 1
@@ -2902,6 +2937,8 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         # have an element with a type only, so do the work here
         if {[$node hasAttribute type]} {
             set partType [getQualifiedType $results [$node getAttribute type] $tns]
+        } elseif {[$node hasAttribute base]}  {
+            set partType [getQualifiedType $results [$node getAttribute base] $tns]
         } else {
             set partType xs:string
         }
@@ -2911,7 +2948,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
             ## See if this is just a restriction on a simple type
             ##
             if {([lindex [TypeInfo $mode $serviceName $partType] 0] == 0) &&
-                [string equal $typeName $partType]} {
+                [string equal $tns:$typeName $partType]} {
                 return
             } else {
                 lappend partList $typeName [list type $partType comment {}]
