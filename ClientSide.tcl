@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.2
+package provide WS::Client 2.0.3
 
 namespace eval ::WS::Client {
     ##
@@ -208,6 +208,7 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     dict set serviceArr($serviceName) name $serviceName
     dict set serviceArr($serviceName) location $url
     dict set serviceArr($serviceName) style $type
+    dict set serviceArr($serviceName) imports {}
     dict set serviceArr($serviceName) inTransform {}
     dict set serviceArr($serviceName) outTransform {}
     dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
@@ -525,6 +526,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
     }
     set tnsCount [llength [dict get $serviceArr($serviceName) targetNamespace]]
     set serviceInfo $serviceArr($serviceName)
+    dict lappend serviceInfo imports $url
     ::WS::Utils::ProcessImportXml Client $url $xml $serviceName serviceInfo tnsCount
     set serviceArr($serviceName) $serviceInfo
     set result {}

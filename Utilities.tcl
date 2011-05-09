@@ -47,7 +47,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.0.3
+package provide WS::Utils 2.0.4
 
 namespace eval ::WS {}
 
@@ -715,39 +715,8 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     set prevSchema $currentSchema
     set currentSchema $schema
 
-    set prevTnsDict [dict get $serviceInfo tnsList tns]
-    dict set serviceInfo tns {}
-    foreach itemList [$schema attributes xmlns:*] {
-        set ns [lindex $itemList 0]
-        set url [$schema getAttribute xmlns:$ns]
-        if {[dict exists $serviceInfo tnsList url $url]} {
-            set tns [dict get $serviceInfo tnsList url $url]
-        } else {
-            ##
-            ## Check for hardcoded namespaces
-            ##
-            switch -exact -- $url {
-                http://schemas.xmlsoap.org/wsdl/ {
-                    set tns w
-                }
-                http://schemas.xmlsoap.org/wsdl/soap/ {
-                    set tns d
-                }
-                http://www.w3.org/2001/XMLSchema {
-                    set tns xs
-                }
-                default {
-                    set tns tns[incr tnsCount]
-                }
-            }
-            dict set serviceInfo tnsList url $url $tns
-        }
-        dict set serviceInfo tnsList tns $ns $tns
-    }
-
     parseScheme $mode $baseUrl $schema $serviceName serviceInfo tnsCount
 
-    dict set serviceInfo tnsList tns $prevTnsDict
     set currentSchema $prevSchema
     $doc delete
 }
@@ -2126,6 +2095,36 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     }
     ::log::log debug "@3 TNS count for $baseUrl is $tnsCount {$tns}"
 
+    set prevTnsDict [dict get $serviceInfo tnsList tns]
+    dict set serviceInfo tns {}
+    foreach itemList [$schemaNode attributes xmlns:*] {
+        set ns [lindex $itemList 0]
+        set url [$schemaNode getAttribute xmlns:$ns]
+        if {[dict exists $serviceInfo tnsList url $url]} {
+            set tns [dict get $serviceInfo tnsList url $url]
+        } else {
+            ##
+            ## Check for hardcoded namespaces
+            ##
+            switch -exact -- $url {
+                http://schemas.xmlsoap.org/wsdl/ {
+                    set tns w
+                }
+                http://schemas.xmlsoap.org/wsdl/soap/ {
+                    set tns d
+                }
+                http://www.w3.org/2001/XMLSchema {
+                    set tns xs
+                }
+                default {
+                    set tns tns[incr tnsCount]
+                }
+            }
+            dict set serviceInfo tnsList url $url $tns
+        }
+        dict set serviceInfo tnsList tns $ns $tns
+    }
+
     ##
     ## Process Imports -- pass 1 for new types, so only report errors inb pass 2
     ##
@@ -2266,6 +2265,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             }
         }
     }
+    dict set serviceInfo tnsList tns $prevTnsDict
 
 }
 
@@ -2348,6 +2348,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
         ::log::log debug "$mode,$serviceName,$url was already imported: $importedXref($mode,$serviceName,$url)"
         return
     }
+    dict lappend serviceInfo imports $url
     set importedXref($mode,$serviceName,$url) [list $mode $serviceName $tnsCount]
     switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
