@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.3
+package provide WS::Client 2.0.4
 
 namespace eval ::WS::Client {
     ##
@@ -219,9 +219,11 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     }
 
     if {[dict exists $serviceArr($serviceName) xns]} {
-        set xns [dict get $serviceArr($serviceName) xns]
-        ::log::log debug [list Setting targetNamespae to $xns]
-        dict set serviceArr($serviceName) targetNamespace $xns
+        foreach xnsItem [dict get $serviceArr($serviceName) xns] {
+            lassign $xnsItem tns xns
+            ::log::log debug [list Setting targetNamespae to $xns]
+            dict set serviceArr($serviceName) targetNamespace $xns $tns
+        }
     }
 }
 
