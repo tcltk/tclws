@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.4
+package provide WS::Client 2.0.5
 
 namespace eval ::WS::Client {
     ##
@@ -196,7 +196,7 @@ proc ::WS::Client::SetOption {option args} {
 #
 #
 ###########################################################################
-proc ::WS::Client::CreateService {serviceName type url args} {
+proc ::WS::Client::CreateService {serviceName type url target args} {
     variable serviceArr
     variable options
 
@@ -204,7 +204,7 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     dict set serviceArr($serviceName) operList {}
     dict set serviceArr($serviceName) objList {}
     dict set serviceArr($serviceName) headers {}
-    dict set serviceArr($serviceName) targetNamespace tns1 $url
+    dict set serviceArr($serviceName) targetNamespace tns1 $target
     dict set serviceArr($serviceName) name $serviceName
     dict set serviceArr($serviceName) location $url
     dict set serviceArr($serviceName) style $type
@@ -221,8 +221,8 @@ proc ::WS::Client::CreateService {serviceName type url args} {
     if {[dict exists $serviceArr($serviceName) xns]} {
         foreach xnsItem [dict get $serviceArr($serviceName) xns] {
             lassign $xnsItem tns xns
-            ::log::log debug [list Setting targetNamespae to $xns]
-            dict set serviceArr($serviceName) targetNamespace $xns $tns
+            ::log::log debug [list Setting targetNamespae for $xns]
+            dict set serviceArr($serviceName) targetNamespace $tns $xns
         }
     }
 }
@@ -526,15 +526,15 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
                 "Unknown URL type '$url'"
         }
     }
-    set tnsCount [llength [dict get $serviceArr($serviceName) targetNamespace]]
+    set tnsCount [expr {[llength [dict get $serviceArr($serviceName) targetNamespace]]/2}]
     set serviceInfo $serviceArr($serviceName)
     dict lappend serviceInfo imports $url
     ::WS::Utils::ProcessImportXml Client $url $xml $serviceName serviceInfo tnsCount
     set serviceArr($serviceName) $serviceInfo
     set result {}
-    foreach pair [dict get $serviceArr($serviceName) targetNamespace] {
-        if {[string equal [lindex $pair 1] $url]} {
-            set result [lindex $pair 0]
+    foreach {result target} [dict get $serviceArr($serviceName) targetNamespace] {
+        if {[string equal $target $url]} {
+            break
         }
     }
     return $result
@@ -1744,7 +1744,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         xs "http://www.w3.org/2001/XMLSchema"
     }
     foreach tmp [dict get $serviceInfo targetNamespace] {
-        lappend xns [lindex $tmp 0] [lindex $tmp 1]
+        lappend xns $tmp
     }
     ::log::log debug "Using namespaces {$xns}"
     $doc selectNodesNamespaces $xns
@@ -1975,11 +1975,16 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
         "xmlns:xsi"      "http://www.w3.org/2001/XMLSchema-instance" \
         "xmlns:xs"      "http://www.w3.org/2001/XMLSchema"
-    array set tnsArray {}
     array unset tnsArray *
-    foreach xns $xnsList {
-        set tns [lindex $xns 0]
-        set target [lindex $xns 1]
+    array set tnsArray {
+        "http://schemas.xmlsoap.org/soap/envelope/" "xmlns:SOAP-ENV"
+        "http://schemas.xmlsoap.org/soap/encoding/" "xmlns:SOAP-ENC"
+        "http://www.w3.org/2001/XMLSchema-instance" "xmlns:xsi"
+        "http://www.w3.org/2001/XMLSchema" "xmlns:xs"
+    }
+    foreach {tns target} $xnsList {
+        #set tns [lindex $xns 0]
+        #set target [lindex $xns 1]
         set tnsArray($target) $tns
         $env  setAttribute \
             xmlns:$tns $target
@@ -2097,9 +2102,9 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
         xmlns:xsi      "http://www.w3.org/2001/XMLSchema-instance" \
         xmlns:xs      "http://www.w3.org/2001/XMLSchema"
 
-    foreach xns $xnsList {
-        set tns [lindex $xns 0]
-        set target [lindex $xns 1]
+    foreach {tns target} $xnsList {
+        #set tns [lindex $xns 0]
+        #set target [lindex $xns 1]
         $env setAttribute xmlns:$tns $target
     }
 
@@ -2289,7 +2294,12 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     foreach url [dict keys [dict get $tnsDict url]] {
         lappend xns [list [dict get $tnsDict url $url] $url]
     }
-    CreateService $serviceName WSDL $location xns $xns
+    if {[$wsdlNode hasAttribute targetNamespace]} {
+        set target [$wsdlNode getAttribute targetNamespace]
+    } else {
+        set target $location
+    }
+    CreateService $serviceName WSDL $location $target xns $xns
     set serviceInfo $serviceArr($serviceName)
     dict set serviceInfo tnsList $tnsDict
     set bindingName [lindex [split [$portNode getAttribute binding] {:}] end]
@@ -3198,9 +3208,9 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
     $doc documentElement body
     $body setAttribute \
         "method"      $operationName
-    foreach xns $xnsList {
-        set tns [lindex $xns 0]
-        set target [lindex $xns 1]
+    foreach {tns target} $xnsList {
+        #set tns [lindex $xns 0]
+        #set target [lindex $xns 1]
         $body  setAttribute \
             xmlns:$tns $target
     }
@@ -3292,7 +3302,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     $doc documentElement top
     set xns {}
     foreach tmp [dict get $serviceInfo targetNamespace] {
-        lappend xns [lindex $tmp 0] [lindex $tmp 1]
+        lappend xns $tmp
     }
     ::log::log debug "Using namespaces {$xns}"
     set body $top
