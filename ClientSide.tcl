@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.5
+package provide WS::Client 2.0.6
 
 namespace eval ::WS::Client {
     ##
@@ -912,6 +912,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 #
 ###########################################################################
 proc ::WS::Client::ParseWsdl {wsdlXML args} {
+    variable currentBaseUrl
     variable serviceArr
 
     array set defaults {
@@ -961,6 +962,14 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
         d http://schemas.xmlsoap.org/wsdl/soap/
         xs http://www.w3.org/2001/XMLSchema
     }
+
+    if {[info exists currentBaseUrl]} {
+        set url $currentBaseUrl
+    } else {
+        set url $targetNs
+    }
+    ::WS::Utils::ProcessIncludes $wsdlNode $url
+
     if {[string length $defaults(-serviceAlias)]} {
         set serviceAlias $defaults(-serviceAlias)
     } else {

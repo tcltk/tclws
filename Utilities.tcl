@@ -47,7 +47,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.0.4
+package provide WS::Utils 2.0.5
 
 namespace eval ::WS {}
 
@@ -132,9 +132,10 @@ namespace eval ::WS::Utils {
     dom parse {
 <xsl:stylesheet
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
     version="1.0">
 
-  <xsl:template match="CHOICE">
+  <xsl:template match="xs:choice">
       <xsl:apply-templates/>
   </xsl:template>
 
@@ -147,6 +148,31 @@ namespace eval ::WS::Utils {
 
 </xsl:stylesheet>
     } ::WS::Utils::xsltSchemaDom
+
+
+    dom parse {
+<xsl:stylesheet
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    version="1.0">
+
+  <xsl:template match="xs:schema">
+      <xsl:apply-templates/>
+  </xsl:template>
+
+  <xsl:template match="xs:choice">
+      <xsl:apply-templates/>
+  </xsl:template>
+
+  <!-- Copy all the attributes and other nodes -->
+  <xsl:template match="@*|node()">
+    <xsl:copy>
+      <xsl:apply-templates select="@*|node()"/>
+    </xsl:copy>
+  </xsl:template>
+
+</xsl:stylesheet>
+    } ::WS::Utils::xsltIncludeDom
 
 }
 
@@ -661,6 +687,7 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 #
 # Arguments :
 #    mode           - The mode, Client or Server
+#    baseUrl        - The URL we are processing
 #    xml            - The XML string to parse
 #    serviceName    - The name service.
 #    serviceInfoVar - The name of the dictionary containing the partially
@@ -692,6 +719,7 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 ###########################################################################
 proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar tnsCountVar} {
     ::log::log debug "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
+    puts stdout "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
     upvar 1 $serviceInfoVar serviceInfo
     upvar 1 $tnsCountVar tnsCount
     variable currentSchema
@@ -711,6 +739,11 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
         xs http://www.w3.org/2001/XMLSchema
     }
     $doc documentElement schema
+    if {[catch {ProcessIncludes $schema $baseUrl} errMsg]} {
+        puts stderr $::errorInfo
+        puts stderr $::errorCode
+        puts stderr $errMsg
+    }
 
     set prevSchema $currentSchema
     set currentSchema $schema
@@ -719,6 +752,131 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
 
     set currentSchema $prevSchema
     $doc delete
+}
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Utils::ProcessIncludes
+#
+# Description : Replace all include nodes with the contents of the included url.
+#
+# Arguments :
+#    rootNode - the root node of the document
+#    baseUrl  - The URL being processed
+#
+# Returns : nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  25/05/2006  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
+    variable ::WS::Utils::xsltSchemaDom
+    variable nsList
+
+    set includeNodeList [$rootNode selectNodes -namespaces $nsList xs:include]
+    set inXml [$rootNode asXML]
+    set included 0
+    foreach includeNode $includeNodeList {
+        if {![$includeNode hasAttribute schemaLocation]} {
+            continue
+        }
+        incr included
+        set urlTail [$includeNode getAttribute schemaLocation]
+        set url [::uri::resolve $baseUrl  $urlTail]
+        ::log::log debug "\t Importing {$url}"
+        switch -exact -- [dict get [::uri::split $url] scheme] {
+            file {
+                upvar #0 [::uri::geturl $url] token
+                set xml $token(data)
+                unset token
+            }
+            https -
+            http {
+                set ncode -1
+                catch {
+                    set token [::http::geturl $url]
+                    ::http::wait $token
+                    set ncode [::http::ncode $token]
+                    set xml [::http::data $token]
+                    ::http::cleanup $token
+                }
+                if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
+                    return \
+                        -code error \
+                        -errorcode [list WS CLIENT HTTPFAIL $url $ncode] \
+                        "HTTP get of import file failed '$url'"
+                } elseif {($ncode != 200) && ![string equal $options(includeDirectory) {}]} {
+                    set fn [file join  $options(includeDirectory) $urlTail]
+                    set ifd  [open $fn r]
+                    set xml [read $ifd]
+                    close $ifd
+                }
+            }
+            default {
+                return \
+                    -code error \
+                    -errorcode [list WS CLIENT UNKURLTYP $url] \
+                    "Unknown URL type '$url'"
+            }
+        }
+        set parentNode [$includeNode parentNode]
+        set nextSibling [$includeNode nextSibling]
+        dom parse $xml tmpdoc
+        $tmpdoc xslt $xsltSchemaDom doc
+        $tmpdoc delete
+        set children 0
+        set top [$doc documentElement]
+        foreach childNode [$top childNodes] {
+            if {[catch {
+                    #set newNode [$parentNode appendXML [$childNode asXML]]
+                    #$parentNode removeChild $newNode
+                    #$parentNode insertBefore $newNode $includeNode
+                    $parentNode insertBefore $childNode $includeNode
+                }]} {
+                continue
+            }
+            incr children
+        }
+        $doc delete
+        $includeNode delete
+    }
+    if {$included} {
+        puts stdout {}
+        puts stdout {}
+        puts stdout {}
+        puts stdout {Before:}
+        puts stdout $inXml
+        puts stdout {}
+        puts stdout {}
+        puts stdout "After: $children"
+        puts stdout [$rootNode asXML]
+        puts stdout {}
+        puts stdout {}
+        puts stdout {}
+    }
 }
 
 ###########################################################################
@@ -2078,6 +2236,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     variable currentSchema
     variable nsList
     variable options
+    variable unkownRef
 
     set currentSchema $schemaNode
     if {[$schemaNode hasAttribute targetNamespace]} {
@@ -2126,11 +2285,104 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     }
 
     ##
-    ## Process Imports -- pass 1 for new types, so only report errors inb pass 2
+    ## Process the scheme in multiple passes to handle forward references and extensions
+    ##
+    set pass 1
+    set lastUnknownRefCount 0
+    array unset unkownRef
+    while {($pass == 1) || ($lastUnknownRefCount != [array size unkownRef])} {
+        ::log::log debug  "Pass $pass over schema"
+        incr pass
+        set lastUnknownRefCount [array size unkownRef]
+        array unset unkownRef
+
+        foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
+            catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount}
+                    }
+
+        ::log::log debug  "Parsing Element types for $xns as $tns"
+        foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
+            ::log::log debug "\tprocessing $element"
+            catch {parseElementalType $mode serviceInfo $serviceName $element $tns}
+        }
+
+        ::log::log debug  "Parsing Attribute types for $xns as $tns"
+        foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:attribute] {
+            ::log::log debug "\tprocessing $element"
+            catch {parseElementalType $mode serviceInfo $serviceName $element $tns}
+        }
+
+        ::log::log debug "Parsing Simple types for $xns as $tns"
+        foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:simpleType] {
+            ::log::log debug "\tprocessing $element"
+            catch {parseSimpleType $mode serviceInfo $serviceName $element $tns}
+        }
+
+        ::log::log debug  "Parsing Complex types for $xns as $tns"
+        foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:complexType] {
+            ::log::log debug "\tprocessing $element"
+            catch {parseComplexType $mode serviceInfo $serviceName $element $tns}
+        }
+    }
+
+    set lastUnknownRefCount [array size unkownRef]
+    foreach {unkRef usedByTypeList} [array get unkownRef] {
+        foreach usedByType $usedByTypeList {} {
+            switch -exact -- $options(StrictMode) {
+                debug -
+                warning {
+                    log::log $options(StrictMode) "Unknown type reference $unkRef in type $usedByType"
+                }
+                error -
+                default {
+                    log::log error "Unknown type reference $unkRef in type $usedByType"
+                }
+            }
+        }
+    }
+
+    if {$lastUnknownRefCount} {
+        switch -exact -- $options(StrictMode) {
+            error -
+            default {
+                return \
+                    -code error \
+                    -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount] \
+                    "Found $lastUnknownRefCount forward type references"
+            }
+        }
+    }
+
+
+
+    ##
+    ## Ok, one more pass to report errors
     ##
     foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
-        ::log::log debug "\tprocessing $element"
-        catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount}
+        if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
+            switch -exact -- $options(StrictMode) {
+                debug -
+                warning {
+                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
+                    log::log $options(StrictMode) "\t error was: $msg"
+                }
+                error -
+                default {
+                    set errorCode $::errorCode
+                    set errorInfo $::errorInfo
+                    log::log error "Could not parse:\n [$element asXML]"
+                    log::log error "\t error was: $msg"
+                    log::log error "\t error info: $errorInfo"
+                    log::log error "\t error in: [lindex [info level 0] 0]"
+                    log::log error "\t error code: $errorCode"
+                    return \
+                        -code error \
+                        -errorcode $errorCode \
+                        -errorinfo $errorInfo \
+                        $msg
+                }
+            }
+        }
     }
 
     ::log::log debug  "Parsing Element types for $xns as $tns"
@@ -2149,6 +2401,10 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     set errorInfo $::errorInfo
                     log::log error "Could not parse:\n [$element asXML]"
                     log::log error "\t error was: $msg"
+                    log::log error "\t error info: $errorInfo"
+                    log::log error "\t last element: $::elementName"
+                    log::log error "\t error in: [lindex [info level 0] 0]"
+                    log::log error "\t error code: $errorCode"
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2175,6 +2431,10 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     set errorInfo $::errorInfo
                     log::log error "Could not parse:\n [$element asXML]"
                     log::log error "\t error was: $msg"
+                    log::log error "\t error info: $errorInfo"
+                    log::log error "\t error in: [lindex [info level 0] 0]"
+                    log::log error "\t error code: $errorCode"
+                    log::log error "\t last element: $::elementName"
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2201,6 +2461,9 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     set errorInfo $::errorInfo
                     log::log error "Could not parse:\n [$element asXML]"
                     log::log error "\t error was: $msg"
+                    log::log error "\t error info: $errorInfo"
+                    log::log error "\t error in: [lindex [info level 0] 0]"
+                    log::log error "\t error code: $errorCode"
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2227,6 +2490,9 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     set errorInfo $::errorInfo
                     log::log error "Could not parse:\n [$element asXML]"
                     log::log error "\t error was: $msg"
+                    log::log error "\t error info: $errorInfo"
+                    log::log error "\t error in: [lindex [info level 0] 0]"
+                    log::log error "\t error code: $errorCode"
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2237,36 +2503,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-
-    ##
-    ## Process Imports -- pass 2 for extentions
-    ##
-    foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
-        ::log::log debug "\tprocessing $element"
-        if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
-            switch -exact -- $options(StrictMode) {
-                debug -
-                warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
-                }
-                error -
-                default {
-                    set errorCode $::errorCode
-                    set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    return \
-                        -code error \
-                        -errorcode $errorCode \
-                        -errorinfo $errorInfo \
-                        $msg
-                }
-            }
-        }
-    }
     dict set serviceInfo tnsList tns $prevTnsDict
-
 }
 
 ###########################################################################
@@ -2435,6 +2672,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     upvar 1 $dictVar results
     variable currentSchema
     variable nsList
+    variable unkownRef
 
     ::log::log debug "Entering [info level 0]"
 
@@ -2462,13 +2700,44 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
             element {
                 set nodeFound 1
-                set partName [$middleNode getAttribute name]
-                set partType [getQualifiedType $results [$middleNode getAttribute type string:string] $tns]
-                set partMax [$middleNode getAttribute maxOccurs 1]
-                if {[string equal $partMax 1]} {
-                    lappend partList $partName [list type $partType comment $comment]
+                if {[$middleNode hasAttribute ref]} {
+                    set partType [$middleNode getAttribute ref]
+                    ::log::log debug "\t\t has a ref of {$partType}"
+                    if {[catch {
+                        set refTypeInfo [split $partType {:}]
+                        set partName [lindex $refTypeInfo end]
+                        set refNS [lindex $refTypeInfo 0]
+                        if {[string equal $refNS {}]} {
+                            set partType $tns:$partType
+                        }
+                        ##
+                        ## Convert the reference to the local tns space
+                        ##
+                        set partType  [getQualifiedType $results $partType $tns]
+                        set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
+                        set refTypeInfo [dict get $refTypeInfo definition]
+                        set tmpList [dict keys $refTypeInfo]
+                        if {[llength $tmpList] == 1} {
+                            set partName [lindex [dict keys $refTypeInfo] 0]
+                            set partType [dict get $refTypeInfo $partName type]
+                        }
+                        lappend partList $partName [list type $partType]
+                    }]} {
+                        lappen unkownRef($partType) $typeName
+                        return \
+                            -code error \
+                            -errorcode [list WS $mode UNKREF [list $typeName $partType] \
+                            "Unknown forward type reference {$partType} in {$typeName}"
+                    }
                 } else {
-                    lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                    set partName [$middleNode getAttribute name]
+                    set partType [getQualifiedType $results [$middleNode getAttribute type string:string] $tns]
+                    set partMax [$middleNode getAttribute maxOccurs 1]
+                    if {[string equal $partMax 1]} {
+                        lappend partList $partName [list type $partType comment $comment]
+                    } else {
+                        lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                    }
                 }
             }
             extension {
@@ -2835,6 +3104,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     upvar 1 $dictVar results
     variable importedXref
     variable nsList
+    variable unkownRef
 
     ::log::log debug "Entering [info level 0]"
 
@@ -2853,28 +3123,37 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     set elements [$node selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
     ::log::log debug "\t element list is {$elements} partList {$partList}"
     foreach element $elements {
+        set ::elementName [$element asXML]
         ::log::log debug "\t\t Processing element {[$element nodeName]}"
         set elementsFound 1
         set typeAttribute ""
         if {[$element hasAttribute ref]} {
-            ::log::log debug "\t\t has a ref of {[$element getAttribute ref]}"
             set partType [$element getAttribute ref]
-            set refTypeInfo [split [$element getAttribute ref] {:}]
-            set partName [lindex $refTypeInfo end]
-            set refNS [lindex $refTypeInfo 0]
-            if {[string equal $refNS {}]} {
-                set partType $tns:$partType
-            }
-            ##
-            ## Convert the reference to the local tns space
-            ##
-            set partType  [getQualifiedType $results $partType $tns]
-            set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
-            set refTypeInfo [dict get $refTypeInfo definition]
-            set tmpList [dict keys $refTypeInfo]
-            if {[llength $tmpList] == 1} {
-                set partName [lindex [dict keys $refTypeInfo] 0]
-                set partType [dict get $refTypeInfo $partName type]
+            ::log::log debug "\t\t has a ref of {$partType}"
+            if {[catch {
+                set refTypeInfo [split $partType {:}]
+                set partName [lindex $refTypeInfo end]
+                set refNS [lindex $refTypeInfo 0]
+                if {[string equal $refNS {}]} {
+                    set partType $tns:$partType
+                }
+                ##
+                ## Convert the reference to the local tns space
+                ##
+                set partType  [getQualifiedType $results $partType $tns]
+                set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
+                set refTypeInfo [dict get $refTypeInfo definition]
+                set tmpList [dict keys $refTypeInfo]
+                if {[llength $tmpList] == 1} {
+                    set partName [lindex [dict keys $refTypeInfo] 0]
+                    set partType [dict get $refTypeInfo $partName type]
+                }
+            }]} {
+                lappend unkownRef($partType) $typeName
+                return \
+                    -code error \
+                    -errorcode [list WS $mode UNKREF [list $typeName $partType] \
+                    "Unknown forward type reference {$partType} in {$typeName}"
             }
         } else {
             ::log::log debug "\t\t has no ref has {[$element attributes]}"
