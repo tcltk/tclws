@@ -44,6 +44,24 @@ package require WS::Utils
     -description  {Math Example - Tcl Web Services} \
     -host         $::Config(host):$::Config(port)
 
+
+##
+## Define any special types
+##
+::WS::Utils::ServiceTypeDef Server wsMathExample Term {
+   `coef         {type float}
+    powerTerms   {type PowerTerm()}
+}
+::WS::Utils::ServiceTypeDef Server wsMathExample PowerTerm {
+    var          {type string}
+    exponet      {type float}
+}
+::WS::Utils::ServiceTypeDef Server wsMathExample Variables {
+    var          {type string}
+    value        {type float}
+}
+
+
 ##
 ## Define the operations available
 ##
@@ -99,7 +117,7 @@ package require WS::Utils
             "Can not divide by zero"
     }
 
-    return [list DivideResult [expr {$Dividend + $Divisor}]]
+    return [list DivideResult [expr {$Dividend / $Divisor}]]
 }
 
 ::WS::Server::ServiceProc \
@@ -119,4 +137,42 @@ package require WS::Utils
 
     return [list SqrtResult [expr {sqrt($X)}]]
 }
+
+##
+## Define the operations available
+##
+::WS::Server::ServiceProc \
+     wsMathExample \
+     {EvaluatePolynomial {type float comment {Result of evaluating a polynomial}}} \
+     {
+         varList       {type Variables() comment {The variables to be substitued into the polynomial}}
+         polynomial    {type Term() comment {The polynomial}}
+     } \
+     {Evaluate a polynomial} {
+     set equation {0 }
+     foreach varDict $varList {
+         set var dict get $varDict var
+         set val dict get $varDict value
+         set vars($var) $val
+     }
+     foreach term $polynomial {
+         if {dict exists $term coef} {
+             set coef dict get $term coef
+         } else {
+             set coef 1
+         }
+         append equation "+ ($coef"
+         foreach pow dict get $term powerTerms {
+             if {dict exists $pow exponet} {
+                 set exp dict get $pow exponet
+             } else {
+                 set exp 1
+             }
+             append equation format { * pow($vars(%s),%s} [dict get $pow var $exp]
+         }
+         append equation ")"
+     }
+     set result expr $equation
+     return list SimpleEchoResult $result
+ }
 
