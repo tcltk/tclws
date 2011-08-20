@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.0.6
+package provide WS::Client 2.1.0
 
 namespace eval ::WS::Client {
     ##
@@ -2050,7 +2050,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
 
     ::log::log debug "Leaving ::::WS::Client::buildDocLiteralCallquery with {$xml}"
 
-    return $xml
+    return [encoding convertto utf-8 $xml]
 
 }
 
@@ -2153,7 +2153,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     $doc delete
     ::log::log debug "Leaving ::::WS::Client::buildRpcEncodedCallquery with {$xml}"
 
-    return $xml
+    return [encoding convertto utf-8 $xml]
 
 }
 
@@ -2540,6 +2540,13 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             catch {
                 set action [$actionNode getAttribute soapAction]
                 dict set serviceInfo operation $operName action $action
+                if {[dict exists $serviceInfo soapActions $action]} {
+                    set actionList [dict get $serviceInfo soapActions $action]
+                } else {}
+                    set actionList {}
+                }
+                lappend actionList $operName
+                dict set serviceInfo soapActions $action $actionList
             }
 
             ##
@@ -2609,6 +2616,15 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             foreach type $typeList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
             }
+            set inMessage [dict get $serviceInfo operation $operName input]
+            if {[dict exists $serviceInfo inputMessages $inMessage] } {
+                set operList [dict get $serviceInfo inputMessages $inMessage]
+            } else {
+                set operList {}
+            }
+	    lappend operList $operName
+            dict set serviceInfo inputMessages $inMessage $operList
+
             ##
             ## Handle target namespace defined at WSDL level for older RPC/Encoded
             ##
@@ -3241,6 +3257,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
         [$doc asXML -indent none -doctypeDeclaration 0]
     #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
     $doc delete
+    set xml [encoding convertto utf-8 $xml]
 
     set inTransform [dict get $serviceInfo inTransform]
     if {![string equal $inTransform {}]} {

@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.0.3
+package provide WS::Server 2.1.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
