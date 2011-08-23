@@ -2542,7 +2542,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 dict set serviceInfo operation $operName action $action
                 if {[dict exists $serviceInfo soapActions $action]} {
                     set actionList [dict get $serviceInfo soapActions $action]
-                } else {}
+                } else {
                     set actionList {}
                 }
                 lappend actionList $operName
