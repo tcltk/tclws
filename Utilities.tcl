@@ -719,7 +719,6 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 ###########################################################################
 proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar tnsCountVar} {
     ::log::log debug "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
-    puts stdout "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
     upvar 1 $serviceInfoVar serviceInfo
     upvar 1 $tnsCountVar tnsCount
     variable currentSchema
@@ -2578,6 +2577,22 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     set urlTail [$importNode getAttribute $attrName]
     set url [::uri::resolve $baseUrl  $urlTail]
     ::log::log debug "\t Importing {$url}"
+    ##
+    ## Skip "known" namespace
+    ##
+    switch -exact -- $url {
+        http://schemas.xmlsoap.org/wsdl/ -
+        http://schemas.xmlsoap.org/wsdl/soap/ -
+        http://www.w3.org/2001/XMLSchema {
+            return;
+        }
+        default {
+            ##
+            ## Do nothing
+            ##
+        }
+    }
+
     ##
     ## Short-circuit infinite loop on inports
     ##

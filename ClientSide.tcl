@@ -2616,7 +2616,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             foreach type $typeList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
             }
-            set inMessage [dict get $serviceInfo operation $operName input]
+            set inMessage [dict get $serviceInfo operation $operName inputs]
             if {[dict exists $serviceInfo inputMessages $inMessage] } {
                 set operList [dict get $serviceInfo inputMessages $inMessage]
             } else {
