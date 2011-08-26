@@ -1183,9 +1183,9 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        set token [::http::geturl $url -query $query -type text/xml]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
@@ -1299,11 +1299,11 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        ::log::log debug [list ::http::geturl $url -query $query -type text/xml -headers $headers]
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        ::log::log debug [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        ::log::log debug  [list ::http::geturl $url -query $query -type text/xml]
-        set token [::http::geturl $url -query $query -type text/xml]
+        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
@@ -2918,9 +2918,9 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        set token [::http::geturl $url -query $query -type text/xml]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
