@@ -579,6 +579,8 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
             } else {
                 set results {}
             }
+        } elseif {[dict exists $typeInfo $mode $service $service:$type]} {
+            set results [dict get $typeInfo $mode $service $service:$type]
         } else {
             set results [dict get $typeInfo $mode $service $type]
         }
@@ -931,6 +933,7 @@ proc ::WS::Utils::TypeInfo {mode service type} {
         set isArray 0
     }
     set isNotSimple [dict exists $typeInfo $mode $service $type]
+    set isNotSimple [expr {$isNotSimple || [dict exists $typeInfo $mode $service $service:$type]}]
     return [list $isNotSimple $isArray]
 }
 
@@ -1177,10 +1180,11 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
     foreach baseType [lsort -dictionary [array names typeArr]] {
         ::log::log debug "Outputing $baseType"
         $schema appendChild [$doc createElement xs:element elem]
-        $elem setAttribute name $baseType
-        $elem setAttribute type ${serviceName}:${baseType}
+        set name [lindex [split $baseType {:}] end]
+        $elem setAttribute name $name
+        $elem setAttribute type $baseType
         $schema appendChild [$doc createElement xs:complexType comp]
-        $comp setAttribute name $baseType
+        $comp setAttribute name $name
         $comp appendChild [$doc createElement xs:sequence seq]
         set baseTypeInfo [dict get $localTypeInfo $baseType definition]
         ::log::log debug "\t parts {$baseTypeInfo}"
@@ -1299,16 +1303,21 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
     variable options
 
     ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root]
-    set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+    if {[dict exists $typeInfo $mode $serviceName $type]} {
+        set typeName $type
+    } else {
+        set typeName $serviceName:$type
+    }
+    set typeDefInfo [dict get $typeInfo $mode $serviceName $typeName]
     ::log::log debug "\t type def = {$typeDefInfo}"
     set xns [dict get $typeDefInfo xns]
     if {[$node hasAttribute href]} {
         set node [GetReferenceNode $root [$node getAttribute href]]
     }
     ::log::log debug "\t XML of node is [$node asXML]"
-    if {[info exists mutableTypeInfo([list $mode $serviceName $type])]} {
-        set type [(*)[lindex mutableTypeInfo([list $mode $serviceName $type]) 0] $mode $serviceName $type $xns $node]
-        set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+    if {[info exists mutableTypeInfo([list $mode $serviceName $typeName])]} {
+        set type [(*)[lindex mutableTypeInfo([list $mode $serviceName $type]) 0] $mode $serviceName $typeName $xns $node]
+        set typeDefInfo [dict get $typeInfo $mode $serviceName $typeName]
         ::log::log debug "\t type def replaced with = {$typeDefInfo}"
     }
     set results {}
@@ -1580,33 +1589,45 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
 
     set typeInfoList [TypeInfo $mode $service $type]
     ::log::log debug "\t typeInfoList = {$typeInfoList}"
-    if {[lindex $typeInfoList 0]} {
-        set itemList [dict get $typeInfo $mode $service $type definition]
-        set xns [dict get $typeInfo $mode $service $type xns]
+    if {[dict exists $typeInfo $mode $service $service:$type]} {
+        set typeName $service:$type
     } else {
-        set xns $simpleTypes($mode,$service,$type)
-        set itemList [list $type {type string}]
+        set typeName $type
     }
-    if {[info exists mutableTypeInfo([list $mode $service $type])]} {
+    if {[lindex $typeInfoList 0]} {
+        set itemList [dict get $typeInfo $mode $service $typeName definition]
+        set xns [dict get $typeInfo $mode $service $typeName xns]
+    } else {
+        set xns $simpleTypes($mode,$service,$typeName)
+        set itemList [list $typeName {type string}]
+    }
+    if {[info exists mutableTypeInfo([list $mode $service $typeName])]} {
         set type [(*)[lindex mutableTypeInfo([list $mode $service $type]) 0] $mode $service $type $xns $dict]
-        set typeInfoList [TypeInfo $mode $service $type]
+        set typeInfoList [TypeInfo $mode $service $typeName]
         if {[lindex $typeInfoList 0]} {
-            set itemList [dict get $typeInfo $mode $service $type definition]
-            set xns [dict get $typeInfo $mode $service $type xns]
+            set itemList [dict get $typeInfo $mode $service $typeName definition]
+            set xns [dict get $typeInfo $mode $service $typeName xns]
         } else {
-            set xns $simpleTypes($mode,$service,$type)
+            set xns $simpleTypes($mode,$service,$typeName)
             set itemList [list $type {type string}]
         }
     }
     ::log::log debug "\titemList is {$itemList} in $xns"
     set fieldList {}
     foreach {itemName itemDef} $itemList {
+        set baseName [lindex [split $itemName {:}] end]
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType ={$itemType}"
         set typeInfoList [TypeInfo $mode $service $itemType]
-        if {![dict exists $dict $itemName]} {
+        ::log::log debug "Expr [list ![dict exists $dict $itemName] && ![dict exists $dict $baseName]]"
+        if {![dict exists $dict $itemName] && ![dict exists $dict $baseName]} {
+            ::log::log debug "Neither {$itemName} nor {$baseName} are in dictionary {$dict}, skipping"
             continue
+        } elseif {[dict exists $dict $baseName]} {
+            set useName $baseName
+        } else {
+            set useName $itemName
         }
         set tmpInfo [GetServiceTypeDef $mode $service [string trimright $itemType {()}]]
         if {[dict exists $tmpInfo xns]} {
@@ -1633,16 +1654,16 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
-                    set dictList [dict keys [dict get $dict $itemName]]
+                    set dictList [dict keys [dict get $dict $useName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {![string equal $attr {}]} {
-                            lappend attrList $attr [dict get $dict $itemName $attr]
+                            lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
-                            set resultValue [dict get $dict $itemName $attr]
+                            set resultValue [dict get $dict $useName $attr]
                         }
                     }
                 } else {
-                    set resultValue [dict get $dict $itemName]
+                    set resultValue [dict get $dict $useName]
                 }
                 $retNode appendChild [$doc createTextNode $resultValue]
                 if {[llength $attrList]} {
@@ -1653,7 +1674,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Simple array
                 ##
-                set dataList [dict get $dict $itemName]
+                set dataList [dict get $dict $useName]
                 ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
                     if {[string equal $xns $options(suppressNS)]} {
@@ -1689,16 +1710,16 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $xns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
-                    set dictList [dict keys [dict get $dict $itemName]]
+                    set dictList [dict keys [dict get $dict $useName]]
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {![string equal $attr  {}]} {
-                            lappend attrList $attr [dict get $dict $itemName $attr]
+                            lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
-                            set resultValue [dict get $dict $itemName $attr]
+                            set resultValue [dict get $dict $useName $attr]
                         }
                     }
                 } else {
-                    set resultValue [dict get $dict $itemName]
+                    set resultValue [dict get $dict $useName]
                 }
                 convertDictToType $mode $service $doc $retNode $resultValue $itemType
                 if {[llength $attrList]} {
@@ -1709,7 +1730,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Non-simple array
                 ##
-                set dataList [dict get $dict $itemName]
+                set dataList [dict get $dict $useName]
                 set tmpType [string trimright $itemType ()]
                 ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
@@ -2836,6 +2857,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     }
     if {[llength $partList]} {
         dict set results types $tns:$typeName $partList
+        ::log:::log debug  "Defining $typeName"
         ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns
     } elseif {!$nodeFound} {
         #puts "Defined $typeName as simple type"

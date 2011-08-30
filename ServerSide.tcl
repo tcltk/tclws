@@ -455,20 +455,20 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     }
 
     set msg {}
-    set reply [::dom createDocument definitions]
+    set reply [::dom createDocument wsdl:definitions]
     $reply documentElement definition
     $definition setAttribute \
-        xmlns           "http://schemas.xmlsoap.org/wsdl/" \
+        xmlns:wsdl      "http://schemas.xmlsoap.org/wsdl/" \
         xmlns:http      "http://schemas.xmlsoap.org/wsdl/http/" \
         xmlns:mime      "http://schemas.xmlsoap.org/wsdl/mime/" \
-        xmlns:s         "http://www.w3.org/2001/XMLSchema" \
+        xmlns:xs         "http://www.w3.org/2001/XMLSchema" \
         xmlns:soap      "http://schemas.xmlsoap.org/wsdl/soap/" \
         xmlns:soapenc   "http://schemas.xmlsoap.org/soap/encoding/" \
         xmlns:${serviceName} "http://$serviceData(-host)$serviceData(-prefix)" \
         targetNamespace "http://$serviceData(-host)$serviceData(-prefix)"
 
     foreach topLevel {types} {
-        $definition appendChild [$reply createElement $topLevel $topLevel]
+        $definition appendChild [$reply createElement wsdl:$topLevel $topLevel]
     }
 
     ##
@@ -477,15 +477,15 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 
     ## Operations
     foreach oper $operList {
-        $definition appendChild [$reply createElement message input]
+        $definition appendChild [$reply createElement wsdl:message input]
         $input setAttribute name ${oper}In
-        $input appendChild [$reply createElement part part]
+        $input appendChild [$reply createElement wsdl:part part]
         $part setAttribute \
             name parameters \
             element ${serviceName}:${oper}Request
-        $definition appendChild [$reply createElement message output]
+        $definition appendChild [$reply createElement wsdl:message output]
         $output setAttribute name ${oper}Out
-        $output appendChild [$reply createElement part part]
+        $output appendChild [$reply createElement wsdl:part part]
         $part setAttribute \
             name parameters \
             element ${serviceName}:${oper}Results
@@ -493,9 +493,9 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 
     ## Input headers
     foreach headerType $serviceData(-inheaders) {
-        $definition appendChild [$reply createElement message header]
+        $definition appendChild [$reply createElement wsdl:message header]
         $header setAttribute name $headerType
-        $header appendChild [$reply createElement part part]
+        $header appendChild [$reply createElement wsdl:part part]
         $part setAttribute \
             name parameters \
             element ${serviceName}:${headerType}
@@ -503,9 +503,9 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 
     ## Output headers
     foreach headerType $serviceData(-outheaders) {
-        $definition appendChild [$reply createElement message header]
+        $definition appendChild [$reply createElement wsdl:message header]
         $header setAttribute name $headerType
-        $header appendChild [$reply createElement part part]
+        $header appendChild [$reply createElement wsdl:part part]
         $part setAttribute \
             name parameters \
             element ${serviceName}:${headerType}
@@ -515,7 +515,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     ## Add the rest of the toplevels in
     ##
     foreach topLevel {portType binding service} {
-        $definition appendChild [$reply createElement $topLevel $topLevel]
+        $definition appendChild [$reply createElement wsdl:$topLevel $topLevel]
     }
 
     ##
@@ -523,10 +523,10 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     ##
     $service setAttribute name $serviceName
 
-    $service appendChild [$reply createElement documentation documentation]
+    $service appendChild [$reply createElement wsdl:documentation documentation]
     $documentation appendChild [$reply createTextNode $serviceData(-description)]
 
-    $service appendChild [$reply createElement port port]
+    $service appendChild [$reply createElement wsdl:port port]
     $port setAttribute \
         name ${serviceName}Soap \
         binding ${serviceName}:${serviceName}Soap
@@ -553,18 +553,18 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
         transport "http://schemas.xmlsoap.org/soap/http"
 
     foreach oper $operList {
-        $binding appendChild [$reply createElement operation operNode]
+        $binding appendChild [$reply createElement wsdl:operation operNode]
         $operNode setAttribute name $oper
         $operNode appendChild [$reply createElement soap:operation o2]
         $o2 setAttribute \
             soapAction $serviceName:$oper \
             style document
         ## Input message
-        $operNode appendChild [$reply createElement input input]
+        $operNode appendChild [$reply createElement wsdl:input input]
         $input appendChild [$reply createElement soap:body tmp]
         $tmp setAttribute use literal
         foreach headerType $serviceData(-inheaders) {
-            $operNode appendChild [$reply createElement header header]
+            $operNode appendChild [$reply createElement wsdl:header header]
             $header appendChild [$reply createElement soap:header tmp]
             $tmp setAttribute \
                 use literal \
@@ -572,11 +572,11 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
                 part $headerType
         }
         ## Output message
-        $operNode appendChild [$reply createElement output output]
+        $operNode appendChild [$reply createElement wsdl:output output]
         $output appendChild [$reply createElement soap:body tmp]
         $tmp setAttribute use literal
         foreach headerType $serviceData(-outheaders) {
-            $operNode appendChild [$reply createElement header header]
+            $operNode appendChild [$reply createElement wsdl:header header]
             $header appendChild [$reply createElement soap:header tmp]
             $tmp setAttribute \
                 use literal \
@@ -590,11 +590,11 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     ##
     $portType setAttribute name ${serviceName}Soap
     foreach oper $operList {
-        $portType appendChild [$reply createElement operation operNode]
+        $portType appendChild [$reply createElement wsdl:operation operNode]
         $operNode setAttribute name $oper
-        $operNode appendChild [$reply createElement input input]
+        $operNode appendChild [$reply createElement wsdl:input input]
         $input setAttribute message ${serviceName}:${oper}In
-        $operNode appendChild [$reply createElement output output]
+        $operNode appendChild [$reply createElement wsdl:output output]
         $output setAttribute message ${serviceName}:${oper}Out
     }
 
@@ -1076,8 +1076,8 @@ proc ::WS::Server::callOperation {service sock args} {
     set ::errorCode {}
     set ns $service
 
-    set inTransform [dict get $serviceInfo -intransform]
-    set outTransform [dict get $serviceInfo -outtransform]
+    set inTransform $serviceInfo(-intransform)
+    set outTransform $serviceInfo(-outtransform)
     if {![string equal $inTransform  {}]} {
         set inXML [$inTransform REQUEST $inXML]
     }

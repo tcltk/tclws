@@ -923,6 +923,8 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     array set defaults $args
 
+    ::log::log debug "Parseing WSDL {$wsdlXML}"
+
     dom parse $wsdlXML tmpdoc
     $tmpdoc xslt $::WS::Utils::xsltSchemaDom wsdlDoc
     $tmpdoc delete
@@ -1183,9 +1185,10 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
+        lappend headers Content-Type utf-8
         set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
     }
     ::http::wait $token
 
@@ -1299,11 +1302,12 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
+        lappend headers Content-Type utf-8
         ::log::log debug [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
         set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8"  -headers {Content-Type utf-8}]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
     }
     ::http::wait $token
 
@@ -2381,6 +2385,7 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
     set tnsCount [llength [dict keys [dict get $serviceInfo tnsList url]]]
     set baseUrl [dict get $serviceInfo location]
     foreach schemaNode [$wsdlNode selectNodes w:types/xs:schema] {
+        ::log:::log debug "Parsing node $schemaNode"
         ::WS::Utils::parseScheme Client $baseUrl $schemaNode $serviceName serviceInfo tnsCount
     }
 
@@ -2778,11 +2783,13 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
         document/literal {
             set partNode [$msg selectNodes w:part]
             set partNodeCount [llength $partNode]
+            ::log:::log debug  "partNodeCount = {$partNodeCount}"
             if {$partNodeCount == 1} {
                 if {[$partNode hasAttribute element]} {
                     set type [::WS::Utils::getQualifiedType $serviceInfo [$partNode getAttribute element] tns1]
                 }
             }
+            ::log:::log debug  "type = {$type}"
             if {($partNodeCount > 1) || ![info exist type]} {
                 set tmpType {}
                 foreach part [$msg selectNodes w:part] {
@@ -2918,9 +2925,10 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
+        lappend headers Content-Type utf-8
         set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
     }
     ::http::wait $token
 
