@@ -1437,12 +1437,13 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
         ::http::geturl $url \
             -query $query \
             -type text/xml \
-            -headers $headers \
+            -headers [concat $headers {Content-Type utf-8}]\
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
-            -type text/xml \
+            -type "text/xml;charset=utf-8" \
+            -headers {Content-Type utf-8} \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncCall"
@@ -3043,9 +3044,9 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers $headers]
+        set token [::http::geturl $url -query $query -type text/xml -headers [concat $headers {Content-Type utf-8}]
     } else {
-        set token [::http::geturl $url -query $query -type text/xml]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
     }
     ::http::wait $token
 
@@ -3176,13 +3177,14 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     if {[llength $headers]} {
         ::http::geturl $url \
             -query $query \
-            -type text/xml \
-            -headers $headers \
+            -type "text/xml;charset=utf-8" \
+            -headers [concat $headers {Content-Type utf-8}]\
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
-            -type text/xml \
+            -type "text/xml;charset=utf-8" \
+            -headers {Content-Type utf-8} \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncRestCall"
