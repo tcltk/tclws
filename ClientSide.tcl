@@ -146,12 +146,12 @@ proc ::WS::Client::SetOption {option args} {
             set options($option) [lindex $args 1]
         } else {
             return  -code error \
-                    -errorcode [list WSCLIENT INVALDCNT $args] \
+                    -errorcode [list WS CLIENT INVALDCNT $args] \
                     "Invalid number of values: '$args'"
         }
     } else {
         return  -code error \
-                -errorcode [list WSCLIENT UNKOPT $option] \
+                -errorcode [list WS CLIENT UNKOPT $option] \
                 "Uknown option: '$option'"
     }
 }
@@ -1141,7 +1141,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #
 # Pre-requisite Conditions :    Service must have been defined.
 #
@@ -1198,7 +1198,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     set body [::http::data $token]
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set results [::http::error $token]
         set hadError 1
@@ -1251,7 +1251,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -1323,9 +1323,9 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set results [::http::error $token]
         if {[string equal $results {}] || [string equal $httpStatus eof]} {
             set results {Unexpected EOF received from Server}
-            set errorCode [list WSCLIENT HTTPERROR UNEXPEOF]
+            set errorCode [list WS CLIENT HTTPERROR UNEXPEOF]
         } else {
-            set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+            set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         }
         set errorInfo {}
         set hadError 1
@@ -1392,7 +1392,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -1666,7 +1666,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     set body [::http::data $token]
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
         set errorInfo [::http::error $token]
     } else {
@@ -1717,11 +1717,11 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 # Side-Effects : None
 #
 # Exception Conditions :
-#       WSCLIENT REMERR         - The remote end raised an exception, the third element of
+#       WS CLIENT REMERR         - The remote end raised an exception, the third element of
 #                                 the error code is the remote fault code.
 #                                 Error info is set to the remote fault details.
 #                                 The error message is the remote fault string;
-#       WSCLIENT BADREPLY       - Badly formatted reply, the third element is a list of
+#       WS CLIENT BADREPLY       - Badly formatted reply, the third element is a list of
 #                                 what message type was received vs what was expected.
 #
 # Pre-requisite Conditions : None
@@ -1809,7 +1809,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         $doc delete
         return \
             -code error \
-            -errorcode [list WSCLIENT REMERR $faultcode] \
+            -errorcode [list WS CLIENT REMERR $faultcode] \
             -errorinfo $detail \
             $faultstring
     }
@@ -1821,7 +1821,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         $doc delete
         return \
             -code error \
-            -errorcode [list WSCLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
+            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
             "Bad reply type, received '$rootName; but expected '$expectedMsgTypeBase'."
     }
 
@@ -2467,7 +2467,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 ::log:::log debug "Leaving [lindex [info level 0] 0] with error @1"
                 return \
                     -code error \
-                    -errorcode [list WSCLIENT UNSSTY $style] \
+                    -errorcode [list WS CLIENT UNSSTY $style] \
                     "Unsupported calling style: '$style'"
             }
 
@@ -2478,7 +2478,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @2"
                     return \
                         -code error \
-                        -errorcode [list WSCLIENT UNSMODE $use] \
+                        -errorcode [list WS CLIENT UNSMODE $use] \
                         "Unsupported mode: $style/$use"
                 }
             }
@@ -2506,7 +2506,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             if {[dict exists $serviceInfo operation $operName]} {
                 if {!$options(allowOperOverloading)} {
                     return  -code error \
-                            -errorcode [list WSCLIENT NOOVERLOAD $operName]
+                            -errorcode [list WS CLIENT NOOVERLOAD $operName]
                 }
                 ##
                 ## See if the existing operation needs to be cloned"
@@ -2566,7 +2566,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @3"
                     return \
                         -code error \
-                        -errorcode [list WSCLIENT MIXUSE $use $tmp] \
+                        -errorcode [list WS CLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
                 set msgName [$inHeader getAttribute message]
@@ -2590,7 +2590,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @4"
                     return \
                         -code error \
-                        -errorcode [list WSCLIENT MIXUSE $use $tmp] \
+                        -errorcode [list WS CLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
                 set messagePath [$outHeader getAttribute message]
@@ -2613,7 +2613,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @5"
                     return \
                         -code error \
-                        -errorcode [list WSCLIENT MIXUSE $use $tmp] \
+                        -errorcode [list WS CLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
             }
@@ -2875,7 +2875,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #
 # Pre-requisite Conditions :    Service must have been defined.
 #
@@ -2939,7 +2939,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     set body [::http::data $token]
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set results [::http::error $token]
         set hadError 1
@@ -2992,7 +2992,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -3064,9 +3064,9 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set results [::http::error $token]
         if {[string equal $results {}] || [string equal $httpStatus eof]} {
             set results {Unexpected EOF received from Server}
-            set errorCode [list WSCLIENT HTTPERROR UNEXPEOF]
+            set errorCode [list WS CLIENT HTTPERROR UNEXPEOF]
         } else {
-            set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+            set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         }
         set errorInfo {}
         set hadError 1
@@ -3129,7 +3129,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WSCLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occured
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -3301,11 +3301,11 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
 # Side-Effects : None
 #
 # Exception Conditions :
-#       WSCLIENT REMERR         - The remote end raised an exception, the third element of
+#       WS CLIENT REMERR         - The remote end raised an exception, the third element of
 #                                 the error code is the remote fault code.
 #                                 Error info is set to the remote fault details.
 #                                 The error message is the remote fault string;
-#       WSCLIENT BADREPLY       - Badly formatted reply, the third element is a list of
+#       WS CLIENT BADREPLY       - Badly formatted reply, the third element is a list of
 #                                 what message type was received vs what was expected.
 #
 # Pre-requisite Conditions : None
@@ -3355,7 +3355,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
         $doc delete
         return \
             -code error \
-            -errorcode [list WSCLIENT REMERR $status] \
+            -errorcode [list WS CLIENT REMERR $status] \
             -errorinfo {} \
             $faultstring
     }
@@ -3374,7 +3374,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
         if {![string equal $objectName $nodeName]} {
             return \
                 -code error \
-                -errorcode [list WSCLIENT BADRESPONSE [list $objectName $nodeName]] \
+                -errorcode [list WS CLIENT BADRESPONSE [list $objectName $nodeName]] \
                 -errorinfo {} \
                 "Unexpected message type {$nodeName}, expected {$objectName}"
         }
@@ -3442,7 +3442,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     set body [::http::data $token]
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
         set errorInfo [::http::error $token]
     } else {
