@@ -400,11 +400,12 @@ proc ::WS::Client::GetServiceTransforms {serviceName} {
 # Description : Define a method
 #
 # Arguments :
-#       serviceName - Service name to add namespace to
-#       methodName  - The name of the method to add
-#       inputArgs   - List of input argument definitions where each argument
+#       serviceName   - Service name to add namespace to
+#       objectName    - Name of the object
+#       operationName - The name of the method to add
+#       inputArgs     - List of input argument definitions where each argument
 #                       definition is of the format: name typeInfo
-#       returnType  - The type, if any returned by the procedure.  Format is:
+#       returnType    - The type, if any returned by the procedure.  Format is:
 #                       xmlTag typeInfo
 #
 #  where, typeInfo is of the format {type typeName comment commentString}
