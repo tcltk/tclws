@@ -1322,12 +1322,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         ::log::log debug "\tHTTP error [array get $token]"
         set results [::http::error $token]
-        if {[string equal $results {}] || [string equal $httpStatus eof]} {
-            set results {Unexpected EOF received from Server}
-            set errorCode [list WS CLIENT HTTPERROR UNEXPEOF]
-        } else {
-            set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        }
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set hadError 1
     } else {
@@ -3063,12 +3058,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         ::log::log debug "\tHTTP error [array get $token]"
         set results [::http::error $token]
-        if {[string equal $results {}] || [string equal $httpStatus eof]} {
-            set results {Unexpected EOF received from Server}
-            set errorCode [list WS CLIENT HTTPERROR UNEXPEOF]
-        } else {
-            set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        }
+        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set hadError 1
     } else {
