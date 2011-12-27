@@ -43,11 +43,23 @@ package require Tcl 8.4
 if {![llength [info command dict]]} {
     package require dict
 }
+if {![llength [info command lassigh]]} {
+    proc lassign {inList args} {
+        set numArgs [llength $args]
+        set i -1
+        foreach var $args {
+            incr i
+            uplevel [list set $var [lindex $inList $i]]
+        }
+        return [lrange $inList $numArgs end]
+    }
+}
+
 package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.1.0
+package provide WS::Utils 2.1.1
 
 namespace eval ::WS {}
 
@@ -1636,6 +1648,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             set itemXns $xns
         }
         set attrList {}
+        if {![string equal $itemXns $xns]} {
+            if {[string equal $mode Client]} {
+                lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
+            } else {
+                lappend attrList xmlns [::WS::Server::GetNameSpace $service $itemXns]
+            }
+        }
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1} {
                 lappend attrList $key [dict get $itemDef $key]
@@ -1651,7 +1670,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 if {[string equal $xns $options(suppressNS)]} {
                     $parent appendChild [$doc createElement $itemName retNode]
                 } else {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $useName]]
@@ -1680,7 +1699,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     if {[string equal $xns $options(suppressNS)]} {
                         $parent appendChild [$doc createElement $itemName retNode]
                     } else {
-                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                        $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
@@ -1707,7 +1726,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 if {[string equal $xns $options(suppressNS)]} {
                     $parent appendChild [$doc createElement $itemName retNode]
                 } else {
-                    $parent appendChild [$doc createElement $xns:$itemName retNode]
+                    $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $useName]]
@@ -1737,7 +1756,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     if {[string equal $xns $options(suppressNS)]} {
                         $parent appendChild [$doc createElement $itemName retNode]
                     } else {
-                        $parent appendChild [$doc createElement $xns:$itemName retNode]
+                        $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
@@ -2582,22 +2601,29 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     ##
     set attrName schemaLocation
     if {![$importNode hasAttribute $attrName]} {
-        set attrName location
+        set attrName namespace
         if {![$importNode hasAttribute $attrName]} {
-            set attrName namespace
-            if {![$importNode hasAttribute $attrName]} {
-                ::log::log debug "\t No schema location, existing"
-                set xml [$importNode asXML]
-                return \
-                    -code error \
-                    -errorcode [list WS CLIENT MISSCHLOC $xml] \
-                    "Missing Schema Location in '$xml'"
-            }
+            ::log::log debug "\t No schema location, existing"
+            return \
+                -code error \
+                -errorcode [list WS CLIENT MISSCHLOC $baseUrl] \
+                "Missing Schema Location in '$baseUrl'"
         }
     }
     set urlTail [$importNode getAttribute $attrName]
     set url [::uri::resolve $baseUrl  $urlTail]
+
+    set lastPos [string last / $url]
+    set testUrl [string range $url 0 [expr $lastPos - 1]]
+    if { [info exists ::WS::Utils::redirectArray($testUrl)] } {
+        set newUrl $::WS::Utils::redirectArray($testUrl)
+        append newUrl [string range $url $lastPos end]
+        ::log::log debug "newUrl = $newUrl"
+        set url $newUrl
+    }
+
     ::log::log debug "\t Importing {$url}"
+
     ##
     ## Skip "known" namespace
     ##
@@ -2634,7 +2660,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
         http {
             set ncode -1
             catch {
-                set token [::http::geturl $url]
+                set token [geturl_followRedirects $url]
                 ::http::wait $token
                 set ncode [::http::ncode $token]
                 set xml [::http::data $token]
@@ -2677,7 +2703,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
 #               internal representation
 #
 # Arguments :
-#    dcitVar            - The name of the results dictionary
+#    dictVar            - The name of the results dictionary
 #    servcieName        - The service name this type belongs to
 #    node               - The root node of the type definition
 #    tns                - Namespace for this type
@@ -2717,7 +2743,8 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     set nodeFound 0
     array set attrArr {}
     set comment {}
-    foreach middleNode [$node childNodes] {
+    set middleNodeList [$node childNodes]
+    foreach middleNode $middleNodeList {
         set commentNodeList [$middleNode selectNodes -namespaces $nsList xs:annotation]
         if {[llength $commentNodeList]} {
             set commentNode [lindex $commentNodeList 0]
@@ -2725,7 +2752,6 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
         }
         set middle [$middleNode localName]
         ::log::log debug "Complex Type is $typeName, middle is $middle"
-        #puts "Complex Type is $typeName, middle is $middle"
         switch -exact -- $middle {
             attribute -
             annotation {
@@ -2794,7 +2820,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     ::log::log debug "\tadding {$tmp} to partslist"
                     set nodeFound 1
                     set partList [concat $partList $tmp]
-                } else {
+                } elseif {!$nodeFound} {
                     ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base string comment $comment] $tns
                     return
                 }
@@ -2805,12 +2831,14 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
             simpleContent -
             complexContent {
-                set contentType [[$middleNode childNodes] localName]
+                foreach child [$middleNode childNodes] {
+                    set parent [$child parent]
+                set contentType [$child localName]
                 switch -exact -- $contentType {
                     restriction {
                         set nodeFound 1
-                        set restriction [$middleNode selectNodes -namespaces $nsList xs:restriction]
-                            set element [$middleNode selectNodes -namespaces $nsList xs:restriction/xs:attribute]
+                        set restriction [$parent selectNodes -namespaces $nsList xs:restriction]
+                            set element [$parent selectNodes -namespaces $nsList xs:restriction/xs:attribute]
                             set typeInfoList [list baseType [$restriction getAttribute base]]
                             array unset attrArr
                             foreach attr [$element attributes] {
@@ -2828,13 +2856,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set partType [string map {{[]} {()}} $partType]
                             lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                             set nodeFound 1
-                        catch {
-                        }
                     }
                     extension {
-                        set tmp [partList $mode $middleNode $serviceName results $tns]
+                        set tmp [partList $mode $parent $serviceName results $tns]
                         if {[llength $tmp]} {
-                        set nodeFound 1
+                            set nodeFound 1
                             set partList [concat $partList $tmp]
                         }
                     }
@@ -2844,14 +2870,19 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         ##
                     }
                 }
+                }
             }
             restriction {
-                parseSimpleType $mode results $serviceName $node $tns
-                return
+                if {!$nodeFound} {
+                    parseSimpleType $mode results $serviceName $node $tns
+                    return
+                }
             }
             default {
-                parseElementalType $mode results $serviceName $node $tns
-                return
+                if {!$nodeFound} {
+                    parseElementalType $mode results $serviceName $node $tns
+                    return
+                }
             }
         }
     }
@@ -2884,7 +2915,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 #               internal representation
 #
 # Arguments :
-#    dcitVar            - The name of the results dictionary
+#    dictVar            - The name of the results dictionary
 #    servcieName        - The service name this type belongs to
 #    node               - The root node of the type definition
 #    tns                - Namespace for this type
@@ -3109,7 +3140,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
 #               internal representation
 #
 # Arguments :
-#    dcitVar            - The name of the results dictionary
+#    dictVar            - The name of the results dictionary
 #    servcieName        - The service name this type belongs to
 #    node               - The root node of the type definition
 #    tns                - Namespace for this type
@@ -3299,7 +3330,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
 #               internal representation
 #
 # Arguments :
-#    dcitVar            - The name of the results dictionary
+#    dictVar            - The name of the results dictionary
 #    servcieName        - The service name this type belongs to
 #    node               - The root node of the type definition
 #    tns                - Namespace for this type
@@ -4009,3 +4040,50 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
         $node setAttribute {*}$attrList
     }
 }
+
+
+
+
+proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
+    ::log::log debug "[info level 0]"
+    #global redirectArray
+    set initialUrl $url
+    set finalUrl $url
+    array set URI [::uri::split $url] ;# Need host info from here
+    while {1} {
+        ifmatch "$args" "" {
+            set token [::http::geturl $url]
+        } else {
+            #set token [eval [list http::geturl $url] $args]
+            set token [::http::geturl $url $args]
+        }
+        set ncode [::http::ncode $token]
+        ::log::log debug "ncode = $ncode"
+        if {![string match {30[1237]} $ncode]} {
+            ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
+            ifnotmatch "$finalUrl" "" {
+                ::log::log debug "Getting initial URL directory"
+                set lastPos [string last / $initialUrl]
+                set initialUrlDir [string range $initialUrl 0 [expr $lastPos - 1]]
+                set lastPos [string last / $finalUrl]
+                set finalUrlDir [string range $finalUrl 0 [expr $lastPos - 1]]
+                ::log::log debug "initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir"
+                set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
+            }
+            return $token
+        }
+        array set meta [set ${token}(meta)]
+        if {![info exist meta(Location)]} {
+            return $token
+        }
+        array set uri [::uri::split $meta(Location)]
+        unset meta
+        array unset meta
+        if {$uri(host) == ""} { set uri(host) $URI(host) }
+        # problem w/ relative versus absolute paths
+        set url [eval ::uri::join [array get uri]]
+        ::log::log debug "url = $url"
+        set finalUrl $url
+    }
+}
+

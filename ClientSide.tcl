@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.1.0
+package provide WS::Client 2.1.1
 
 namespace eval ::WS::Client {
     ##
@@ -221,7 +221,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     if {[dict exists $serviceArr($serviceName) xns]} {
         foreach xnsItem [dict get $serviceArr($serviceName) xns] {
             lassign $xnsItem tns xns
-            ::log::log debug [list Setting targetNamespae for $xns]
+            ::log::log debug [list Setting targetNamespace for $xns]
             dict set serviceArr($serviceName) targetNamespace $tns $xns
         }
     }
@@ -840,9 +840,9 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
         http -
         https {
             if {[llength $headers]} {
-                set token [::http::geturl $url -headers $headers]
+                set token [::WS::Utils::geturl_followRedirects $url -headers $headers]
             } else {
-                set token [::http::geturl $url]
+                set token [::WS::Utils::geturl_followRedirects $url]
             }
             ::http::wait $token
             set wsdlInfo [ParseWsdl [::http::data $token] -headers $headers -serviceAlias $serviceAlias]
@@ -924,7 +924,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     array set defaults $args
 
-    ::log::log debug "Parseing WSDL {$wsdlXML}"
+    ::log::log debug "Parsing WSDL {$wsdlXML}"
 
     dom parse $wsdlXML tmpdoc
     $tmpdoc xslt $::WS::Utils::xsltSchemaDom wsdlDoc
@@ -1830,11 +1830,18 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         if {[string equal $outHeaderType {}]} {
             continue
         }
-        set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outputHeaderType] xns]
-        set node [$headerRootNode selectNodes $xns:outHeaderType]
-        if {[llength $outHeaderAttrs]} {
-            ::WS::Utils::setAttr $node $outHeaderAttrs
+        set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outHeaderType] xns]
+        set node [$headerRootNode selectNodes $outHeaderType]
+        if {![llength $node]} {
+            set node [$headerRootNode selectNodes $xns:$outHeaderType]
+            if {![llength $node]} {
+                continue
+            }
         }
+
+        #if {[llength $outHeaderAttrs]} {
+        #    ::WS::Utils::setAttr $node $outHeaderAttrs
+        #}
         ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]"
         lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]
     }
@@ -1924,7 +1931,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
         set query [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
-    ::log::log debug "Leaving ::::WS::Client::buildCallquery with {$xml}"
+    ::log::log debug "Leaving ::WS::Client::buildCallquery with {$xml}"
     return $xml
 
 }
@@ -2015,7 +2022,13 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
             $env appendChild [$doc createElement "SOAP-ENV:Header" header]
             set firstHeader 0
         }
-        $header appendChild [$doc createElement $xns:$inputHeaderType headerData]
+        set typeInfo [split $inputHeaderType {:}]
+        if {[llength $typeInfo] > 1} {
+            set headerType $inputHeaderType
+        } else {
+            set headerType $xns:$inputHeaderType
+        }
+        $header appendChild [$doc createElement $headerType headerData]
         if {[llength $attrList]} {
             ::WS::Utils::setAttr $headerData $attrList
         }
@@ -2049,7 +2062,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
     $doc delete
 
-    ::log::log debug "Leaving ::::WS::Client::buildDocLiteralCallquery with {$xml}"
+    ::log::log debug "Leaving ::WS::Client::buildDocLiteralCallquery with {$xml}"
 
     return [encoding convertto utf-8 $xml]
 
@@ -2152,7 +2165,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
         [$doc asXML -indent none -doctypeDeclaration 0]
     #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
     $doc delete
-    ::log::log debug "Leaving ::::WS::Client::buildRpcEncodedCallquery with {$xml}"
+    ::log::log debug "Leaving ::WS::Client::buildRpcEncodedCallquery with {$xml}"
 
     return [encoding convertto utf-8 $xml]
 
@@ -2776,6 +2789,18 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 
     set msgQuery [format {w:message[attribute::name='%s']} $msgName]
     set msg [$wsdlNode selectNodes $msgQuery]
+    if {[string equal $msg {}] &&
+        [llength [set msgNameList [split $msgName {:}]]] > 1} {
+        set tmpMsgName [join [lrange $msgNameList 1 end] {:}]
+        set msgQuery [format {w:message[attribute::name='%s']} $tmpMsgName]
+        set msg [$wsdlNode selectNodes $msgQuery]
+    }
+    if {[string equal $msg {}]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT BADMSGSEC $msgName] \
+            "Can not find message '$msgName'"
+    }
     switch -exact -- $style {
         document/literal {
             set partNode [$msg selectNodes w:part]
@@ -2786,7 +2811,6 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
                     set type [::WS::Utils::getQualifiedType $serviceInfo [$partNode getAttribute element] tns1]
                 }
             }
-            ::log:::log debug  "type = {$type}"
             if {($partNodeCount > 1) || ![info exist type]} {
                 set tmpType {}
                 foreach part [$msg selectNodes w:part] {
@@ -3265,7 +3289,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
-    ::log::log debug "Leaving ::::WS::Client::buildRestCallquery with {$xml}"
+    ::log::log debug "Leaving ::WS::Client::buildRestCallquery with {$xml}"
 
     return $xml
 
