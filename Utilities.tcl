@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.1.1
+package provide WS::Utils 2.1.2
 
 namespace eval ::WS {}
 
@@ -4051,7 +4051,7 @@ proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
     set finalUrl $url
     array set URI [::uri::split $url] ;# Need host info from here
     while {1} {
-        ifmatch "$args" "" {
+        if {[string equal $args {}]} {
             set token [::http::geturl $url]
         } else {
             #set token [eval [list http::geturl $url] $args]
@@ -4061,12 +4061,12 @@ proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
         ::log::log debug "ncode = $ncode"
         if {![string match {30[1237]} $ncode]} {
             ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
-            ifnotmatch "$finalUrl" "" {
+            if {![string equal $finalUrl {}]} {
                 ::log::log debug "Getting initial URL directory"
                 set lastPos [string last / $initialUrl]
-                set initialUrlDir [string range $initialUrl 0 [expr $lastPos - 1]]
+                set initialUrlDir [string range $initialUrl 0 [expr {$lastPos - 1}]]
                 set lastPos [string last / $finalUrl]
-                set finalUrlDir [string range $finalUrl 0 [expr $lastPos - 1]]
+                set finalUrlDir [string range $finalUrl 0 [expr {$lastPos - 1}]]
                 ::log::log debug "initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir"
                 set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
             }
@@ -4079,7 +4079,9 @@ proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
         array set uri [::uri::split $meta(Location)]
         unset meta
         array unset meta
-        if {$uri(host) == ""} { set uri(host) $URI(host) }
+        if {[string equal $uri(host) {}]} {
+            set uri(host) $URI(host)
+        }
         # problem w/ relative versus absolute paths
         set url [eval ::uri::join [array get uri]]
         ::log::log debug "url = $url"
