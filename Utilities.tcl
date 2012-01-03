@@ -1648,12 +1648,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             set itemXns $xns
         }
         set attrList {}
+        ::log::log debug [list string equal $itemXns $xns]
         if {![string equal $itemXns $xns]} {
-            if {[string equal $mode Client]} {
-                lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
-            } else {
-                lappend attrList xmlns [::WS::Server::GetNameSpace $service $itemXns]
-            }
+            #if {[string equal $mode Client]} {
+            #    lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
+            #} else {
+            #    lappend attrList xmlns [::WS::Server::GetNameSpace $service $itemXns]
+            #}
+            set xns $itemXns
         }
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1} {
@@ -4088,4 +4090,3 @@ proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
         set finalUrl $url
     }
 }
-

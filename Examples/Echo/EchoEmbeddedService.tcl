@@ -33,70 +33,61 @@
 ##                                                                           ##
 ###############################################################################
 
+package require WS::Server 2.1.2
 package require WS::Utils 2.1.2
-package require WS::Client 2.1.2
+package require WS::Embeded 2.0.0
 
 ##
-## Get Definition of the offered services
+## Define the service
 ##
-::WS::Client::GetAndParseWsdl http://localhost:8015/service/wsEchoExample/wsdl
-
-set testString "This is a test"
-set inputs [list TestString $testString]
-
-##
-## Call synchronously
-##
-puts stdout "Calling SimpleEcho via DoCalls!"
-::log::lvSuppressLE debug 0
-set results [::WS::Client::DoCall wsEchoExample SimpleEcho $inputs]
-puts stdout "\t Received: {$results}"
-
-puts stdout "Calling ComplexEcho via DoCalls!"
-set results [::WS::Client::DoCall wsEchoExample ComplexEcho $inputs]
-puts stdout "\t Received: {$results}"
-
+::WS::Server::Service \
+    -service wsEchoExample \
+    -description  {Echo Example - Tcl Web Services} \
+    -host         localhost:8015 \
+    -mode         embedded \
+    -ports        [list 8015]
 
 ##
-## Generate stubs and use them for the calls
+## Define any special types
 ##
-::WS::Client::CreateStubs wsEchoExample
-puts stdout "Calling SimpleEcho via Stubs!"
-set results [::wsEchoExample::SimpleEcho $testString]
-puts stdout "\t Received: {$results}"
-
-puts stdout "Calling ComplexEcho via Stubs!"
-set results [::wsEchoExample::ComplexEcho $testString]
-puts stdout "\t Received: {$results}"
-
-##
-## Call asynchronously
-##
-proc success {service operation result} {
-    global waitVar
-
-    puts stdout "A call to $operation of $service was successful and returned $result"
-    set waitVar 1
+::WS::Utils::ServiceTypeDef Server wsEchoExample echoReply {
+    echoBack     {type string}
+    echoTS       {type dateTime}
 }
 
-proc hadError {service operation errorCode errorInfo} {
-    global waitVar
+##
+## Define the operations available
+##
+::WS::Server::ServiceProc \
+    wsEchoExample \
+    {SimpleEcho {type string comment {Requested Echo}}} \
+    {
+        TestString      {type string comment {The text to echo back}}
+    } \
+    {Echo a string back} {
 
-    puts stdout "A call to $operation of $service was failed with {$errorCode} {$errorInfo}"
-    set waitVar 1
+    return [list SimpleEchoResult $TestString]
 }
 
-set waitVar 0
-puts stdout "Calling SimpleEcho via DoAsyncCall!"
-::WS::Client::DoAsyncCall wsEchoExample SimpleEcho $inputs \
-        [list success wsEchoExample SimpleEcho] \
-        [list hadError wsEchoExample SimpleEcho]
-vwait waitVar
 
-puts stdout "Calling ComplexEcho via DoAsyncCall!"
-::WS::Client::DoAsyncCall wsEchoExample ComplexEcho $inputs \
-        [list success wsEchoExample SimpleEcho] \
-        [list hadError wsEchoExample SimpleEcho]
-vwait waitVar
+::WS::Server::ServiceProc \
+    wsEchoExample \
+    {ComplexEcho {type echoReply comment {Requested Echo -- text and timestamp}}} \
+    {
+        TestString      {type string comment {The text to echo back}}
+    } \
+    {Echo a string and a timestamp back} {
 
-exit
+    set timeStamp [clock format [clock seconds] -format {%Y-%m-%dT%H:%M:%SZ} -gmt yes]
+    return [list ComplexEchoResult [list echoBack $TestString echoTS $timeStamp]  ]
+}
+
+set ::errorInfo {}
+::WS::Embeded::Listen 8015
+set ::errorInfo {}
+
+puts stdout {Starting event loop}
+flush stdout
+::WS::Embeded::Start
+puts stdout {Exited event loop}
+flush stdout

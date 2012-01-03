@@ -37,7 +37,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Embeded 2.0.0
+package provide WS::Embeded 2.1.0
 
 namespace eval ::WS::Embeded {
 
@@ -200,7 +200,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
         set portInfo($port,handlers) {}
     }
     foreach up $userpwds {
-        lappend portInfo($port,auths) [base64::encode $up]]
+        lappend portInfo($port,auths) [base64::encode $up]
     }
 
     if {$certfile ne ""} {
@@ -216,6 +216,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             -request 0
         ::tls::socket -server [list ::WS::Embeded::accept $port] $port
     } else {
+        $portInfo($port,logger) [list socket -server [list ::WS::Embeded::accept $port] $port]
         socket -server [list ::WS::Embeded::accept $port] $port
     }
 }
@@ -402,8 +403,9 @@ proc ::WS::Embeded::Stop {{value 1}} {
 #
 ###########################################################################
 proc ::WS::Embeded::logger {args} {
-    puts $args
-    puts $::errorInfo
+    puts stdout $args
+    puts stdout $::errorInfo
+    flush stdout
 }
 
 
@@ -630,9 +632,12 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 proc ::WS::Embeded::accept {port sock ip clientport} {
     variable portInfo
 
+    $portInfo($port,logger) "Receviced request on $port for $ip:$clientport"
+
     if {[catch {
         gets $sock line
-        set auth ""
+        $portInfo($port,logger) "Request is: $line"
+        set auth {}
         for {set c 0} {[gets $sock temp]>=0 && $temp ne "\r" && $temp ne ""} {incr c} {
             regexp {Authorization: Basic ([^\r\n]+)} $temp -- auth
             if {$c == 30} {
@@ -643,7 +648,24 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
             $portInfo($port,logger)  "Connection closed from $ip"
         }
         foreach {method url version} $line { break }
-        switch -exact $method {
+        switch -exact -- $method {
+            POST {
+                ##
+                ## This is all broken and needs to be fixed
+                ##
+                upvar #0 ::WS::Embeded::Httpd$sock query
+                set query(data) {}
+                parray query
+                fconfigure $sock -blocking 0
+                while 1 {
+                    set cnt [gets $sock line]
+                    puts stdout $line
+                    puts stdout "Cnt = $cnt.  Eof = [eof $sock]"
+                    flush stdout
+                    lappend query(data) $line
+                }
+                handler $port $sock $ip [uri::split $url] $auth
+            }
             GET {
                 handler $port $sock $ip [uri::split $url] $auth
             }
@@ -653,6 +675,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
         }
     } msg]} {
         $portInfo($port,logger)  "Error: $msg"
+        $portInfo($port,logger)  "Error Info: $::errorInfo"
     }
 
     catch {flush $sock}
