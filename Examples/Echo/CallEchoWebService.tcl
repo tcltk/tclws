@@ -33,8 +33,8 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.1.2
-package require WS::Client 2.1.2
+package require WS::Utils 2.1.3
+package require WS::Client 2.1.3
 
 ##
 ## Get Definition of the offered services

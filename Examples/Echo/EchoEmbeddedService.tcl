@@ -33,9 +33,9 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Server 2.1.2
-package require WS::Utils 2.1.2
-package require WS::Embeded 2.0.0
+package require WS::Server 2.1.3
+package require WS::Utils 2.1.3
+package require WS::Embeded 2.1.3
 
 ##
 ## Define the service
@@ -65,7 +65,7 @@ package require WS::Embeded 2.0.0
         TestString      {type string comment {The text to echo back}}
     } \
     {Echo a string back} {
-
+::log::lvSuppressLE debug 0
     return [list SimpleEchoResult $TestString]
 }
 

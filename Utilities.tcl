@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.1.2
+package provide WS::Utils 2.1.3
 
 namespace eval ::WS {}
 
@@ -1649,14 +1649,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         }
         set attrList {}
         ::log::log debug [list string equal $itemXns $xns]
-        if {![string equal $itemXns $xns]} {
+        #if {![string equal $itemXns $xns]} {
             #if {[string equal $mode Client]} {
             #    lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
             #} else {
             #    lappend attrList xmlns [::WS::Server::GetNameSpace $service $itemXns]
             #}
-            set xns $itemXns
-        }
+            #set xns $itemXns
+        #}
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1} {
                 lappend attrList $key [dict get $itemDef $key]

@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.1.2
+package provide WS::Server 2.1.3
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -217,7 +217,7 @@ proc ::WS::Server::Service {args} {
     ::log::log debug "Installing Generate info for $service at $defaults(-prefix)"
     switch -exact -- $mode {
         embedded {
-            package require WS::Embeded
+            package require WS::Embeded 2.1.3
             foreach port $defaults(-ports) {
                 ::WS::Embeded::AddHandler $port $defaults(-prefix) ::WS::Server::generateInfo_${service}
             }
@@ -1057,10 +1057,15 @@ proc ::WS::Server::callOperation {service sock args} {
     variable mode
 
     switch -exact $mode {
+        embedded {
+            upvar #0 ::WS::Embeded::Httpd$sock data
+            set inXML $data(query)
+            #parray data
+        }
         wibble {
             set requestDict [lindex $args 0]
             upvar 1 [lindex $args 1] responseDict
-            set inXml [dict get $requestDict post xml ""]
+            set inXML [dict get $requestDict post xml ""]
         }
         default {
             upvar #0 Httpd$sock data
@@ -1303,6 +1308,9 @@ proc ::WS::Server::callOperation {service sock args} {
                     [dict get $requestDict peerhost] \
                     [dict keys [dict get $requestDict header]] \
                     $headerList
+            }
+            embedded {
+                lappend cmd $ns $baseName $data(ipaddr) $data(headers) $headerList
             }
             default {
                 lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList

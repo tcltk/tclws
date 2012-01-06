@@ -37,7 +37,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Embeded 2.1.0
+package provide WS::Embeded 2.1.3
 
 namespace eval ::WS::Embeded {
 
@@ -565,7 +565,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
     if {[dict exists $portInfo($port,handlers) $path]} {
         set cmd [dict get $portInfo($port,handlers) $path]
         lappend cmd $sock {}
-        puts "Calling {$cmd}"
+        #puts "Calling {$cmd}"
         if {[catch {eval $cmd} msg]} {
             $portInfo($port,logger) [list 404 b $msg]
             respond $sock 404 Error $msg
@@ -632,17 +632,18 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 proc ::WS::Embeded::accept {port sock ip clientport} {
     variable portInfo
 
+    upvar #0 ::WS::Embeded::Httpd$sock query
     $portInfo($port,logger) "Receviced request on $port for $ip:$clientport"
 
+    array unset query reply
     if {[catch {
         gets $sock line
         $portInfo($port,logger) "Request is: $line"
         set auth {}
+        set request {}
         for {set c 0} {[gets $sock temp]>=0 && $temp ne "\r" && $temp ne ""} {incr c} {
-            regexp {Authorization: Basic ([^\r\n]+)} $temp -- auth
-            if {$c == 30} {
-                $portInfo($port,logger)  "Too many lines from $ip"
-            }
+            lassign [split $temp :] key data
+            dict set request header [string tolower $key] [string trim [join $data :]]
         }
         if {[eof $sock]} {
             $portInfo($port,logger)  "Connection closed from $ip"
@@ -653,18 +654,27 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                 ##
                 ## This is all broken and needs to be fixed
                 ##
-                upvar #0 ::WS::Embeded::Httpd$sock query
-                set query(data) {}
-                parray query
-                fconfigure $sock -blocking 0
-                while 1 {
-                    set cnt [gets $sock line]
-                    puts stdout $line
-                    puts stdout "Cnt = $cnt.  Eof = [eof $sock]"
-                    flush stdout
-                    lappend query(data) $line
+                set data ""
+                if {[dict exists $request header transfer-encoding]
+                    && [dict get $request header transfer-encoding] eq "chunked"} {
+                    # Receive chunked request body.
+                    while {[scan [gets $sock line] %x length] == 1 && $length > 0} {
+                        chan configure $sock -translation binary
+                        append data [read $sock $length]
+                        chan configure $sock -translation crlf
+                    }
+                } else {
+                    # Receive non-chunked request body.
+                    chan configure $sock -translation binary
+                    set data [read $sock [dict get $request header content-length]]
+                    chan configure $sock -translation crlf
                 }
-                handler $port $sock $ip [uri::split $url] $auth
+                array set query [uri::split $url]
+                set query(query) $data
+                set query(headers) $request
+                set query(ipaddr) $ip
+                #parray query
+                handler $port $sock $ip [array get query] $auth
             }
             GET {
                 handler $port $sock $ip [uri::split $url] $auth
