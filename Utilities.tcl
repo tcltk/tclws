@@ -43,13 +43,13 @@ package require Tcl 8.4
 if {![llength [info command dict]]} {
     package require dict
 }
-if {![llength [info command lassigh]]} {
+if {![llength [info command lassign]]} {
     proc lassign {inList args} {
         set numArgs [llength $args]
         set i -1
         foreach var $args {
             incr i
-            uplevel [list set $var [lindex $inList $i]]
+            uplevel 1 [list set $var [lindex $inList $i]]
         }
         return [lrange $inList $numArgs end]
     }
@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.1.3
+package provide WS::Utils 2.2.0
 
 namespace eval ::WS {}
 
@@ -738,6 +738,10 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     variable currentSchema
     variable xsltSchemaDom
 
+    set first [string first {<} $xml]
+    if {$first > 0} {
+        set xml [string range $xml $first end]
+    }
     if {[catch {dom parse $xml tmpdoc}]} {
         set first [string first {?>} $xml]
         incr first 2
@@ -857,6 +861,10 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
         }
         set parentNode [$includeNode parentNode]
         set nextSibling [$includeNode nextSibling]
+        set first [string first {<} $xml]
+        if {$first > 0} {
+            set xml [string range $xml $first end]
+        }
         dom parse $xml tmpdoc
         $tmpdoc xslt $xsltSchemaDom doc
         $tmpdoc delete
@@ -999,6 +1007,10 @@ proc ::WS::Utils::TypeInfo {mode service type} {
 ###########################################################################
 proc ::WS::Utils::Validate {mode serviceName xmlString tagName typeName} {
 
+    set first [string first {<} $xmlString]
+    if {$first > 0} {
+        set xmlString [string range $xmlString $first end]
+    }
     dom parse $xmlString resultTree
     $resultTree documentElement currNode
     set nodeName [$currNode localName]
@@ -1648,7 +1660,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             set itemXns $xns
         }
         set attrList {}
-        ::log::log debug [list string equal $itemXns $xns]
+        #::log::log debug [list string equal $itemXns $xns]
         #if {![string equal $itemXns $xns]} {
             #if {[string equal $mode Client]} {
             #    lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
@@ -1657,6 +1669,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             #}
             #set xns $itemXns
         #}
+        if {[string equal $itemXns xs]} {
+            set itemXns $xns
+        }
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1} {
                 lappend attrList $key [dict get $itemDef $key]
@@ -2368,7 +2383,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
 
     set lastUnknownRefCount [array size unkownRef]
     foreach {unkRef usedByTypeList} [array get unkownRef] {
-        foreach usedByType $usedByTypeList {} {
+        foreach usedByType $usedByTypeList {
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
@@ -2388,7 +2403,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             default {
                 return \
                     -code error \
-                    -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount] \
+                    -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
                     "Found $lastUnknownRefCount forward type references"
             }
         }
@@ -2616,7 +2631,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     set url [::uri::resolve $baseUrl  $urlTail]
 
     set lastPos [string last / $url]
-    set testUrl [string range $url 0 [expr $lastPos - 1]]
+    set testUrl [string range $url 0 [expr {$lastPos - 1}]]
     if { [info exists ::WS::Utils::redirectArray($testUrl)] } {
         set newUrl $::WS::Utils::redirectArray($testUrl)
         append newUrl [string range $url $lastPos end]
@@ -2790,7 +2805,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         lappen unkownRef($partType) $typeName
                         return \
                             -code error \
-                            -errorcode [list WS $mode UNKREF [list $typeName $partType] \
+                            -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
                             "Unknown forward type reference {$partType} in {$typeName}"
                     }
                 } else {
@@ -3222,7 +3237,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 lappend unkownRef($partType) $typeName
                 return \
                     -code error \
-                    -errorcode [list WS $mode UNKREF [list $typeName $partType] \
+                    -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
                     "Unknown forward type reference {$partType} in {$typeName}"
             }
         } else {
@@ -4046,7 +4061,7 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
 
 
 
-proc ::WS::Utils::geturl_followRedirects {url {args ""}} {
+proc ::WS::Utils::geturl_followRedirects {url args} {
     ::log::log debug "[info level 0]"
     #global redirectArray
     set initialUrl $url

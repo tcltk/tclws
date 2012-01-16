@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.1.3
+package provide WS::Client 2.2.0
 
 namespace eval ::WS::Client {
     ##
@@ -139,7 +139,7 @@ namespace eval ::WS::Client {
 proc ::WS::Client::SetOption {option args} {
     variable options
 
-    if {[info exists options($option)} {
+    if {[info exists options($option)]} {
         if {[llength $args] == 0} {
             return $options($option)
         } elseif {[llength $args] == 1} {
@@ -834,18 +834,18 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
     switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
-            set wsdlInfo [ParseWsdl $token(data) -headers $headers -serviceAlias $serviceAlias]
+            set wsdlInfo [ParseWsdl $token(data) -headers [string map {\{ \" \} \"} $headers] -serviceAlias $serviceAlias]
             unset token
         }
         http -
         https {
             if {[llength $headers]} {
-                set token [::WS::Utils::geturl_followRedirects $url -headers $headers]
+                set token [::WS::Utils::geturl_followRedirects $url -headers [string map {\{ \" \} \"} $headers]]
             } else {
                 set token [::WS::Utils::geturl_followRedirects $url]
             }
             ::http::wait $token
-            set wsdlInfo [ParseWsdl [::http::data $token] -headers $headers -serviceAlias $serviceAlias]
+            set wsdlInfo [ParseWsdl [::http::data $token] -headers [string map {\{ \" \} \"} $headers] -serviceAlias $serviceAlias]
             ::http::cleanup $token
         }
         default {
@@ -924,6 +924,10 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     array set defaults $args
 
+    set first [string first {<} $wsdlXML]
+    if {$first > 0} {
+        set wsdlXML [string range $wsdlXML $first end]
+    }
     ::log::log debug "Parsing WSDL {$wsdlXML}"
 
     dom parse $wsdlXML tmpdoc
@@ -1186,10 +1190,10 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        lappend headers Content-Type utf-8
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
+        #lappend headers Content-Type {text/xml;charset=utf-8}
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
@@ -1303,12 +1307,12 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        lappend headers Content-Type utf-8
-        ::log::log debug [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
+        #lappend headers Content-Type {text/xml;charset=utf-8}
+        ::log::log debug [list ::http::geturl $url -query $query -type "text/xml;charset=UTF-8" -headers [string map {\{ \" \} \"} $headers]]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=UTF-8" -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=utf-8"  -headers {Content-Type utf-8}]
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
+        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=UTF-8"  ]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=UTF-8" ]
     }
     ::http::wait $token
 
@@ -1432,14 +1436,13 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     if {[llength $headers]} {
         ::http::geturl $url \
             -query $query \
-            -type text/xml \
-            -headers [concat $headers {Content-Type utf-8}]\
+            -type {text/xml;charset=utf-8} \
+            -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
-            -type "text/xml;charset=utf-8" \
-            -headers {Content-Type utf-8} \
+            -type {text/xml;charset=utf-8} \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncCall"
@@ -1746,6 +1749,10 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     set expectedMsgType [dict get $serviceInfo operation $operationName outputs]
     set expectedMsgTypeBase [lindex [split $expectedMsgType {:}] end]
 
+    set first [string first {<} $inXML]
+    if {$first > 0} {
+        set inXML [string range $inXML $first end]
+    }
     dom parse $inXML doc
     $doc documentElement top
     set xns {
@@ -2946,10 +2953,10 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        lappend headers Content-Type utf-8
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers $headers]
+        #lappend headers Content-Type {text/xml;charset=utf-8}
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
@@ -3064,9 +3071,9 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers [concat $headers {Content-Type utf-8}]
+        set token [::http::geturl $url -query $query -type text/xml -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers {Content-Type utf-8}]
+        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
     }
     ::http::wait $token
 
@@ -3193,13 +3200,12 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
         ::http::geturl $url \
             -query $query \
             -type "text/xml;charset=utf-8" \
-            -headers [concat $headers {Content-Type utf-8}]\
+            -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
             -type "text/xml;charset=utf-8" \
-            -headers {Content-Type utf-8} \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncRestCall"
@@ -3343,6 +3349,10 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     variable serviceArr
 
     ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
+    set first [string first {<} $inXML]
+    if {$first > 0} {
+        set inXML [string range $inXML $first end]
+    }
     set serviceInfo $serviceArr($serviceName)
     set outTransform [dict get $serviceInfo outTransform]
     if {![string equal $outTransform {}]} {

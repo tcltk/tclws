@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.1.3
+package provide WS::Server 2.2.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -239,9 +239,9 @@ proc ::WS::Server::Service {args} {
             ##
             ## Define zone handler - get code from andy
             ##
-            proc wibble::webservice {state} {
+            proc ::wibble::webservice {state} {
                 dict with state options {}
-                switch $suffix {
+                switch -exact -- $suffix {
                     "" - \
                     / {
                         ::WS::Server::generateInfo $name 0 response
@@ -253,13 +253,32 @@ proc ::WS::Server::Service {args} {
                         ::WS::Server::generateWsdl $name 0 response
                         sendresponse $response
                     }
+                    default {
+                        ## Do nothing
+                    }
                 }
             }
+            if {[package present Wibble] eq "0.1"} {
+                proc ::WS::Wibble::ReturnData {responseDictVar type text status} {
+                    upvar 1 $responseDictVar responseDict
+                    dict set responseDict header content-type $type
+                    dict set responseDict content $text
+                    dict set responseDict status $status
+                }
+            } else {
+                proc ::WS::Wibble::ReturnData {responseDictVar type text status} {
+                    upvar 1 $responseDictVar responseDict
+                    dict set responseDict header content-type "" $type
+                    dict set responseDict content $text
+                    dict set responseDict status $status
+                }
+            }
+
             ::wibble::handle $defaults(-prefix) webservice name $service
         }
         default {
             return \
-                -code error
+                -code error \
                 -errorcode [list WSSERVER UNSUPMODE $mode] \
                 "-mode '$mode' not supported"
         }
@@ -286,6 +305,9 @@ proc ::WS::Server::Service {args} {
             ::Url_PrefixInstall $defaults(-prefix)/wsdl ::WS::Server::generateWsdl_${service} \
                 -thread 0
         }
+        default {
+            ## Do nothing
+        }
     }
 
     ##
@@ -307,6 +329,9 @@ proc ::WS::Server::Service {args} {
         tclhttpd {
             ::Url_PrefixInstall $defaults(-prefix)/op ::WS::Server::callOperation_${service} \
                 -thread 1
+        }
+        default {
+            ## Do nothing
         }
     }
 
@@ -704,9 +729,10 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             }
             wibble  {
                 upvar 1 [lindex $args 0] responseDict
-                dict set responseDict header content-type text/html
-                dict set responseDict status 404
-                dict set responseDict content "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+                ::WS::Wibble::ReturnData responseDict text/html "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" 404
+            }
+            default {
+                ## Do nothing
             }
         }
         return 1
@@ -744,10 +770,12 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             ::WS::AOLserver::ReturnData $sock text/xml $xml 200
         }
         wibble  {
+            set xml [GetWsdl $serviceName]
             upvar 1 [lindex $args 0] responseDict
-            dict set responseDict header content-type text/xml
-            dict set responseDict status 200
-            dict set responseDict content $xml
+            ::WS::Wibble::ReturnData responseDict text/xml $xml 200
+        }
+        default {
+            ## Do nothing
         }
     }
 }
@@ -886,9 +914,13 @@ proc ::WS::Server::generateInfo {service sock args} {
             }
             wibble  {
                 upvar 1 [lindex $args 0] responseDict
-                dict set responseDict header content-type text/html
-                dict set responseDict status 404
-                dict set responseDict content "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
+                ::WS::Wibble::ReturnData responseDict \
+                    text/html \
+                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                    404
+            }
+            default {
+                ## Do nothing
             }
         }
         return 1
@@ -953,9 +985,10 @@ proc ::WS::Server::generateInfo {service sock args} {
         }
         wibble  {
                 upvar 1 [lindex $args 0] responseDict
-                dict set responseDict header content-type text/html
-                dict set responseDict status 200
-                dict set responseDict content $msg
+                ::WS::Wibble::ReturnData responseDict text/html $msg 200
+        }
+        default {
+            ## Do nothing
         }
     }
 
@@ -1056,7 +1089,7 @@ proc ::WS::Server::callOperation {service sock args} {
     variable serviceArr
     variable mode
 
-    switch -exact $mode {
+    switch -exact -- $mode {
         embedded {
             upvar #0 ::WS::Embeded::Httpd$sock data
             set inXML $data(query)
@@ -1083,6 +1116,10 @@ proc ::WS::Server::callOperation {service sock args} {
 
     set inTransform $serviceInfo(-intransform)
     set outTransform $serviceInfo(-outtransform)
+    set first [string first {<} $inXML]
+    if {$first > 0} {
+        set inXML [string range $inXML $first end]
+    }
     if {![string equal $inTransform  {}]} {
         set inXML [$inTransform REQUEST $inXML]
     }
@@ -1151,9 +1188,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
             }
             wibble  {
-                dict set responseDict header content-type text/xml
-                dict set responseDict status 500
-                dict set responseDict content $xml
+                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+            }
+            default {
+                ## Do nothing
             }
         }
         return;
@@ -1195,7 +1233,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 }
                 ::log::log debug "found argument $argName using $path, processing $node"
                 set gotAnyArgs 1
-                switch $typeInfoList {
+                switch -exact -- $typeInfoList {
                     {0 0} {
                         ##
                         ## Simple non-array
@@ -1228,6 +1266,9 @@ proc ::WS::Server::callOperation {service sock args} {
                             lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
                         }
                         lappend tclArgList $tmp
+                    }
+                    default {
+                        ## Do nothing
                     }
                 }
             }
@@ -1265,9 +1306,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
             }
             wibble  {
-                dict set responseDict header content-type text/xml
-                dict set responseDict status 500
-                dict set responseDict content $xml
+                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+            }
+            default {
+                ## Do nothing
             }
         }
         return;
@@ -1352,9 +1394,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 200
             }
             wibble  {
-                dict set responseDict header content-type text/xml
-                dict set responseDict status 200
-                dict set responseDict content $xml
+                ::WS::Wibble::ReturnData responseDict text/xml $xml 200
+            }
+            default {
+                ## Do nothing
             }
         }
     } msg]} {
@@ -1395,9 +1438,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::WS::AOLserver::ReturnData $sock text/xml $xml 500
             }
             wibble  {
-                dict set responseDict header content-type text/xml
-                dict set responseDict status 500
-                dict set responseDict content $xml
+                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+            }
+            default {
+                ## Do nothing
             }
         }
         return;
@@ -1459,6 +1503,9 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
         }
         "Server" {
             set code "SOAP-ENV:Server"
+        }
+        default {
+            ## Do nothing
         }
     }
     dom createDocument "SOAP-ENV:Envelope" doc
@@ -1840,7 +1887,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         append msg [::html::h4 {Description}] "\n"
 
         append msg [::html::openTag div {style="margin-left: 40px;"}]
-        switch $docFormat {
+        switch -exact -- $docFormat {
             "html" {
                 append msg [dict get $procInfo $service op$oper docs]
             }

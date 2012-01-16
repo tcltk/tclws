@@ -43,7 +43,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Wub 2.0.0
+package provide WS::Wub 2.2.0
 
 namespace eval ::WS::Wub {
 
@@ -204,7 +204,7 @@ proc ::WS::Wub::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}}
     }
     set portInfo($port,$handlers) {}
     foreach up $userpwds {
-        lappend portInfo($port,auths) [base64::encode $up]]
+        lappend portInfo($port,auths) [base64::encode $up]
     }
 
     if {$certfile ne ""} {
