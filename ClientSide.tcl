@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.2.0
+package provide WS::Client 2.2.1
 
 namespace eval ::WS::Client {
     ##
@@ -213,6 +213,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) outTransform {}
     dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
     dict set serviceArr($serviceName) suppressTargetNS $options(suppressTargetNS)
+    dict set serviceArr($serviceName) contentType {text/xml;charset=utf-8}
     foreach {name value} $args {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
@@ -270,6 +271,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
 
     set serviceInfo $serviceArr($serviceName)
     switch -exact -- $item {
+        contentType -
         suppressTargetNS -
         skipLevelWhenActionPresent -
         location -
@@ -1190,10 +1192,9 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        #lappend headers Content-Type {text/xml;charset=utf-8}
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers [string map {\{ \" \} \"} $headers]]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
 
@@ -1206,6 +1207,9 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set results [::http::error $token]
+        if {[string equal $results {}] && [string equal [::http::status $token] ok]} {
+            set results [::http::code $token]
+        }
         set hadError 1
     } else {
         set hadError 0
@@ -1307,12 +1311,11 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        #lappend headers Content-Type {text/xml;charset=utf-8}
-        ::log::log debug [list ::http::geturl $url -query $query -type "text/xml;charset=UTF-8" -headers [string map {\{ \" \} \"} $headers]]
-        set token [::http::geturl $url -query $query -type "text/xml;charset=UTF-8" -headers [string map {\{ \" \} \"} $headers]]
+        ::log::log debug [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        ::log::log debug  [list ::http::geturl $url -query $query -type "text/xml;charset=UTF-8"  ]
-        set token [::http::geturl $url -query $query -type "text/xml;charset=UTF-8" ]
+        ::log::log debug  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] ]
     }
     ::http::wait $token
 
@@ -1326,6 +1329,9 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         ::log::log debug "\tHTTP error [array get $token]"
         set results [::http::error $token]
+        if {[string equal $results {}] && [string equal [::http::status $token] ok]} {
+            set results [::http::code $token]
+        }
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set hadError 1
@@ -1436,13 +1442,13 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     if {[llength $headers]} {
         ::http::geturl $url \
             -query $query \
-            -type {text/xml;charset=utf-8} \
+            -type [dict get $serviceInfo contentType] \
             -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
-            -type {text/xml;charset=utf-8} \
+            -type [dict get $serviceInfo contentType] \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncCall"
@@ -2062,16 +2068,14 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
 
     ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType
 
-    append xml  \
-        {<?xml version="1.0"  encoding="utf-8"?>} \
-        "\n" \
-        [$doc asXML -indent none -doctypeDeclaration 0]
-    #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
+    set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {:}] end] {=}] end]
+    set xml [format {<?xml version="1.0"  encoding="%f"?>} $encoding]
+    append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     $doc delete
 
     ::log::log debug "Leaving ::WS::Client::buildDocLiteralCallquery with {$xml}"
 
-    return [encoding convertto utf-8 $xml]
+    return [encoding convertto $encoding $xml]
 
 }
 
@@ -2121,9 +2125,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     ::log::log debug "Entering [info level 0]"
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo operation $operationName inputs]
-    #set url [dict get $serviceInfo location]
     set xnsList [dict get $serviceInfo targetNamespace]
-    #set action [dict get $serviceInfo operation $operationName action]
 
     dom createDocument "SOAP-ENV:Envelope" doc
     $doc documentElement env
@@ -2133,8 +2135,6 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
         xmlns:xs      "http://www.w3.org/2001/XMLSchema"
 
     foreach {tns target} $xnsList {
-        #set tns [lindex $xns 0]
-        #set target [lindex $xns 1]
         $env setAttribute xmlns:$tns $target
     }
 
@@ -2166,15 +2166,13 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 
     ::WS::Utils::convertDictToEncodedType Client $serviceName $doc $reply $argList $msgType
 
-    append xml  \
-        {<?xml version="1.0"  encoding="utf-8"?>} \
-        "\n" \
-        [$doc asXML -indent none -doctypeDeclaration 0]
-    #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
+    set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {;}] end] {=}] end]
+    set xml [format {<?xml version="1.0"  encoding="%s"?>} $encoding]
+    append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     $doc delete
     ::log::log debug "Leaving ::WS::Client::buildRpcEncodedCallquery with {$xml}"
 
-    return [encoding convertto utf-8 $xml]
+    return [encoding convertto $encoding $xml]
 
 }
 
@@ -2953,10 +2951,9 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        #lappend headers Content-Type {text/xml;charset=utf-8}
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8" -headers [string map {\{ \" \} \"} $headers]]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
 
@@ -3071,9 +3068,9 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        set token [::http::geturl $url -query $query -type text/xml -headers [string map {\{ \" \} \"} $headers]]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        set token [::http::geturl $url -query $query -type "text/xml;charset=utf-8"]
+        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
 
@@ -3199,13 +3196,13 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     if {[llength $headers]} {
         ::http::geturl $url \
             -query $query \
-            -type "text/xml;charset=utf-8" \
+            -type [dict get $serviceInfo contentType] \
             -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
         ::http::geturl $url \
             -query $query \
-            -type "text/xml;charset=utf-8" \
+            -type [dict get $serviceInfo contentType] \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
     ::log::log debug "Leaving ::WS::Client::DoAsyncRestCall"
@@ -3278,17 +3275,16 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
     ::WS::Utils::SetOption UseNS 0
     ::WS::Utils::SetOption genOutAttr 1
     ::WS::Utils::convertDictToType Client $serviceName $doc $body $argList $msgType
+    set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {;}] end] {=}] end]
     foreach {option value} $options {
         ::WS::Utils::SetOption $option $value
     }
 
-    append xml  \
-        {<?xml version="1.0"  encoding="utf-8"?>} \
-        "\n" \
-        [$doc asXML -indent none -doctypeDeclaration 0]
+    set xml [format {<?xml version="1.0"  encoding="%s"?>} $encoding]
+    append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] {} xml
     $doc delete
-    set xml [encoding convertto utf-8 $xml]
+    set xml [encoding convertto $encoding $xml]
 
     set inTransform [dict get $serviceInfo inTransform]
     if {![string equal $inTransform {}]} {

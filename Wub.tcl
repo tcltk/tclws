@@ -43,7 +43,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Wub 2.2.0
+package provide WS::Wub 2.2.1
 
 namespace eval ::WS::Wub {
 
@@ -641,7 +641,7 @@ proc ::WS::Wub::accept {port sock ip clientport} {
     foreach {method url version} $line { break }
     switch -exact $method {
         GET {
-            handler $sock $ip [uri::split $url] $auth
+            handler $port $sock $ip [uri::split $url] $auth
         }
         default {
             $portInfo($port,logger)  "Unsupported method '$method' from $ip"
