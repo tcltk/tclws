@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.2.1
+package provide WS::Client 2.2.2
 
 namespace eval ::WS::Client {
     ##
@@ -2069,7 +2069,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType
 
     set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {:}] end] {=}] end]
-    set xml [format {<?xml version="1.0"  encoding="%f"?>} $encoding]
+    set xml [format {<?xml version="1.0"  encoding="%s"?>} $encoding]
     append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     $doc delete
 

@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.0
+package provide WS::Utils 2.2.2
 
 namespace eval ::WS {}
 
@@ -3260,10 +3260,13 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
 
             }
         }
-        set partMax [$element getAttribute maxOccurs 1]
+        set partMax [$element getAttribute maxOccurs -1]
         ::log::log debug "\t\t part is {$partName} {$partType} {$partMax}"
 
-        if {[string equal $partMax 1]} {
+        if {[string equal $partMax -1]} {
+            set partMax [[$element parent] getAttribute maxOccurs -1]
+        }
+        if {[string equal $partMax -1]} {
             lappend partList $partName [list type $partType comment {}]
         } else {
             lappend partList $partName [list type [string trimright ${partType} {()}]() comment {}]
