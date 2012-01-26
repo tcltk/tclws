@@ -48,7 +48,6 @@ set inputs [list TestString $testString]
 ## Call synchronously
 ##
 puts stdout "Calling SimpleEcho via DoCalls!"
-::log::lvSuppressLE debug 0
 set results [::WS::Client::DoCall wsEchoExample SimpleEcho $inputs]
 puts stdout "\t Received: {$results}"
 

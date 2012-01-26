@@ -121,6 +121,6 @@ dict set input polynomial $polynomial
 ##
 ## Call service
 ##
-puts stdout "Calling EvaluatePolynomial wiht {$input}"
+puts stdout "Calling EvaluatePolynomial with {$input}"
 set resultsDict ::WS::Client::DoCall wsMathExample EvaluatePolynomial $input
 puts stdout "Results are {$resultsDict}"

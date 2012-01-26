@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.2
+package provide WS::Utils 2.2.3
 
 namespace eval ::WS {}
 
@@ -147,6 +147,8 @@ namespace eval ::WS::Utils {
     xmlns:xs="http://www.w3.org/2001/XMLSchema"
     version="1.0">
 
+  <xsl:template priority="1" match="comment()"/>
+
   <xsl:template match="xs:choice">
       <xsl:apply-templates/>
   </xsl:template>
@@ -160,31 +162,6 @@ namespace eval ::WS::Utils {
 
 </xsl:stylesheet>
     } ::WS::Utils::xsltSchemaDom
-
-
-    dom parse {
-<xsl:stylesheet
-    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:xs="http://www.w3.org/2001/XMLSchema"
-    version="1.0">
-
-  <xsl:template match="xs:schema">
-      <xsl:apply-templates/>
-  </xsl:template>
-
-  <xsl:template match="xs:choice">
-      <xsl:apply-templates/>
-  </xsl:template>
-
-  <!-- Copy all the attributes and other nodes -->
-  <xsl:template match="@*|node()">
-    <xsl:copy>
-      <xsl:apply-templates select="@*|node()"/>
-    </xsl:copy>
-  </xsl:template>
-
-</xsl:stylesheet>
-    } ::WS::Utils::xsltIncludeDom
 
 }
 
@@ -2353,31 +2330,41 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         array unset unkownRef
 
         foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
-            catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount}
-                    }
+            if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
+                ::log::log notice "Import failed due to: {$msg}.  Trace: $::errorInfo"
+            }
+        }
 
         ::log::log debug  "Parsing Element types for $xns as $tns"
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
             ::log::log debug "\tprocessing $element"
-            catch {parseElementalType $mode serviceInfo $serviceName $element $tns}
+            if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
+                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+            }
         }
 
         ::log::log debug  "Parsing Attribute types for $xns as $tns"
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:attribute] {
             ::log::log debug "\tprocessing $element"
-            catch {parseElementalType $mode serviceInfo $serviceName $element $tns}
+            if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
+                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+            }
         }
 
         ::log::log debug "Parsing Simple types for $xns as $tns"
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:simpleType] {
             ::log::log debug "\tprocessing $element"
-            catch {parseSimpleType $mode serviceInfo $serviceName $element $tns}
+            if {[catch {parseSimpleType $mode serviceInfo $serviceName $element $tns} msg]} {
+                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+            }
         }
 
         ::log::log debug  "Parsing Complex types for $xns as $tns"
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:complexType] {
             ::log::log debug "\tprocessing $element"
-            catch {parseComplexType $mode serviceInfo $serviceName $element $tns}
+            if {[catch {parseComplexType $mode serviceInfo $serviceName $element $tns} msg]} {
+                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+            }
         }
     }
 
@@ -2802,7 +2789,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         }
                         lappend partList $partName [list type $partType]
                     }]} {
-                        lappen unkownRef($partType) $typeName
+                        lappend unkownRef($partType) $typeName
                         return \
                             -code error \
                             -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
@@ -2904,7 +2891,8 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
         }
     }
     if {[llength $partList]} {
-        dict set results types $tns:$typeName $partList
+        #dict set results types $tns:$typeName $partList
+        dict set results types $typeName $partList
         ::log:::log debug  "Defining $typeName"
         ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns
     } elseif {!$nodeFound} {
@@ -3040,11 +3028,15 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     }
                     set partName [$element getAttribute $attrName]
                     if {$isRef} {
+                        set partType {}
+                        set partTypeInfo {}
                         set partType [getQualifiedType $results $partName $tns]
                         set partTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
                         set partName [lindex [split $partName {:}] end]
                         ::log::log debug "\t\t\t part name is {$partName} type is {$partTypeInfo}"
-                        set partType [dict get $partTypeInfo definition $partName type]
+                        if {[dict exists $partTypeInfo definition $partName]} {
+                            set partType [dict get $partTypeInfo definition $partName type]
+                        }
                         ::log::log debug "\t\t\t part name is {$partName} type is {$partType}"
                     } else {
                         ##
@@ -3083,7 +3075,11 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
                     }
                 } msg]} {
-                        ::log::log error "\tError processing {$msg} for [$element asXML]"
+                    ::log::log error "\tError processing {$msg} for [$element asXML]"
+                    if {$isRef} {
+                        ::log::log error "\t\t Was a reference.  Additionally information is:"
+                        ::log::log error "\t\t\t part name is {$partName} type is {$partType} with {$partTypeInfo}"
+                    }
                 }
             }
             if {!$elementsFound} {
@@ -3227,14 +3223,18 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 ##
                 set partType  [getQualifiedType $results $partType $tns]
                 set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
-                set refTypeInfo [dict get $refTypeInfo definition]
+                log::log debug "looking up ref {$partType} got {$refTypeInfo}"
+                if {[dict exists $refTypeInfo definition]} {
+                    set refTypeInfo [dict get $refTypeInfo definition]
+                }
                 set tmpList [dict keys $refTypeInfo]
                 if {[llength $tmpList] == 1} {
                     set partName [lindex [dict keys $refTypeInfo] 0]
                     set partType [dict get $refTypeInfo $partName type]
                 }
-            }]} {
+            } msg]} {
                 lappend unkownRef($partType) $typeName
+                log::log error "Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo"
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
@@ -3807,8 +3807,9 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
         if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
             set result [dict get $serviceInfo tnsList tns $tmpTns]:$tmpType
         } else {
-            ::log::log error "Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList]'"
+            ::log::log error "Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}"
             set result $tns:$type
+            return -code error
         }
 
     }
