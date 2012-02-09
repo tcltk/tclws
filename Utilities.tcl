@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.3
+package provide WS::Utils 2.2.4
 
 namespace eval ::WS {}
 
@@ -4072,11 +4072,10 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
     set finalUrl $url
     array set URI [::uri::split $url] ;# Need host info from here
     while {1} {
-        if {[string equal $args {}]} {
-            set token [::http::geturl $url]
+        if {[llength $args]} {
+            set token [eval [list http::geturl $url] $args]
         } else {
-            #set token [eval [list http::geturl $url] $args]
-            set token [::http::geturl $url $args]
+            set token [::http::geturl $url]
         }
         set ncode [::http::ncode $token]
         ::log::log debug "ncode = $ncode"
