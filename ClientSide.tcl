@@ -509,7 +509,8 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
             set xml $token(data)
             unset token
         }
-        http {
+        http -
+        https {
             set token [::http::geturl $url]
             ::http::wait $token
             set ncode [::http::ncode $token]
