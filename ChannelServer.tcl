@@ -59,8 +59,8 @@ namespace eval ::WS::Channel {
 #
 # Arguments :
 #       ports     -- The port to register the callback on
-#       operation -- {} for WSDL callback, otherwise opeartion callback
-#       callback  -- The callback prefix, two additionally argumens are lappended
+#       operation -- {} for WSDL callback, otherwise operation callback
+#       callback  -- The callback prefix, two additionally arguments are lappended
 #                    the callback: (1) the socket (2) the null string
 #
 # Returns :     Nothing

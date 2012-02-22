@@ -319,7 +319,7 @@ proc ::WS::Utils::SetOption {args} {
 #       service         - The name of the service this type definition is for
 #       type            - The type to be defined/redefined
 #       definition      - The definition of the type's fields.  This consist of one
-#                         or more occurance of a field definition.  Each field definition
+#                         or more occurence of a field definition.  Each field definition
 #                         consist of:  fieldName fieldInfo
 #                         Where field info is: {type typeName comment commentString}
 #                           typeName can be any simple or defined type.
@@ -372,17 +372,17 @@ proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}}} {
 #
 # Procedure Name : ::WS::Utils::MutableTypeDef
 #
-# Description : Define a mutalbe type for a service.
+# Description : Define a mutable type for a service.
 #
 # Arguments :
 #       mode            - Client|Server
 #       service         - The name of the service this type definition is for
 #       type            - The type to be defined/redefined
-#       fromSwitchCmd   - The cmd to deternmine the actaul type when converting
+#       fromSwitchCmd   - The cmd to determine the actaul type when converting
 #                         from DOM to a dictionary.  The actual call will have
 #                         the following arguments appended to the command:
 #                           mode service type xns DOMnode
-#       toSwitchCmd     - The cmd to deternmine the actaul type when converting
+#       toSwitchCmd     - The cmd to determine the actual type when converting
 #                         from a dictionary to a DOM.  The actual call will have
 #                         the following arguments appended to the command:
 #                           mode service type xns remainingDictionaryTree
@@ -890,7 +890,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
 #               and if it is a scalar or an array.
 #
 # Arguments :
-#    type       - the type name, possiblely with a () to specify it is an array
+#    type       - the type name, possibly with a () to specify it is an array
 #
 # Returns : A list of two elements, as follows:
 #               0|1 - 0 means a simple type, 1 means a complex type
@@ -955,7 +955,7 @@ proc ::WS::Utils::TypeInfo {mode service type} {
 #       tagName     - The name of the starting tag
 #       typeName    - The type for the tag
 #
-# Returns :     1 if valition ok, 0 if not
+# Returns :     1 if validation ok, 0 if not
 #
 # Side-Effects :
 #       ::errorCode - cleared if validation ok
@@ -1971,7 +1971,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
 # Procedure Name : ::WS::Utils::convertDictToEncodedType
 #
 # Description : Convert a dictionary object into a XML DOM tree with type
-#               enconding.
+#               encoding.
 #
 # Arguments :
 #    mode        - The mode, Client or Server
@@ -2141,7 +2141,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
 #
 # Procedure Name : ::WS::Utils::parseDynamicType
 #
-# Description : Parse the Xschme for a dynamically typed part.
+# Description : Parse the schema for a dynamically typed part.
 #
 # Arguments :
 #    mode        - The mode, Client or Server
@@ -2151,7 +2151,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
 #
 # Returns : A dictionary object for a given type.
 #
-# Side-Effects : Type deginitions added
+# Side-Effects : Type definitions added
 #
 # Exception Conditions : None
 #
@@ -2708,7 +2708,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
 #
 # Arguments :
 #    dictVar            - The name of the results dictionary
-#    servcieName        - The service name this type belongs to
+#    serviceName        - The service name this type belongs to
 #    node               - The root node of the type definition
 #    tns                - Namespace for this type
 #
@@ -2916,7 +2916,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 #
 # Procedure Name : ::WS::Utils::partList
 #
-# Description : Prase the list of parts of a type definition from the Schema into our
+# Description : Parse the list of parts of a type definition from the Schema into our
 #               internal representation
 #
 # Arguments :
@@ -3346,7 +3346,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
 #
 # Procedure Name : ::WS::Utils::parseSimpleType
 #
-# Description : Parse a simnple type declaration from the Schema into our
+# Description : Parse a simple type declaration from the Schema into our
 #               internal representation
 #
 # Arguments :
@@ -3880,7 +3880,7 @@ proc ::WS::Utils::GenerateTemplateDict {mode serviceName type {arraySize 2}} {
 #
 # Procedure Name : ::WS::Utils::_generateTemplateDict
 #
-# Description : Private procedure to gnerate a template dictionary.  This needs
+# Description : Private procedure to generate a template dictionary.  This needs
 #               setup work done by ::WS::Utils::GnerateTemplateDict
 #
 # Arguments :
@@ -4021,7 +4021,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
 #
 # Arguments :
 #       node        - node to set attributes on
-#       attrList    - List of attibute name value pairs
+#       attrList    - List of attribute name value pairs
 #
 # Returns :     nothing
 #

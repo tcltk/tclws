@@ -65,7 +65,7 @@ namespace eval ::WS::CheckAndBuild {
 #       xmlString   - The XML string to validate
 #       typeInfos   - The types infos
 #
-# Returns :     1 if valition ok, 0 if not
+# Returns :     1 if validation ok, 0 if not
 #
 # Side-Effects :        None
 #
@@ -291,7 +291,7 @@ proc ::WS::CheckAndBuild::buildValue {mode serviceName key typeInfo valueInfos} 
 #
 # Procedure Name : ::WS::CheckAndBuild::buildTags
 #
-# Description : Recursivly build the tags by checking the values to put
+# Description : Recursively build the tags by checking the values to put
 #               inside the tags and append to the dom tree resultTree
 #
 # Arguments :
@@ -492,7 +492,7 @@ proc ::WS::CheckAndBuild::checkValue {mode serviceName key value typeInfo} {
 #
 # Procedure Name : ::WS::CheckAndBuild::checkTags
 #
-# Description : Recursivly check the tags and values inside the tags
+# Description : Recursively check the tags and values inside the tags
 #
 # Arguments :
 #       mode        - Client/Server

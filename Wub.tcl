@@ -68,7 +68,7 @@ namespace eval ::WS::Wub {
 # Arguments :
 #       port     -- The port to register the callback on
 #       url      -- The URL to register the callback for
-#       callback -- The callback prefix, two additionally argumens are lappended
+#       callback -- The callback prefix, two additionally arguments are lappended
 #                   the callback: (1) the socket (2) the null string
 #
 # Returns :     Nothing
@@ -168,7 +168,7 @@ proc ::WS::Wub::AddHandlerAllPorts {url callback} {
 #       certfile -- Name of the certificate file
 #       keyfile  -- Name of the key file
 #       userpwds -- A list of username and passwords
-#       realm    -- The seucrity realm
+#       realm    -- The security realm
 #       logger   -- A logging routines for errors
 #
 # Returns :     Nothing

@@ -603,7 +603,7 @@ proc ::WS::Client::GetOperationList {serviceName {object {}}} {
 # Description : Import and additional namespace into the service
 #
 # Arguments :
-#       serviceName - Service name to of the oepration
+#       serviceName - Service name to of the operation
 #       operation   - name of operation to add an input header to
 #       headerType  - the type name to add as a header
 #       attrList    - list of name value pairs of attributes and their
@@ -1133,7 +1133,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object.
+#       argList         - The arguments to the operation as a dictionary object.
 #                         This is for both the Soap Header and Body messages.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
@@ -1149,7 +1149,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #
 # Pre-requisite Conditions :    Service must have been defined.
 #
@@ -1245,7 +1245,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object
+#       argList         - The arguments to the operation as a dictionary object
 #                         This is for both the Soap Header and Body messages.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
@@ -1261,7 +1261,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -1377,14 +1377,14 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object
+#       argList         - The arguments to the operation as a dictionary object
 #                         This is for both the Soap Header and Body messages.
 #       succesCmd       - A command prefix to be called if the operations
 #                         does not raise an error.  The results, as a dictionary
-#                         object are concatinated to the prefix.
+#                         object are concatenated to the prefix.
 #       errorCmd        - A command prefix to be called if the operations
 #                         raises an error.  The error code and stack trace
-#                         are concatinated to the prefix.
+#                         are concatenated to the prefix.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
 #                         an even number of elements that alternate between
@@ -1399,7 +1399,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -2190,7 +2190,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 #
 # Arguments :
 #    wsdlNode   - The top node of the WSDL
-#    results    - Inital definition. This is optional and defaults to no definition.
+#    results    - Initial definition. This is optional and defaults to no definition.
 #    serviceAlias - Alias (unique) name for service.
 #                       This is an optional argument and defaults to the name of the
 #                       service in serviceInfo.
@@ -2885,7 +2885,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object.
+#       argList         - The arguments to the operation as a dictionary object.
 #                         This is for both the Soap Header and Body messages.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
@@ -2901,7 +2901,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #
 # Pre-requisite Conditions :    Service must have been defined.
 #
@@ -3001,7 +3001,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object
+#       argList         - The arguments to the operation as a dictionary object
 #                         This is for both the Soap Header and Body messages.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
@@ -3017,7 +3017,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
@@ -3127,14 +3127,14 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
 # Arguments :
 #       serviceName     - The name of the Webservice
 #       operationName   - The name of the Operation to call
-#       argList         - The arguements to the operation as a dictionary object
+#       argList         - The arguments to the operation as a dictionary object
 #                         This is for both the Soap Header and Body messages.
 #       succesCmd       - A command prefix to be called if the operations
 #                         does not raise an error.  The results, as a dictionary
-#                         object are concatinated to the prefix.
+#                         object are concatenated to the prefix.
 #       errorCmd        - A command prefix to be called if the operations
 #                         raises an error.  The error code and stack trace
-#                         are concatinated to the prefix.
+#                         are concatenated to the prefix.
 #       headers         - Extra headers to add to the HTTP request. This
 #                         is a key value list argument. It must be a list with
 #                         an even number of elements that alternate between
@@ -3149,7 +3149,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
 # Side-Effects :        None
 #
 # Exception Conditions :
-#       WS CLIENT HTTPERROR      - if an HTTP error occured
+#       WS CLIENT HTTPERROR      - if an HTTP error occurred
 #       others                  - as raised by called Operation
 #
 # Pre-requisite Conditions :    Service must have been defined.
