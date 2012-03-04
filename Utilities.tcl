@@ -479,12 +479,15 @@ proc ::WS::Utils::ServiceSimpleTypeDef {mode service type definition {xns {tns1}
     variable simpleTypes
     variable typeInfo
 
+    ::log::log debug [info level 0]
     if {![dict exists $definition xns]} {
         set simpleTypes($mode,$service,$type) [concat $definition xns $xns]
     } else {
         set simpleTypes($mode,$service,$type) $definition
     }
     if {[dict exists $typeInfo $mode $service]} {
+        ::log::log debug "\t Unsetting typeInfo $mode $service $type"
+        ::log::log debug "\t Was [dict get $typeInfo $mode $service]"
         dict unset typeInfo $mode $service $type
     }
     return;
@@ -1668,6 +1671,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $useName]]
+                    #::log::log debug "$useName <$dict> '$dictList'"
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {![string equal $attr {}]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
@@ -1688,7 +1692,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ## Simple array
                 ##
                 set dataList [dict get $dict $useName]
-                ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
+                #::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
                     if {[string equal $xns $options(suppressNS)]} {
                         $parent appendChild [$doc createElement $itemName retNode]
@@ -1697,6 +1701,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
+                        ::log::log debug "<$row> '$dictList'"
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                             if {![string equal $attr {}]} {
                                 lappend attrList $attr [dict get $row $attr]
@@ -1724,6 +1729,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 }
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $useName]]
+                    #::log::log debug "$useName <$dict> '$dictList'"
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {![string equal $attr  {}]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
@@ -1745,7 +1751,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 set dataList [dict get $dict $useName]
                 set tmpType [string trimright $itemType ()]
-                ::log::log debug "\t\t [llength $dataList] rows {$dataList}"
+                #::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
                     if {[string equal $xns $options(suppressNS)]} {
                         $parent appendChild [$doc createElement $itemName retNode]
@@ -1754,6 +1760,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
+                        #::log::log debug "<$row> '$dictList'"
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                             if {![string equal $attr  {}]} {
                                 lappend attrList $attr [dict get $row $attr]
@@ -3384,11 +3391,16 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     ::log::log debug "Entering [info level 0]"
 
     set typeName [$node getAttribute name]
+    set isList no
     ::log::log debug "Simple Type is $typeName"
     #puts "Simple Type is $typeName"
     set restrictionNode [$node selectNodes -namespaces $nsList xs:restriction]
     if {[string equal $restrictionNode {}]} {
         set restrictionNode [$node selectNodes -namespaces $nsList xs:list/xs:simpleType/xs:restriction]
+    }
+    if {[string equal $restrictionNode {}]} {
+        set restrictionNode [$node selectNodes -namespaces $nsList xs:list]
+        set isList yes
     }
     if {[string equal $restrictionNode {}]} {
         set xml [string trim [$node asXML]]
@@ -3397,8 +3409,12 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
             -errorcode [list WS $mode BADSMPTYPDEF [list $typeName $xml]] \
             "Bad simple type definition for '$typeName' :: \n'$xml'"
     }
-    set baseType [lindex [split [$restrictionNode getAttribute base] {:}] end]
-    set partList [list baseType $baseType xns $tns]
+    if {$isList} {
+        set baseType [lindex [split [$restrictionNode getAttribute itemType] {:}] end]
+    } else {
+        set baseType [lindex [split [$restrictionNode getAttribute base] {:}] end]
+    }
+    set partList [list baseType $baseType xns $tns isList $isList]
     set enumList {}
     foreach item [$restrictionNode childNodes] {
         set itemName [$item localName]
@@ -3419,6 +3435,8 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     if {![dict exists $results types $tns:$typeName]} {
         ServiceSimpleTypeDef $mode $serviceName $tns:$typeName $partList $tns
         dict set results simpletypes $tns:$typeName $partList
+    } else {
+        ::log::log debug "\t type already exists as $tns:$typeName"
     }
 }
 
