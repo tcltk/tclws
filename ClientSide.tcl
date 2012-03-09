@@ -1861,8 +1861,14 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     }
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
     if {![string equal $rootName {}]} {
-        lappend results [::WS::Utils::convertTypeToDict \
+        set bodyData [::WS::Utils::convertTypeToDict \
                          Client $serviceName $rootNode $expectedMsgType $body]
+        if {![llength $bodyData] && [dict get $serviceInfo skipLevelWhenActionPresent] } {
+            ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body] -- skipLevelWhenActionPresent was set"
+            set bodyData [::WS::Utils::convertTypeToDict \
+                         Client $serviceName $body $expectedMsgType $body]
+        }
+        lappend results $bodyData
     }
     set results [join $results]
     $doc delete

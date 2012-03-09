@@ -125,6 +125,8 @@ namespace eval ::WS::Utils {
         genOutAttr 0
         includeDirectory {}
         suppressNS {}
+        useTypeNs 0
+        nsOnChangeOnly 0
     }
 
     set ::WS::Utils::standardAttributes {
@@ -162,6 +164,8 @@ namespace eval ::WS::Utils {
 
 </xsl:stylesheet>
     } ::WS::Utils::xsltSchemaDom
+
+    set currentNs {}
 
 }
 
@@ -1586,6 +1590,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
     variable simpleTypes
     variable options
     variable standardAttributes
+    variable currentNs
 
     if {!$options(UseNS)} {
         return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type]
@@ -1633,24 +1638,17 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         } else {
             set useName $itemName
         }
+        set itemXns $xns
         set tmpInfo [GetServiceTypeDef $mode $service [string trimright $itemType {()}]]
-        if {[dict exists $tmpInfo xns]} {
+        if {$options(useTypeNs) && [dict exists $tmpInfo xns]} {
             set itemXns [dict get $tmpInfo xns]
-        } else {
-            set itemXns $xns
         }
         set attrList {}
-        #::log::log debug [list string equal $itemXns $xns]
-        #if {![string equal $itemXns $xns]} {
-            #if {[string equal $mode Client]} {
-            #    lappend attrList xmlns [::WS::Client::GetNameSpace $service $itemXns]
-            #} else {
-            #    lappend attrList xmlns [::WS::Server::GetNameSpace $service $itemXns]
-            #}
-            #set xns $itemXns
-        #}
-        if {[string equal $itemXns xs]} {
+        if {$options(useTypeNs) && [string equal $itemXns xs]} {
             set itemXns $xns
+        }
+        if {$options(nsOnChangeOnly) && [string equal $itemXns $currentNs]} {
+            set itemXns {}
         }
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1} {
@@ -1664,7 +1662,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Simple non-array
                 ##
-                if {[string equal $xns $options(suppressNS)]} {
+                if {[string equal $itemXns $options(suppressNS)] || [string equal $itemXns {}]} {
                     $parent appendChild [$doc createElement $itemName retNode]
                 } else {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
@@ -1694,7 +1692,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 set dataList [dict get $dict $useName]
                 #::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    if {[string equal $xns $options(suppressNS)]} {
+                    if {[string equal $itemXns $options(suppressNS)] || [string equal $itemXns {}]} {
                         $parent appendChild [$doc createElement $itemName retNode]
                     } else {
                         $parent appendChild [$doc createElement $itemXns:$itemName retNode]
@@ -1722,7 +1720,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 ##
                 ## Non-simple non-array
                 ##
-                if {[string equal $xns $options(suppressNS)]} {
+                if {[string equal $itemXns $options(suppressNS)] || [string equal $itemXns {}]} {
                     $parent appendChild [$doc createElement $itemName retNode]
                 } else {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
@@ -1740,7 +1738,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 } else {
                     set resultValue [dict get $dict $useName]
                 }
-                convertDictToType $mode $service $doc $retNode $resultValue $itemType
+                if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
+                    set tmpNs $currentNs
+                    set currentNs $itemXns
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType
+                } else {
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType
+                }
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
                 }
@@ -1753,7 +1757,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                 set tmpType [string trimright $itemType ()]
                 #::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
-                    if {[string equal $xns $options(suppressNS)]} {
+                    if {[string equal $itemXns $options(suppressNS)] || [string equal $itemXns {}]} {
                         $parent appendChild [$doc createElement $itemName retNode]
                     } else {
                         $parent appendChild [$doc createElement $itemXns:$itemName retNode]
@@ -1771,7 +1775,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     } else {
                         set resultValue $row
                     }
-                    convertDictToType $mode $service $doc $retNode $resultValue $tmpType
+                    if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
+                        set tmpNs $currentNs
+                        set currentNs $itemXns
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType
+                    } else {
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType
+                    }
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
