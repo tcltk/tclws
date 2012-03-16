@@ -39,7 +39,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.2.4
+package require WS::Utils 2.2.5
 #package require Tcl 8.5
 if {![llength [info command dict]]} {
     package require dict
@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.2.4
+package provide WS::Client 2.2.5
 
 namespace eval ::WS::Client {
     ##
@@ -219,10 +219,11 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
         dict set serviceArr($serviceName) $name $value
     }
 
+    ::log::log debug "Setting Target Namespace tns1 as $target"
     if {[dict exists $serviceArr($serviceName) xns]} {
         foreach xnsItem [dict get $serviceArr($serviceName) xns] {
             lassign $xnsItem tns xns
-            ::log::log debug [list Setting targetNamespace for $xns]
+            ::log::log debug "Setting targetNamespace $tns for $xns"
             dict set serviceArr($serviceName) targetNamespace $tns $xns
         }
     }
@@ -2251,6 +2252,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceA
         lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias $tnsDict]
     }
 
+    ::log::log debug "Leaving ::WS::Client::buildServiceInfo with {$serviceInfo}"
     return $serviceInfo
 }
 
@@ -2299,6 +2301,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     variable serviceArr
     variable options
 
+    ::log::log debug "Entering [info level 0]"
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
     } else {
@@ -2355,6 +2358,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     dict unset serviceInfo tnsList
     dict set serviceInfo suppressTargetNS $options(suppressTargetNS)
     set serviceArr($serviceName) $serviceInfo
+    ::log::log debug "Leaving [lindex [info level 0] 0] with $serviceInfo"
     return $serviceInfo
 }
 

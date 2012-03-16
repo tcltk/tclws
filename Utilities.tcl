@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.4
+package provide WS::Utils 2.2.5
 
 namespace eval ::WS {}
 
@@ -2310,28 +2310,28 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         set ns [lindex $itemList 0]
         set url [$schemaNode getAttribute xmlns:$ns]
         if {[dict exists $serviceInfo tnsList url $url]} {
-            set tns [dict get $serviceInfo tnsList url $url]
+            set tmptns [dict get $serviceInfo tnsList url $url]
         } else {
             ##
             ## Check for hardcoded namespaces
             ##
             switch -exact -- $url {
                 http://schemas.xmlsoap.org/wsdl/ {
-                    set tns w
+                    set tmptns w
                 }
                 http://schemas.xmlsoap.org/wsdl/soap/ {
-                    set tns d
+                    set tmptns d
                 }
                 http://www.w3.org/2001/XMLSchema {
-                    set tns xs
+                    set tmptns xs
                 }
                 default {
-                    set tns tns[incr tnsCount]
+                    set tmptns tns[incr tnsCount]
                 }
             }
-            dict set serviceInfo tnsList url $url $tns
+            dict set serviceInfo tnsList url $url $tmptns
         }
-        dict set serviceInfo tnsList tns $ns $tns
+        dict set serviceInfo tnsList tns $ns $tmptns
     }
 
     ##
