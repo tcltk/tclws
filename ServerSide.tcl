@@ -38,7 +38,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.2.5
+package require WS::Utils 2.2.6
 #package require Tcl 8.5
 if {![llength [info command dict]]} {
     package require dict
@@ -47,7 +47,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.2.5
+package provide WS::Server 2.2.6
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}

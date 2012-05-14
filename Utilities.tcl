@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.5
+package provide WS::Utils 2.2.6
 
 namespace eval ::WS {}
 
@@ -1622,6 +1622,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         }
     }
     ::log::log debug "\titemList is {$itemList} in $xns"
+    set currentNs $xns
     set fieldList {}
     foreach {itemName itemDef} $itemList {
         set baseName [lindex [split $itemName {:}] end]
@@ -2854,43 +2855,43 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             complexContent {
                 foreach child [$middleNode childNodes] {
                     set parent [$child parent]
-                set contentType [$child localName]
-                switch -exact -- $contentType {
-                    restriction {
-                        set nodeFound 1
-                        set restriction [$parent selectNodes -namespaces $nsList xs:restriction]
-                            set element [$parent selectNodes -namespaces $nsList xs:restriction/xs:attribute]
-                            set typeInfoList [list baseType [$restriction getAttribute base]]
-                            array unset attrArr
-                            foreach attr [$element attributes] {
-                                if {[llength $attr] > 1} {
-                                    set name [lindex $attr 0]
-                                    set ref [lindex $attr 1]:[lindex $attr 0]
-                                } else {
-                                    set name $attr
-                                    set ref $attr
+                    set contentType [$child localName]
+                    switch -exact -- $contentType {
+                        restriction {
+                            set nodeFound 1
+                            set restriction [$parent selectNodes -namespaces $nsList xs:restriction]
+                                set element [$parent selectNodes -namespaces $nsList xs:restriction/xs:attribute]
+                                set typeInfoList [list baseType [$restriction getAttribute base]]
+                                array unset attrArr
+                                foreach attr [$element attributes] {
+                                    if {[llength $attr] > 1} {
+                                        set name [lindex $attr 0]
+                                        set ref [lindex $attr 1]:[lindex $attr 0]
+                                    } else {
+                                        set name $attr
+                                        set ref $attr
+                                    }
+                                    catch {set attrArr($name) [$element getAttribute $ref]}
                                 }
-                                catch {set attrArr($name) [$element getAttribute $ref]}
+                                set partName item
+                                set partType [getQualifiedType $results $attrArr(arrayType) $tns]
+                                set partType [string map {{[]} {()}} $partType]
+                                lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                                set nodeFound 1
+                        }
+                        extension {
+                            set tmp [partList $mode $parent $serviceName results $tns]
+                            if {[llength $tmp]} {
+                                set nodeFound 1
+                                set partList [concat $partList $tmp]
                             }
-                            set partName item
-                            set partType [getQualifiedType $results $attrArr(arrayType) $tns]
-                            set partType [string map {{[]} {()}} $partType]
-                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
-                            set nodeFound 1
-                    }
-                    extension {
-                        set tmp [partList $mode $parent $serviceName results $tns]
-                        if {[llength $tmp]} {
-                            set nodeFound 1
-                            set partList [concat $partList $tmp]
+                        }
+                        default {
+                            ##
+                            ## Placed here to shut up tclchecker
+                            ##
                         }
                     }
-                    default {
-                        ##
-                        ## Placed here to shut up tclchecker
-                        ##
-                    }
-                }
                 }
             }
             restriction {
