@@ -2859,28 +2859,28 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     switch -exact -- $contentType {
                         restriction {
                             set nodeFound 1
-                            set restriction [$parent selectNodes -namespaces $nsList xs:restriction]
-                                set element [$parent selectNodes -namespaces $nsList xs:restriction/xs:attribute]
-                                set typeInfoList [list baseType [$restriction getAttribute base]]
-                                array unset attrArr
-                                foreach attr [$element attributes] {
-                                    if {[llength $attr] > 1} {
-                                        set name [lindex $attr 0]
-                                        set ref [lindex $attr 1]:[lindex $attr 0]
-                                    } else {
-                                        set name $attr
-                                        set ref $attr
-                                    }
-                                    catch {set attrArr($name) [$element getAttribute $ref]}
+                            set restriction $child
+                            set element [$child selectNodes -namespaces $nsList xs:attribute]
+                            set typeInfoList [list baseType [$restriction getAttribute base]]
+                            array unset attrArr
+                            foreach attr [$element attributes] {
+                                if {[llength $attr] > 1} {
+                                    set name [lindex $attr 0]
+                                    set ref [lindex $attr 1]:[lindex $attr 0]
+                                } else {
+                                    set name $attr
+                                    set ref $attr
                                 }
-                                set partName item
-                                set partType [getQualifiedType $results $attrArr(arrayType) $tns]
-                                set partType [string map {{[]} {()}} $partType]
-                                lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
-                                set nodeFound 1
+                                catch {set attrArr($name) [$element getAttribute $ref]}
+                            }
+                            set partName item
+                            set partType [getQualifiedType $results $attrArr(arrayType) $tns]
+                            set partType [string map {{[]} {()}} $partType]
+                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                            set nodeFound 1
                         }
                         extension {
-                            set tmp [partList $mode $parent $serviceName results $tns]
+                            set tmp [partList $mode $child $serviceName results $tns]
                             if {[llength $tmp]} {
                                 set nodeFound 1
                                 set partList [concat $partList $tmp]
