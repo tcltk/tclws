@@ -1206,6 +1206,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     ## Check for errors
     ##
     set body [::http::data $token]
+    ::log::log info "\nReceived: $body"
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
@@ -1327,7 +1328,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ## Check for errors
     ##
     set body [::http::data $token]
-    ::log::log debug "\tReceived: $body"
+    ::log::log info "\tReceived: $body"
     set httpStatus [::http::status $token]
     if {![string equal $httpStatus ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
@@ -1686,6 +1687,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     ## Check for errors
     ##
     set body [::http::data $token]
+    ::log::log info "\nReceived: $body"
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
@@ -3108,7 +3110,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     ## Check for errors
     ##
     set body [::http::data $token]
-    ::log::log debug "\tReceived: $body"
+    ::log::log info "\tReceived: $body"
     set httpStatus [::http::status $token]
     set hadError 0
     set results {}
@@ -3504,6 +3506,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     ## Check for errors
     ##
     set body [::http::data $token]
+    ::log::log info "\nReceived: $body"
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]

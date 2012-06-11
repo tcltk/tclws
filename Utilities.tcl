@@ -3105,36 +3105,36 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             }
         }
         complexContent {
-            set contentType [[$node childNodes] localName]
-            switch -exact -- $contentType {
-                restriction {
-                    set restriction [$node selectNodes -namespaces $nsList xs:restriction]
-                    set element [$node selectNodes -namespaces $nsList xs:restriction/xs:attribute]
-                    set typeInfoList [list baseType [$restriction getAttribute base]]
-                    array unset attrArr
-                    foreach attr [$element attributes] {
-                        if {[llength $attr] > 1} {
-                            set name [lindex $attr 0]
-                            set ref [lindex $attr 1]:[lindex $attr 0]
-                        } else {
-                            set name $attr
-                            set ref $attr
+            foreach childNode [$node childNodes] {
+                set contentType [$childNode localName]
+                switch -exact -- $contentType {
+                    restriction {
+                        set element [$childNode selectNodes -namespaces $nsList xs:attribute]
+                        set typeInfoList [list baseType [$childNode getAttribute base]]
+                        array unset attrArr
+                        foreach attr [$element attributes] {
+                            if {[llength $attr] > 1} {
+                                set name [lindex $attr 0]
+                                set ref [lindex $attr 1]:[lindex $attr 0]
+                            } else {
+                                set name $attr
+                                set ref $attr
+                            }
+                            catch {set attrArr($name) [$element getAttribute $ref]}
                         }
-                        catch {set attrArr($name) [$element getAttribute $ref]}
+                        set partName item
+                        set partType [getQualifiedType $results $attrArr(arrayType) $tns]
+                        set partType [string map {{[]} {()}} $partType]
+                        set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
                     }
-                    set partName item
-                    set partType [getQualifiedType $results $attrArr(arrayType) $tns]
-                    set partType [string map {{[]} {()}} $partType]
-                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
-                }
-                extension {
-                    set extension [$node selectNodes -namespaces $nsList xs:extension]
-                    set partList [partList $mode $extension $serviceName results $tns]
-                }
-                default {
-                    ##
-                    ## Placed here to shut up tclchecker
-                    ##
+                    extension {
+                        set partList [partList $mode $childNode $serviceName results $tns]
+                    }
+                    default {
+                        ##
+                        ## Placed here to shut up tclchecker
+                        ##
+                    }
                 }
             }
         }
