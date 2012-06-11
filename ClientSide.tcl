@@ -39,7 +39,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.2.7
+package require WS::Utils 2.2.8
 #package require Tcl 8.5
 if {![llength [info command dict]]} {
     package require dict
@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.2.7
+package provide WS::Client 2.2.8
 
 namespace eval ::WS::Client {
     ##
@@ -1194,8 +1194,10 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
+        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
+        ::log::log info [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
@@ -1313,10 +1315,10 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
     }
     if {[llength $headers]} {
-        ::log::log debug [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
+        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
-        ::log::log debug  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
+        ::log::log info  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] ]
     }
     ::http::wait $token
@@ -1442,12 +1444,25 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     set url [dict get $serviceInfo location]
     set query [buildCallquery $serviceName $operationName $url $argList]
     if {[llength $headers]} {
+        ::log::log info [list \
+            ::http::geturl $url \
+                -query $query \
+                -type [dict get $serviceInfo contentType] \
+                -headers [string map {\{ \" \} \"} $headers] \
+                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd] \
+        ]
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
+        ::log::log info [list \
+            ::http::geturl $url \
+                -query $query \
+                -type [dict get $serviceInfo contentType] \
+                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd] \
+        ]
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
@@ -2962,8 +2977,10 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
+        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
+        ::log::log [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
@@ -3079,8 +3096,10 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
+        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
     } else {
+        ::log::log info [list::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
     }
     ::http::wait $token
@@ -3205,12 +3224,25 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     set url [dict get $serviceInfo object $objectName location]
     set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]
     if {[llength $headers]} {
+        ::log::log info [list \
+            ::http::geturl $url \
+                -query $query \
+                -type [dict get $serviceInfo contentType] \
+                -headers [string map {\{ \" \} \"} $headers] \
+                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
+        ]
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -headers [string map {\{ \" \} \"} $headers] \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
+        ::log::log info [list \
+            ::http::geturl $url \
+                -query $query \
+                -type [dict get $serviceInfo contentType] \
+                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
+        ]
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
