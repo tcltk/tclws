@@ -1792,7 +1792,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     $doc selectNodesNamespaces $xns
     set body [$top selectNodes ENV:Body]
     set rootNode [$body childNodes]
-    ::log::log debug "Have [llength $rootNode]"
+    ::log::log debug "Have [llength $rootNode] node under Body"
     if {[llength $rootNode] > 1} {
         foreach tmp $rootNode {
             #puts "\t Got {[$tmp localName]} looking for {$expectedMsgTypeBase}"
