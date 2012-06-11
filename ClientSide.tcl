@@ -95,6 +95,7 @@ namespace eval ::WS::Client {
     set ::WS::Client::currentBaseUrl {}
     array set ::WS::Client::options {
         skipLevelWhenActionPresent 0
+        skipLevelOnReply 0
         suppressTargetNS 0
         allowOperOverloading 1
     }
@@ -212,6 +213,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) inTransform {}
     dict set serviceArr($serviceName) outTransform {}
     dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
+    dict set serviceArr($serviceName) skipLevelOnReply $options(skipLevelOnReply)
     dict set serviceArr($serviceName) suppressTargetNS $options(suppressTargetNS)
     dict set serviceArr($serviceName) contentType {text/xml;charset=utf-8}
     foreach {name value} $args {
@@ -274,6 +276,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
     switch -exact -- $item {
         contentType -
         suppressTargetNS -
+        skipLevelOnReply -
         skipLevelWhenActionPresent -
         location -
         targetNamespace {
@@ -1881,7 +1884,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {![string equal $rootName {}]} {
         set bodyData [::WS::Utils::convertTypeToDict \
                          Client $serviceName $rootNode $expectedMsgType $body]
-        if {![llength $bodyData] && [dict get $serviceInfo skipLevelWhenActionPresent] } {
+        if {![llength $bodyData] && ([dict get $serviceInfo skipLevelWhenActionPresent] || [dict get $serviceInfo skipLevelOnReply])} {
             ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body] -- skipLevelWhenActionPresent was set"
             set bodyData [::WS::Utils::convertTypeToDict \
                          Client $serviceName $body $expectedMsgType $body]
