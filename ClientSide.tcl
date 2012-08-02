@@ -1794,6 +1794,12 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ::log::log debug "Using namespaces {$xns}"
     $doc selectNodesNamespaces $xns
     set body [$top selectNodes ENV:Body]
+    if {![llength $body]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT BADREPLY $inXML] \
+            "Bad reply type, no SOAP envelope received in: \n$inXML"
+    }
     set rootNode [$body childNodes]
     ::log::log debug "Have [llength $rootNode] node under Body"
     if {[llength $rootNode] > 1} {
