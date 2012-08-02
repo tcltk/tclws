@@ -868,20 +868,6 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
         $doc delete
         $includeNode delete
     }
-    if {$included} {
-        puts stdout {}
-        puts stdout {}
-        puts stdout {}
-        puts stdout {Before:}
-        puts stdout $inXml
-        puts stdout {}
-        puts stdout {}
-        puts stdout "After: $children"
-        puts stdout [$rootNode asXML]
-        puts stdout {}
-        puts stdout {}
-        puts stdout {}
-    }
 }
 
 ###########################################################################
