@@ -818,10 +818,12 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
             http {
                 set ncode -1
                 catch {
+                    ::log::log info [list ::http::geturl $url]
                     set token [::http::geturl $url]
                     ::http::wait $token
                     set ncode [::http::ncode $token]
                     set xml [::http::data $token]
+                    ::log::log info "Received Ncode = ($ncode), $xml"
                     ::http::cleanup $token
                 }
                 if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
@@ -4088,12 +4090,14 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
     array set URI [::uri::split $url] ;# Need host info from here
     while {1} {
         if {[llength $args]} {
+            ::log::log info [concat [list ::http::geturl $url] $args]
             set token [eval [list http::geturl $url] $args]
         } else {
+            ::log::log info [list ::http::geturl $url]
             set token [::http::geturl $url]
         }
         set ncode [::http::ncode $token]
-        ::log::log debug "ncode = $ncode"
+        ::log::log info "ncode = $ncode"
         if {![string match {30[1237]} $ncode]} {
             ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
             if {![string equal $finalUrl {}]} {
