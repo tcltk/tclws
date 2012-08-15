@@ -1293,7 +1293,7 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
+proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}} {
     variable typeInfo
     variable mutableTypeInfo
     variable options
@@ -1344,7 +1344,6 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
         set partXns $xns
         catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
-        set isArray [lindex $typeInfoList end]
         ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
         ##
         ## Try for fully qualified name
@@ -1393,8 +1392,8 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
         foreach item $origItemList {
             if {[$item hasAttribute href]} {
                 set oldXML [$item asXML]
-                set item [GetReferenceNode $root [$item getAttribute href]]
                 ::log::log debug "\t\t Replacing: $oldXML"
+                set item [GetReferenceNode $root [$item getAttribute href]]
                 ::log::log debug "\t\t With: [$item asXML]"
             }
             lappend newItemList $item
@@ -1466,10 +1465,10 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root} {
                                 lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
-                        lappend rowList {} [convertTypeToDict $mode $serviceName $row $partType $root]
+                        lappend rowList {} [convertTypeToDict $mode $serviceName $row $partType $root 1]
                         lappend tmp $rowList
                     } else {
-                        lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root]
+                        lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root 1]
                     }
                 }
                 dict set results $partName $tmp
@@ -2749,6 +2748,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     ::log::log debug "Entering [info level 0]"
 
     set typeName $tns:[$node getAttribute name]
+    ::log::log debug "Complex Type is $typeName"
+    if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $typeName]]} {
+        ::log::log debug "\t Type $typeName is already defined -- leaving"
+        return
+    }
     set partList {}
     set nodeFound 0
     array set attrArr {}
@@ -2790,8 +2794,16 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         set refTypeInfo [dict get $refTypeInfo definition]
                         set tmpList [dict keys $refTypeInfo]
                         if {[llength $tmpList] == 1} {
-                            set partName [lindex [dict keys $refTypeInfo] 0]
-                            set partType [dict get $refTypeInfo $partName type]
+                            ##
+                            ## See if the reference is to an element or a type
+                            ##
+                            if {![dict exists $results elements $partType]} {
+                                ##
+                                ## To at type, so redefine the name
+                                ##
+                                set partName [lindex [dict keys $refTypeInfo] 0]
+                            }
+                            set partType [getQualifiedType $results [dict get $refTypeInfo $partName type] $tns]
                         }
                         lappend partList $partName [list type $partType]
                     }]} {
@@ -3200,6 +3212,10 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         set attributeName ref
     }
     set typeName [$node getAttribute $attributeName]
+    if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $tns:$typeName]]} {
+        ::log::log debug "\t Type $tns:$typeName is already defined -- leaving"
+        return
+    }
     set typeType ""
     if {[$node hasAttribute type]} {
         set typeType [getQualifiedType $results [$node getAttribute type string] $tns]
@@ -3230,31 +3246,50 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 set partType  [getQualifiedType $results $partType $tns]
                 set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
                 log::log debug "looking up ref {$partType} got {$refTypeInfo}"
+                if {![llength $refTypeInfo]} {
+                    error "lookup failed"
+                }
                 if {[dict exists $refTypeInfo definition]} {
                     set refTypeInfo [dict get $refTypeInfo definition]
                 }
                 set tmpList [dict keys $refTypeInfo]
                 if {[llength $tmpList] == 1} {
-                    set partName [lindex [dict keys $refTypeInfo] 0]
-                    set partType [dict get $refTypeInfo $partName type]
+                    ##
+                    ## See if the reference is to an element or a type
+                    ##
+                    if {![dict exists $results elements $partType]} {
+                        ##
+                        ## To at type, so redefine the name
+                        ##
+                        set partName [lindex [dict keys $refTypeInfo] 0]
+                    }
+                    if {[dict exists $refTypeInfo $partName type]} {
+                        set partType [getQualifiedType $results [dict get $refTypeInfo $partName type] $tns]
+                    } else {
+                        ##
+                        ## Not a simple element, so point type to type of same name as element
+                        ##
+                        set partType [getQualifiedType $results $partName $tns]
+                    }
                 }
             } msg]} {
                 lappend unkownRef($partType) $typeName
-                log::log error "Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo"
+                log::log debug "Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo"
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
                     "Unknown forward type reference {$partType} in {$typeName}"
             }
         } else {
-            ::log::log debug "\t\t has no ref has {[$element attributes]}"
+            ::log::log debug "\t\t\t has no ref has {[$element attributes]}"
             set childList [$element selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
+            ::log::log debug "\t\t\ has no ref has [llength $childList]"
             if {[llength $childList]} {
                 ##
                 ## Element defines another element layer
                 ##
                 set partName [$element getAttribute name]
-                set partType $partName
+                set partType [getQualifiedType $results $partName $tns]
                 parseElementalType $mode results $serviceName $element $tns
             } else {
                 set partName [$element getAttribute name]
@@ -3267,7 +3302,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
             }
         }
         set partMax [$element getAttribute maxOccurs -1]
-        ::log::log debug "\t\t part is {$partName} {$partType} {$partMax}"
+        ::log::log debug "\t\t\t part is {$partName} {$partType} {$partMax}"
 
         if {[string equal $partMax -1]} {
             set partMax [[$element parent] getAttribute maxOccurs -1]
@@ -3340,6 +3375,8 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
             dict set results simpletypes $tns:$typeName $partList
         }
     }
+    dict set results elements $tns:$typeName 1
+
      ::log::log debug "\t returning"
 }
 
@@ -3392,6 +3429,10 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     set typeName [$node getAttribute name]
     set isList no
     ::log::log debug "Simple Type is $typeName"
+    if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $tns:$typeName]]} {
+        ::log::log debug "\t Type $tns:$typeName is already defined -- leaving"
+        return
+    }
     #puts "Simple Type is $typeName"
     set restrictionNode [$node selectNodes -namespaces $nsList xs:restriction]
     if {[string equal $restrictionNode {}]} {
