@@ -96,6 +96,7 @@ namespace eval ::WS::Client {
     array set ::WS::Client::options {
         skipLevelWhenActionPresent 0
         skipLevelOnReply 0
+        skipHeaderLevel 0
         suppressTargetNS 0
         allowOperOverloading 1
     }
@@ -214,6 +215,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) outTransform {}
     dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
     dict set serviceArr($serviceName) skipLevelOnReply $options(skipLevelOnReply)
+    dict set serviceArr($serviceName) skipHeaderLevel $options(skipHeaderLevel)
     dict set serviceArr($serviceName) suppressTargetNS $options(suppressTargetNS)
     dict set serviceArr($serviceName) contentType {text/xml;charset=utf-8}
     foreach {name value} $args {
@@ -277,6 +279,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
         contentType -
         suppressTargetNS -
         skipLevelOnReply -
+        skipHeaderLevel -
         skipLevelWhenActionPresent -
         location -
         targetNamespace {
@@ -2069,15 +2072,19 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
             $env appendChild [$doc createElement "SOAP-ENV:Header" header]
             set firstHeader 0
         }
-        set typeInfo [split $inputHeaderType {:}]
-        if {[llength $typeInfo] > 1} {
-            set headerType $inputHeaderType
+        if {[dict exists $serviceInfo skipHeaderLevel] && [dict get $serviceInfo skipHeaderLevel]} {
+            set headerData $header
         } else {
-            set headerType $xns:$inputHeaderType
-        }
-        $header appendChild [$doc createElement $headerType headerData]
-        if {[llength $attrList]} {
-            ::WS::Utils::setAttr $headerData $attrList
+            set typeInfo [split $inputHeaderType {:}]
+            if {[llength $typeInfo] > 1} {
+                set headerType $inputHeaderType
+            } else {
+                set headerType $xns:$inputHeaderType
+            }
+            $header appendChild [$doc createElement $headerType headerData]
+            if {[llength $attrList]} {
+                ::WS::Utils::setAttr $headerData $attrList
+            }
         }
         ::WS::Utils::convertDictToType Client $serviceName $doc $headerData $argList $inputHeaderType
     }
