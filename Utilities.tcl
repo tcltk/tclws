@@ -2993,7 +2993,8 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         }
         extension {
             set baseName [getQualifiedType $results [$node getAttribute base string] $tns]
-            #puts "base name $baseName"
+            set baseTypeInfo [TypeInfo Client $serviceName $baseName]
+            ::log::log debug "\t base name of extension is {$baseName} with typeinfo {$baseTypeInfo}"
             if {[lindex [TypeInfo Client $serviceName $baseName] 0]} {
                 if {[catch {::WS::Utils::GetServiceTypeDef Client $serviceName $baseName}]} {
                     set baseQuery [format {child::*[attribute::name='%s']} $baseName]
@@ -3018,7 +3019,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     }
                 }
                 set baseInfo [GetServiceTypeDef $mode $serviceName $baseName]
+                ::log::log debug "\t baseInfo is {$baseInfo}"
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
+            } else {
+                ::log:log debug "\t Simple type"
             }
             foreach elementNode [$node childNodes] {
                 set tmp [partList $mode $elementNode $serviceName results $tns]

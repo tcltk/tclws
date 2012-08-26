@@ -1870,24 +1870,26 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     ##
     set results {}
     set headerRootNode [$top selectNodes ENV:Header]
-    foreach outHeaderType [dict get $serviceInfo operation $operationName soapReplyHeader] {
-        if {[string equal $outHeaderType {}]} {
-            continue
-        }
-        set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outHeaderType] xns]
-        set node [$headerRootNode selectNodes $outHeaderType]
-        if {![llength $node]} {
-            set node [$headerRootNode selectNodes $xns:$outHeaderType]
-            if {![llength $node]} {
+    if {[llength $headerRootNode]} {
+        foreach outHeaderType [dict get $serviceInfo operation $operationName soapReplyHeader] {
+            if {[string equal $outHeaderType {}]} {
                 continue
             }
-        }
+            set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outHeaderType] xns]
+            set node [$headerRootNode selectNodes $outHeaderType]
+            if {![llength $node]} {
+                set node [$headerRootNode selectNodes $xns:$outHeaderType]
+                if {![llength $node]} {
+                    continue
+                }
+            }
 
-        #if {[llength $outHeaderAttrs]} {
-        #    ::WS::Utils::setAttr $node $outHeaderAttrs
-        #}
-        ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]"
-        lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]
+            #if {[llength $outHeaderAttrs]} {
+            #    ::WS::Utils::setAttr $node $outHeaderAttrs
+            #}
+            ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]"
+            lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]
+        }
     }
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
     if {![string equal $rootName {}]} {
