@@ -3022,7 +3022,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 ::log::log debug "\t baseInfo is {$baseInfo}"
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
             } else {
-                ::log:log debug "\t Simple type"
+                ::log::log debug "\t Simple type"
             }
             foreach elementNode [$node childNodes] {
                 set tmp [partList $mode $elementNode $serviceName results $tns]
