@@ -1328,6 +1328,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     ::log::log debug "\t partsList is {$partsList}"
     foreach partName $partsList {
         set partType [dict get $typeDefInfo definition $partName type]
+        if {[dict exists $typeDefInfo definition $partName allowAny] && [dict get $typeDefInfo definition $partName allowAny]} {
+            set allowAny 1
+        } else {
+            set allowAny 0
+        }
         if {[string equal $partName *] && [string equal $partType *]} {
             ##
             ## Type infomation being handled dynamically for this part
@@ -1367,8 +1372,9 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
-                        if { [$childNode nodeType] != "ELEMENT_NODE" ||
-                             (!$isArray && ![string equal [$childNode localName] $partName])} {
+                        if {!$allowAny && (
+                             [$childNode nodeType] != "ELEMENT_NODE" ||
+                             (!$isArray && ![string equal [$childNode localName] $partName]))} {
                             continue
                         }
                         ::log::log debug "\t\t Found $partName [$childNode asXML]"
@@ -2876,7 +2882,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set partName item
                             set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                             set partType [string map {{[]} {()}} $partType]
-                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment allowAny 1]
                             set nodeFound 1
                         }
                         extension {
@@ -3129,7 +3135,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     set partName item
                     set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                     set partType [string map {{[]} {()}} $partType]
-                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
+                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {} allowAny 1]]
                 }
                 extension {
                     set extension [$node selectNodes -namespaces $nsList xs:extension]
