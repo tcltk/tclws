@@ -593,7 +593,7 @@ proc ::WS::Client::GetOperationList {serviceName {object {}}} {
     if {[string equal $object {}]} {
         return [dict get $serviceArr($serviceName) operList]
     } else {
-        return [dict get $serviceArr($serviceName) operation $object inputs]
+        return [list $object [dict get $serviceArr($serviceName) operation $object inputs] [dict get $serviceArr($serviceName) operation $object outputs]]
     }
 
 }
