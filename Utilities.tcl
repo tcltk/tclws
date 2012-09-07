@@ -1270,6 +1270,7 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
 #    node        - The base node for the type.
 #    type        - The name of the type
 #    root        - The root node of the document
+#    isArray     - We are looking for array elements
 #
 # Returns : A dictionary object for a given type.
 #
@@ -1298,7 +1299,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     variable mutableTypeInfo
     variable options
 
-    ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root]
+    ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root $isArray]
     if {[dict exists $typeInfo $mode $serviceName $type]} {
         set typeName $type
     } else {
@@ -1366,15 +1367,13 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                     set item {}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
-                        ::log::log debug "\t\t Looking at [$childNode localName] "
+                        ::log::log debug "\t\t Looking at [$childNode localName] ($allowAny,$isArray,[$childNode nodeType],$partName)"
                         # From SOAP1.1 Spec:
                         #    Within an array value, element names are not significant
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
-                        if {!$allowAny && (
-                             [$childNode nodeType] != "ELEMENT_NODE" ||
-                             (!$isArray && ![string equal [$childNode localName] $partName]))} {
+                        if {!$allowAny} {
                             continue
                         }
                         ::log::log debug "\t\t Found $partName [$childNode asXML]"
