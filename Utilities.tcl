@@ -1327,6 +1327,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     #}
     set partsList [dict keys [dict get $typeDefInfo definition]]
     ::log::log debug "\t partsList is {$partsList}"
+    set arrayOverride [expr {$isArray && ([llength $partsList] == 1)}]
     foreach partName $partsList {
         set partType [dict get $typeDefInfo definition $partName type]
         if {[dict exists $typeDefInfo definition $partName allowAny] && [dict get $typeDefInfo definition $partName allowAny]} {
@@ -1367,17 +1368,17 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                     set item {}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
-                        ::log::log debug "\t\t Looking at [$childNode localName] ($allowAny,$isArray,[$childNode nodeType],$partName)"
+                        set nodeType [$childNode nodeType]
+                        ::log::log debug "\t\t Looking at [$childNode localName] ($allowAny,$isArray,$nodeType,$partName)"
                         # From SOAP1.1 Spec:
                         #    Within an array value, element names are not significant
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
-                        if {!$allowAny} {
-                            continue
+                        if {($allowAny  || $arrayOverride) && ([string equal $nodeType "ELEMENT_NODE"])} {
+                            ::log::log debug "\t\t Found $partName [$childNode asXML]"
+                            lappend item $childNode
                         }
-                        ::log::log debug "\t\t Found $partName [$childNode asXML]"
-                        lappend item $childNode
                     }
                     if {![string length $item]} {
                         ::log::log debug "\tSkipping"
