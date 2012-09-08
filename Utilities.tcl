@@ -1375,7 +1375,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
-                        if {($allowAny  || ($arrayOverride && [string equal $nodeType "ELEMENT_NODE"])} {
+                        if {$allowAny  || ($arrayOverride && [string equal $nodeType "ELEMENT_NODE"])} {
                             ::log::log debug "\t\t Found $partName [$childNode asXML]"
                             lappend item $childNode
                         }
