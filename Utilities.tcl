@@ -2823,7 +2823,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     set partName [$middleNode getAttribute name]
                     set partType [getQualifiedType $results [$middleNode getAttribute type string:string] $tns]
                     set partMax [$middleNode getAttribute maxOccurs 1]
-                    if {[string equal $partMax 1]} {
+                    if {$partMax <= 1} {
                         lappend partList $partName [list type $partType comment $comment]
                     } else {
                         lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
@@ -2990,7 +2990,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 set partName [$node getAttribute name]
                 set partType [getQualifiedType $results [$node getAttribute type string] $tns]
                 set partMax [$node getAttribute maxOccurs 1]
-                if {[string equal $partMax 1]} {
+                if {$partMax <= 1} {
                     set partList [list $partName [list type $partType comment {}]]
                 } else {
                     set partList [list $partName [list type [string trimright ${partType} {()}]() comment {}]]
@@ -3097,7 +3097,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     } else {
                         set partMax [$element getAttribute maxOccurs 1]
                     }
-                    if {[string equal $partMax 1]} {
+                    if {$partMax <= 1} {
                         lappend partList $partName [list type $partType comment $comment]
                     } else {
                         lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
@@ -3317,7 +3317,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         if {[string equal $partMax -1]} {
             set partMax [[$element parent] getAttribute maxOccurs -1]
         }
-        if {[string equal $partMax 1]} {
+        if {$partMax <= 1} {
             lappend partList $partName [list type $partType comment {}]
         } else {
             lappend partList $partName [list type [string trimright ${partType} {()}]() comment {}]
@@ -3362,7 +3362,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
             set partType xs:string
         }
         set partMax [$node getAttribute maxOccurs 1]
-        if {[string equal $partMax 1]} {
+        if {$partMax <= 1} {
             ##
             ## See if this is just a restriction on a simple type
             ##
