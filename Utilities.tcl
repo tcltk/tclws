@@ -2086,7 +2086,6 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                         $parent appendChild [$doc createElement $xns:$itemName retNode]
                     }
                     $retNode setAttribute xsi:type $attrType
-                    set resultValue [dict get $dict $itemName]
                     $retNode appendChild [$doc createTextNode $resultValue]
                 }
             }
