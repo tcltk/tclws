@@ -489,9 +489,9 @@ proc ::WS::Utils::ServiceSimpleTypeDef {mode service type definition {xns {tns1}
     } else {
         set simpleTypes($mode,$service,$type) $definition
     }
-    if {[dict exists $typeInfo $mode $service]} {
+    if {[dict exists $typeInfo $mode $service $type]} {
         ::log::log debug "\t Unsetting typeInfo $mode $service $type"
-        ::log::log debug "\t Was [dict get $typeInfo $mode $service]"
+        ::log::log debug "\t Was [dict get $typeInfo $mode $service $type]"
         dict unset typeInfo $mode $service $type
     }
     return;
@@ -560,24 +560,27 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
     variable simpleTypes
 
     set type [string trimright $type {()}]
+    set results {}
     if {[string equal $type {}]} {
+        ::log::log debug "@1"
         set results [dict get $typeInfo $mode $service]
     } else {
         set typeInfoList [TypeInfo $mode $service $type]
         if {[string equal -nocase -length 3 $type {xs:}]} {
             set type [string range $type 3 end]
         }
-        if {[lindex $typeInfoList 0] == 0} {
-            if {[info exists simpleTypes($mode,$service,$type)]} {
-                set results $simpleTypes($mode,$service,$type)
-            } elseif {[info exists simpleTypes($type)]} {
-                set results [list type xs:$type xns xs]
-            } else {
-                set results {}
-            }
+        ::log::log debug "Type = {$type} typeInfoList = {$typeInfoList}"
+        if {[info exists simpleTypes($mode,$service,$type)]} {
+            ::log::log debug "@2"
+            set results $simpleTypes($mode,$service,$type)
+        } elseif {[info exists simpleTypes($type)]} {
+            ::log::log debug "@3"
+            set results [list type xs:$type xns xs]
         } elseif {[dict exists $typeInfo $mode $service $service:$type]} {
+            ::log::log debug "@5"
             set results [dict get $typeInfo $mode $service $service:$type]
-        } else {
+        } elseif {[dict exists $typeInfo $mode $service $type]} {
+            ::log::log debug "@6"
             set results [dict get $typeInfo $mode $service $type]
         }
     }
@@ -924,8 +927,10 @@ proc ::WS::Utils::TypeInfo {mode service type} {
     } else {
         set isArray 0
     }
-    set isNotSimple [dict exists $typeInfo $mode $service $type]
-    set isNotSimple [expr {$isNotSimple || [dict exists $typeInfo $mode $service $service:$type]}]
+    #set isNotSimple [dict exists $typeInfo $mode $service $type]
+    #set isNotSimple [expr {$isNotSimple || [dict exists $typeInfo $mode $service $service:$type]}]
+    lassign [split $type {:}] tns baseType
+    set isNotSimple [expr {!([info exist simpleTypes($type)] || [info exist simpleTypes($baseType)])}]
     return [list $isNotSimple $isArray]
 }
 
@@ -1596,7 +1601,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
     } else {
         set typeName $type
     }
-    if {[lindex $typeInfoList 0]} {
+    set itemList {}
+    
+    if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
         set itemList [dict get $typeInfo $mode $service $typeName definition]
         set xns [dict get $typeInfo $mode $service $typeName xns]
     } else {
@@ -2401,7 +2408,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
-                    "Found $lastUnknownRefCount forward type references"
+                    "Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]"
             }
         }
     }
@@ -2752,12 +2759,17 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 
     ::log::log debug "Entering [info level 0]"
 
+    set isAbstractType false
     set typeName $tns:[$node getAttribute name]
     ::log::log debug "Complex Type is $typeName"
-    if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $typeName]]} {
-        ::log::log debug "\t Type $typeName is already defined -- leaving"
-        return
+    if {[$node hasAttribute abstract]} {
+        set isAbstractType [$node getAttribute abstract]
+        ::log::log debug "\t Abstract type = $isAbstractType"
     }
+    #if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $typeName]]} {
+    #    ::log::log debug "\t Type $typeName is already defined -- leaving"
+    #    return
+    #}
     set partList {}
     set nodeFound 0
     array set attrArr {}
@@ -2771,6 +2783,13 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
         }
         set middle [$middleNode localName]
         ::log::log debug "Complex Type is $typeName, middle is $middle"
+        #if {$isAbstractType && [string equal $middle attribute]} {
+        #    ##
+        #    ## Abstract type, so treat like an element
+        #    ##
+        #    set middle element
+        #}
+
         switch -exact -- $middle {
             attribute -
             annotation {
@@ -2889,6 +2908,9 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             if {[llength $tmp]} {
                                 set nodeFound 1
                                 set partList [concat $partList $tmp]
+                            } else {
+                                ::log:::log debug  "Unknown extension!"
+                                return
                             }
                         }
                         default {
@@ -2913,7 +2935,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
         }
     }
-    if {[llength $partList]} {
+    if {[llength $partList] || $isAbstractType} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
         ::log:::log debug  "Defining $typeName"
@@ -2972,6 +2994,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 ###########################################################################
 proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable currentSchema
+    variable unkownRef
     variable nsList
     upvar 1 $dictVar results
 
@@ -3000,7 +3023,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             set baseName [getQualifiedType $results [$node getAttribute base string] $tns]
             set baseTypeInfo [TypeInfo Client $serviceName $baseName]
             ::log::log debug "\t base name of extension is {$baseName} with typeinfo {$baseTypeInfo}"
-            if {[lindex [TypeInfo Client $serviceName $baseName] 0]} {
+            if {[lindex $baseTypeInfo 0]} {
                 if {[catch {::WS::Utils::GetServiceTypeDef Client $serviceName $baseName}]} {
                     set baseQuery [format {child::*[attribute::name='%s']} $baseName]
                     set baseNode [$currentSchema selectNodes $baseQuery]
@@ -3025,6 +3048,11 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 }
                 set baseInfo [GetServiceTypeDef $mode $serviceName $baseName]
                 ::log::log debug "\t baseInfo is {$baseInfo}"
+                if {[llength $baseInfo] == 0} {
+                    ::log::log debug "\t Unknown refrence '$baseName'"
+                    set unkownRef($baseName) 1
+                    return;
+                }
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
             } else {
                 ::log::log debug "\t Simple type"

@@ -760,11 +760,6 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     if {[llength $headers]} {
         dict set serviceInfo headers $headers
     }
-
-    if {![dict exists $serviceInfo contentType]} {
-        dict set $serviceInfo contentType "text/xml;charset=utf-8"
-    }
-
     set serviceArr($serviceName) $serviceInfo
 
     if {[dict exists $serviceInfo types]} {
@@ -792,7 +787,6 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
             }
         }
     }
-
 
     return $serviceName
 }
@@ -2098,6 +2092,8 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     }
 
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
+    puts "set xns \[dict get \[::WS::Utils::GetServiceTypeDef Client $serviceName $msgType\] xns\]"
+    puts "\t [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType]"
     set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType] xns]
     if {[info exists tnsArray($xns)]} {
         set xns $tnsArray($xns)
