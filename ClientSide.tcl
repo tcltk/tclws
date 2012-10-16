@@ -54,7 +54,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.2.9
+package provide WS::Client 2.2.10
 
 namespace eval ::WS::Client {
     ##

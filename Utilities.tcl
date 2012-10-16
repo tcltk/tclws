@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.2.9
+package provide WS::Utils 2.2.10
 
 namespace eval ::WS {}
 
@@ -911,7 +911,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#
+#  2.2.10  10/16/2012  G. Lester    Corrected detection of service specific simple type.
 #
 ###########################################################################
 proc ::WS::Utils::TypeInfo {mode service type} {
@@ -930,8 +930,7 @@ proc ::WS::Utils::TypeInfo {mode service type} {
     #set isNotSimple [dict exists $typeInfo $mode $service $type]
     #set isNotSimple [expr {$isNotSimple || [dict exists $typeInfo $mode $service $service:$type]}]
     lassign [split $type {:}] tns baseType
-    set isNotSimple [expr {!([info exist simpleTypes($type)] || [info exist simpleTypes($baseType)])}]
-    return [list $isNotSimple $isArray]
+    set isNotSimple [expr {!([info exist simpleTypes($type)] || [info exist simpleTypes($baseType)] || [info exist simpleTypes($mode,$service,$type)] || [info exist simpleTypes($mode,$service,$baseType)] )}]    return [list $isNotSimple $isArray]
 }
 
 
@@ -1602,7 +1601,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         set typeName $type
     }
     set itemList {}
-    
+
     if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
         set itemList [dict get $typeInfo $mode $service $typeName definition]
         set xns [dict get $typeInfo $mode $service $typeName xns]
