@@ -165,7 +165,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #       realm    -- The security realm
 #       logger   -- A logging routines for errors
 #
-# Returns :     Nothing
+# Returns :     socket handle
 #
 # Side-Effects :
 #       None
@@ -214,11 +214,13 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             -tls1 0 \
             -require 0 \
             -request 0
-        ::tls::socket -server [list ::WS::Embeded::accept $port] $port
+        set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
     } else {
         $portInfo($port,logger) [list socket -server [list ::WS::Embeded::accept $port] $port]
-        socket -server [list ::WS::Embeded::accept $port] $port
+        set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
+
+    return $handle
 }
 
 
