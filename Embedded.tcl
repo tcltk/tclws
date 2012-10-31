@@ -546,6 +546,7 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+#   2.3.0  10/31/2012  G.Lester     bug fix for [68310fe3bd] -- correct encoding and data length
 #
 #
 ###########################################################################
@@ -572,14 +573,21 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
             $portInfo($port,logger) [list 404 b $msg]
             respond $sock 404 Error $msg
         } else {
-            set data [dict get $req(reply) data]
+            set type [dict get $req(reply) type]
+            set encoding [lindex [split [lindex [split $type {;}] 1] {=}] 1]
+            if {[string equal $type {}]} {
+                set encoding utf-8
+                append type {; charset=UTF-8}
+            }
+            set data [encoding convertto $encoding [dict get $req(reply) data]]
             set reply "HTTP/1.0 [dict get $req(reply) code] ???\n"
-            append reply "Content-Type: [dict get $req(reply) type]; charset=UTF-8\n"
+            append reply "Content-Type: $type\n"
             append reply "Connection: close\n"
             append reply "Content-length: [string length $data]\n"
-            append reply "\n"
-            append reply $data
-            puts -nonewline $sock $reply
+            chan configure $sock -translation crlf
+            puts $sock $reply
+            chan configure $sock -translation binary
+            puts -nonewline $sock $rdata
             $portInfo($port,logger) ok
         }
     } else {

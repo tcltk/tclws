@@ -704,14 +704,14 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             embedded {
                 ::WS::Embeded::ReturnData \
                     $sock \
-                    text/html \
+                    "text/html; charset=UTF-8" \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
             channel {
                 ::WS::Channel::ReturnData \
                     $sock \
-                    text/html \
+                    "text/xml; charset=UTF-8" \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
@@ -753,11 +753,11 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         }
         channel {
             set xml [GetWsdl $serviceName]
-            ::WS::Channel::ReturnData $sock text/xml $xml 200
+            ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         embedded {
             set xml [GetWsdl $serviceName]
-            ::WS::Embeded::ReturnData $sock text/xml $xml 200
+            ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         rivet {
             set xml [GetWsdl $serviceName]
@@ -889,7 +889,7 @@ proc ::WS::Server::generateInfo {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData \
                     $sock \
-                    text/html \
+                    "text/xml; charset=UTF-8" \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
@@ -970,10 +970,10 @@ proc ::WS::Server::generateInfo {service sock args} {
             ::Httpd_ReturnData $sock "text/html; charset=UTF-8" $msg 200
         }
         embedded {
-            ::WS::Embeded::ReturnData $sock text/html $msg 200
+            ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $msg 200
         }
         channel {
-            ::WS::Channel::ReturnData $sock text/html $msg 200
+            ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $msg 200
         }
         rivet {
             headers numeric 200
@@ -1177,7 +1177,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock text/xml $xml 500
+                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             rivet {
                 headers type text/xml
@@ -1292,10 +1292,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock text/xml $xml 500
+                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             channel {
-                ::WS::Channel::ReturnData $sock text/xml $xml 500
+                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             rivet {
                 headers type text/xml
@@ -1380,10 +1380,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock text/xml $xml 200
+                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
             }
             channel {
-                ::WS::Channel::ReturnData $sock text/xml $xml 200
+                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
             }
             rivet {
                 headers type text/xml
@@ -1424,10 +1424,10 @@ proc ::WS::Server::callOperation {service sock args} {
                 ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock text/xml $xml 500
+                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             channel {
-                ::WS::Channel::ReturnData $sock text/xml $xml 500
+                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
             }
             rivet {
                 headers type text/xml
