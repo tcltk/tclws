@@ -636,6 +636,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+#   2.3.0  10/31/2012  G.Lester     Bug fix [66fb3aeef5] -- correct header parsing
 #
 #
 ###########################################################################
@@ -646,14 +647,15 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
     $portInfo($port,logger) "Receviced request on $port for $ip:$clientport"
 
     array unset query reply
+    chan configure $sock -translation crlf
     if {[catch {
         gets $sock line
         $portInfo($port,logger) "Request is: $line"
         set auth {}
         set request {}
-        for {set c 0} {[gets $sock temp]>=0 && $temp ne "\r" && $temp ne ""} {incr c} {
+        while {[gets $sock temp] > 0 && ![eof $sock]} {
             lassign [split $temp :] key data
-            dict set request header [string tolower $key] [string trim [join $data :]]
+            dict set request header [string tolower $key] [string trim $data]
         }
         if {[eof $sock]} {
             $portInfo($port,logger)  "Connection closed from $ip"
