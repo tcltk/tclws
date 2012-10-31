@@ -33,9 +33,9 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Server 2.1.3
-package require WS::Utils 2.1.3
-package require WS::Embeded 2.1.3
+package require WS::Server 2.3.0
+package require WS::Utils 2.3.0
+package require WS::Embeded 2.3.0
 
 ##
 ## Define the service
