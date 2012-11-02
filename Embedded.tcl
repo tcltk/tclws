@@ -36,6 +36,7 @@
 package require uri
 package require base64
 package require html
+package require log
 
 package provide WS::Embeded 2.3.0
 
@@ -161,9 +162,8 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #       port     -- Port number to listen on
 #       certfile -- Name of the certificate file
 #       keyfile  -- Name of the key file
-#       userpwds -- A list of username and passwords
+#       userpwds -- A list of username:password
 #       realm    -- The security realm
-#       logger   -- A logging routines for errors
 #
 # Returns :     socket handle
 #
@@ -188,12 +188,12 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}} {logger {::WS::Embeded::logger}}} {
+proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}}} {
     variable portInfo
     variable portList
 
     lappend portList $port
-    foreach key {port certfile keyfile userpwds realm logger} {
+    foreach key {port certfile keyfile userpwds realm} {
         set portInfo($port,$key) [set $key]
     }
     if {![info exists portInfo($port,handlers)]} {
@@ -216,7 +216,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             -request 0
         set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
     } else {
-        $portInfo($port,logger) [list socket -server [list ::WS::Embeded::accept $port] $port]
+        ::log::log debug [list socket -server [list ::WS::Embeded::accept $port] $port]
         set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
 
@@ -271,143 +271,6 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
         dict set dataArray(reply) $var [set $var]
     }
     return;
-}
-
-
-###########################################################################
-#
-# Public Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PUBLIC<<
-#
-# Procedure Name : ::WS::Embeded::Start
-#
-# Description : Start listening on all ports (i.e. enter the event loop).
-#
-# Arguments : None
-#
-# Returns :   Value that event loop was exited with.
-#
-# Side-Effects :
-#       None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions :
-#        ::WS::Embeded::Listen should have been called for one or more port.
-#
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PUBLIC<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Embeded::Start {} {
-    variable forever
-
-    set forever 0
-    vwait ::WS::Embeded::forever
-    return $forever
-}
-
-
-###########################################################################
-#
-# Public Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PUBLIC<<
-#
-# Procedure Name : ::WS::Embeded::Stop
-#
-# Description : Exit dispatching request.
-#
-# Arguments :
-#       value -- Value that ::WS::Embedded::Start should return,
-#
-# Returns :     Nothing
-#
-# Side-Effects :
-#       None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : None
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PUBLIC<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Embeded::Stop {{value 1}} {
-    vairable forever
-
-    set forever $value
-    vwait ::WS::Embeded::forever
-    return $forever
-}
-
-
-###########################################################################
-#
-# Private Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PRIVATE<<
-#
-# Procedure Name : ::WS::Embeded::logger
-#
-# Description : Stub for a logger.
-#
-# Arguments :
-#       args            - not used
-#
-# Returns :
-#       Nothing
-#
-# Side-Effects : None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : None
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PRIVATE<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Embeded::logger {args} {
-    puts stdout $args
-    puts stdout $::errorInfo
-    flush stdout
 }
 
 
@@ -502,7 +365,7 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
     if {[info exists portInfo($port,auths)] && [llength $portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
         set realm $portInfo($port,realm)
         respond $sock 401 Unauthorized "WWW-Authenticate: Basic realm=\"$realm\"\n"
-        $portInfo($port,logger) "Unauthorized from $ip"
+        ::log::log warning "Unauthorized from $ip"
         return -code error
     }
 }
@@ -555,7 +418,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
     upvar #0 ::WS::Embeded::Httpd$sock req
 
     if {[catch {checkauth $port $sock $ip $auth}]} {
-        $portInfo($port,logger) {Auth Failed}
+        ::log::log warning {Auth Failed}
         return;
     }
 
@@ -570,14 +433,14 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
         lappend cmd $sock {}
         #puts "Calling {$cmd}"
         if {[catch {eval $cmd} msg]} {
-            $portInfo($port,logger) [list 404 b $msg]
+            ::log::log error [list 404 b $msg]
             respond $sock 404 Error $msg
         } else {
             set type [dict get $req(reply) type]
-            set encoding [lindex [split [lindex [split $type {;}] 1] {=}] 1]
-            if {[string equal $type {}]} {
+            set encoding [string tolower [lindex [split [lindex [split $type {;}] 1] {=}] 1]]
+            if {$encoding ni [encoding names]} {
                 set encoding utf-8
-                append type {; charset=UTF-8}
+                set type "[lindex [split $type ";"] 0]; charset=UTF-8"
             }
             set data [encoding convertto $encoding [dict get $req(reply) data]]
             set reply "HTTP/1.0 [dict get $req(reply) code] ???\n"
@@ -587,11 +450,11 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
             chan configure $sock -translation crlf
             puts $sock $reply
             chan configure $sock -translation binary
-            puts -nonewline $sock $rdata
-            $portInfo($port,logger) ok
+            puts -nonewline $sock $data
+            ::log::log debug ok
         }
     } else {
-        $portInfo($port,logger) {404 Error}
+        ::log::log warning {404 Error}
         respond $sock 404 Error "Error"
     }
 
@@ -644,23 +507,35 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
     variable portInfo
 
     upvar #0 ::WS::Embeded::Httpd$sock query
-    $portInfo($port,logger) "Receviced request on $port for $ip:$clientport"
+    ::log::log info "Receviced request on $port for $ip:$clientport"
 
     array unset query reply
     chan configure $sock -translation crlf
     if {[catch {
         gets $sock line
-        $portInfo($port,logger) "Request is: $line"
+        ::log::log debug "Request is: $line"
         set auth {}
         set request {}
         while {[gets $sock temp] > 0 && ![eof $sock]} {
-            lassign [split $temp :] key data
-            dict set request header [string tolower $key] [string trim $data]
+            if {[regexp {^([^:]*):(.*)$} $temp -> key data]} {
+                dict set request header [string tolower $key] [string trim $data]
+            }
         }
         if {[eof $sock]} {
-            $portInfo($port,logger)  "Connection closed from $ip"
+            ::log::log warning  "Connection closed from $ip"
+            catch {close $sock}
+            return;
         }
-        foreach {method url version} $line { break }
+        if {[dict exists $request header authorization]} {
+            regexp -nocase {^basic +([^ ]+)$}\
+                [dict get $request header authorization] -> auth
+        }
+        if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
+            respond $sock 400 Error "Wrong request"
+            ::log::log warning  "Wrong request: $line"
+            catch {close $sock}
+            return
+        }
         switch -exact -- $method {
             POST {
                 ##
@@ -692,15 +567,17 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                 handler $port $sock $ip [uri::split $url] $auth
             }
             default {
-                $portInfo($port,logger)  "Unsupported method '$method' from $ip"
+                respond $sock 501 Error "Method not implemented"
+                ::log::log warning "Unsupported method '$method' from $ip"
             }
         }
     } msg]} {
-        $portInfo($port,logger)  "Error: $msg"
-        $portInfo($port,logger)  "Error Info: $::errorInfo"
+        ::log::log error "Error: $msg"
+        # catch this against an eventual closed socket
+        catch {respond $sock 500 Error "Server error"}
     }
 
     catch {flush $sock}
     catch {close $sock}
-    return;
+    return
 }

@@ -163,7 +163,6 @@ proc ::WS::Server::Service {args} {
     ::log::log debug "Defining Service as $args"
 
     array set defaults {
-        -host           localhost
         -description    {}
         -checkheader    {::WS::Server::ok}
         -inheaders      {}
@@ -184,7 +183,7 @@ proc ::WS::Server::Service {args} {
         set defaults(-ports) {stdin stdout}
         array set defaults $args
     }
-    set requiredList {-host -service}
+    set requiredList {-service}
     set missingList {}
     foreach opt $requiredList {
         if {![info exists defaults($opt)]} {
@@ -201,6 +200,23 @@ proc ::WS::Server::Service {args} {
     if {![info exists defaults(-prefix)]} {
         set defaults(-prefix) /service/$service
     }
+    # find default host
+    if {![info exists defaults(-host)]} {
+	switch -exact -- $defaults(-mode) {
+	    embedded {
+		set me [socket -server garbage_word -myaddr [info hostname] 0]
+    		set defaults(-host) [lindex [fconfigure $me -sockname] 0]
+	    	close $me
+	    	if {0 !=[llength $defaults(-ports)] && 80 != [lindex $defaults(-ports) 0]} {
+        	    append defaults(-host) ":[lindex $defaults(-ports) 0]"
+	    	}
+            }
+	    default {
+	    	set defaults(-host) localhost
+            }
+	}
+    }
+
     set defaults(-uri) $service
     namespace eval ::$service {}
     set serviceArr($service) [array get defaults]
@@ -889,7 +905,7 @@ proc ::WS::Server::generateInfo {service sock args} {
             embedded {
                 ::WS::Embeded::ReturnData \
                     $sock \
-                    "text/xml; charset=UTF-8" \
+                    "text/html; charset=UTF-8" \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
                     404
             }
@@ -970,10 +986,10 @@ proc ::WS::Server::generateInfo {service sock args} {
             ::Httpd_ReturnData $sock "text/html; charset=UTF-8" $msg 200
         }
         embedded {
-            ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $msg 200
+            ::WS::Embeded::ReturnData $sock "text/html; charset=UTF-8" $msg 200
         }
         channel {
-            ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $msg 200
+            ::WS::Channel::ReturnData $sock "text/html; charset=UTF-8" $msg 200
         }
         rivet {
             headers numeric 200
