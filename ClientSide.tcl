@@ -99,6 +99,7 @@ namespace eval ::WS::Client {
         skipHeaderLevel 0
         suppressTargetNS 0
         allowOperOverloading 1
+        contentType {text/xml;charset=utf-8}
     }
 }
 
@@ -217,7 +218,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) skipLevelOnReply $options(skipLevelOnReply)
     dict set serviceArr($serviceName) skipHeaderLevel $options(skipHeaderLevel)
     dict set serviceArr($serviceName) suppressTargetNS $options(suppressTargetNS)
-    dict set serviceArr($serviceName) contentType {text/xml;charset=utf-8}
+    dict set serviceArr($serviceName) contentType $options(contentType)
     foreach {name value} $args {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
