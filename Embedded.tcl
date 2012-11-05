@@ -46,6 +46,9 @@ namespace eval ::WS::Embeded {
 
     set portList [list]
     set forever {}
+    
+    variable returnCodeText [dict create 200 OK 404 "Not Found"\
+	    500 "Internal Server Error" 501 "Not Implemented"]
 }
 
 
@@ -289,7 +292,7 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 #       sock -- Socket to send reply on
 #       code -- Code to send
 #       body -- HTML body to send
-#       head -- HTML header to send
+#       head -- Additional HTML headers to send
 #
 # Returns :
 #       Nothing
@@ -315,7 +318,64 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 #
 ###########################################################################
 proc ::WS::Embeded::respond {sock code body {head ""}} {
-    puts -nonewline $sock "HTTP/1.0 $code ???\nContent-Type: text/html; charset=ISO-8859-1\nConnection: close\nContent-length: [string length $body]\n$head\n$body"
+    set body [encoding convertto iso8859-1 $body\r\n]
+    chan configure $sock -translation crlf
+    puts $sock "[httpreturncode $code]\nContent-Type: text/html; charset=ISO-8859-1\nConnection: close\nContent-length: [string length $body]"
+    if {"" ne $head} {
+	puts -nonewline $sock $head
+    }
+    # Separator head and body
+    puts $sock ""
+    chan configure $sock -translation binary
+    puts -nonewline $sock $body
+}
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Embeded::httpreturncode
+#
+# Description : Format the first line of a http return including the status code
+#
+# Arguments :
+#       code -- numerical http return code
+#
+# Returns :
+#       Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  10/05/2012  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::httpreturncode {code} {
+    variable returnCodeText
+    if {[dict exist $returnCodeText $code]} {
+	set textCode [dict get $returnCodeText $code]
+    } else {
+	set textCode "???"
+    }
+    return "HTTP/1.0 $code $textCode"
 }
 
 
@@ -364,7 +424,7 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 
     if {[info exists portInfo($port,auths)] && [llength $portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
         set realm $portInfo($port,realm)
-        respond $sock 401 Unauthorized "WWW-Authenticate: Basic realm=\"$realm\"\n"
+        respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
         ::log::log warning "Unauthorized from $ip"
         return -code error
     }
@@ -419,10 +479,9 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 
     if {[catch {checkauth $port $sock $ip $auth}]} {
         ::log::log warning {Auth Failed}
-        return;
+        return
     }
 
-    set ::errorInfo {}
     array set req $reqstring
     #foreach var {type data code} {
     #    dict set req(reply) $var [set $var]
@@ -433,8 +492,8 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
         lappend cmd $sock {}
         #puts "Calling {$cmd}"
         if {[catch {eval $cmd} msg]} {
-            ::log::log error [list 404 b $msg]
-            respond $sock 404 Error $msg
+            ::log::log error "Return 404 due to eval error: $msg"
+            respond $sock 404 "Error: $msg"
         } else {
             set type [dict get $req(reply) type]
             set encoding [string tolower [lindex [split [lindex [split $type {;}] 1] {=}] 1]]
@@ -443,7 +502,7 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
                 set type "[lindex [split $type ";"] 0]; charset=UTF-8"
             }
             set data [encoding convertto $encoding [dict get $req(reply) data]]
-            set reply "HTTP/1.0 [dict get $req(reply) code] ???\n"
+            set reply "[httpreturncode [dict get $req(reply) code]]\n"
             append reply "Content-Type: $type\n"
             append reply "Connection: close\n"
             append reply "Content-length: [string length $data]\n"
@@ -454,8 +513,8 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
             ::log::log debug ok
         }
     } else {
-        ::log::log warning {404 Error}
-        respond $sock 404 Error "Error"
+        ::log::log warning "404 Error: URL not found"
+        respond $sock 404 "URL not found"
     }
 
     return;
@@ -511,7 +570,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 
     array unset query reply
     chan configure $sock -translation crlf
-    if {[catch {
+    if {1 == [catch {
         gets $sock line
         ::log::log debug "Request is: $line"
         set auth {}
@@ -523,17 +582,14 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
         }
         if {[eof $sock]} {
             ::log::log warning  "Connection closed from $ip"
-            catch {close $sock}
-            return;
+            return
         }
         if {[dict exists $request header authorization]} {
             regexp -nocase {^basic +([^ ]+)$}\
                 [dict get $request header authorization] -> auth
         }
         if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
-            respond $sock 400 Error "Wrong request"
             ::log::log warning  "Wrong request: $line"
-            catch {close $sock}
             return
         }
         switch -exact -- $method {
@@ -567,14 +623,14 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                 handler $port $sock $ip [uri::split $url] $auth
             }
             default {
-                respond $sock 501 Error "Method not implemented"
                 ::log::log warning "Unsupported method '$method' from $ip"
+                respond $sock 501 "Method not implemented"
             }
         }
     } msg]} {
         ::log::log error "Error: $msg"
         # catch this against an eventual closed socket
-        catch {respond $sock 500 Error "Server error"}
+        catch {respond $sock 500 "Server Error"}
     }
 
     catch {flush $sock}
