@@ -314,6 +314,8 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+#   2.3.0  11/06/2012  H.Oehlmann   Separate head and body,
+#                                   correct Content-length
 #
 #
 ###########################################################################
@@ -364,7 +366,7 @@ proc ::WS::Embeded::respond {sock code body {head ""}} {
 #
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
-#       1  10/05/2012  G.Lester     Initial version
+#       1  10/05/2012  H.Oehlmann   Initial version
 #
 #
 ###########################################################################
