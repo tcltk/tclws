@@ -104,8 +104,9 @@ exist </p><PRE>               /service/&lt;ServiceName&gt;
                      Invoke an operation
 </PRE>
 <p><b>Arguments</b>&nbsp;: this procedure uses position independent arguments,
-they are: </p><PRE>             -host           - The host name for this service
-                                     Defaults to "localhost"
+they are: </p><PRE>             -host           - The host name for this service.
+                               Defaults to "ip:port" in embedded mode,
+                               and to "localhost" otherwise."
              -description    - The HTML description for this service
              -xmlnamespace   - Extra XML namespaces used by the service
              -service        - The service name (this will also be used for

@@ -18,10 +18,10 @@
         Embedded Package</SPAN></A>
         <LI class=toclevel-1><A href="#Listen"><SPAN
         class=tocnumber>2</SPAN> <SPAN class=toctext>Specify a Port to Receive Request on</SPAN></A>
-        <LI class=toclevel-1><A href="#Start"><SPAN
-        class=tocnumber>3</SPAN> <SPAN class=toctext>Start Listening for Requests</SPAN></A>
+        <LI class=toclevel-1><A href="#EventQueue"><SPAN
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Enter the event queue</SPAN></A>
         <LI class=toclevel-1><A href="#Stop"><SPAN
-        class=tocnumber>4</SPAN> <SPAN class=toctext>Stop Listening for Requests</SPAN></A>
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Shutdown server</SPAN></A>
       </UL>
     </TD>
   </TR>
@@ -36,7 +36,7 @@
 causes no ill effects to put this in each file declaring a service or service
 procedure. </P>
 
-<HR>
+<HR />
 
 <A name=Listen></A>
 <H2>Specify a Port to Receive Request on</H2>
@@ -49,47 +49,33 @@ they are: </P>
      <I>port    </I> -- Port number to listen on.
      <I>certfile</I> -- Name of the certificate file. Defaults to {}.
      <I>keyfile </I> -- Name of the key file. Defaults to {}.
-     <I>userpwds</I> -- A list of username and passwords. Defaults to {}.
+     <I>userpwds</I> -- A list of username:password. Defaults to {}.
      <I>realm   </I> -- The seucrity realm. Defaults to {}.
-     <I>logger  </I> -- A logging routines for errors. Defaults to ::WS::Embeded::logger.
 </PRE>
-<P><B>Returns</B>&nbsp;: Nothing </P>
+<P><B>Returns</B>&nbsp;: Handle of socket </P>
 <P><B>Side-Effects</B>&nbsp;: None </P>
 <P><B>Exception Conditions</B>&nbsp;: &nbsp;: None </P>
 <P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
-<HR>
+<HR />
 
-<A name=Start></A>
-<H2>Start Listening for Requests</H2>
-<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Start</I></B> </P>
-<P><B>Description</B>&nbsp;: Start listening on all ports (i.e. enter the event loop). </P>
-<P><B>Arguments</B>&nbsp;: None</P>
-<P><B>Returns</B>&nbsp;: Value that event loop was exited with. </P>
-<P><B>Side-Effects</B>&nbsp;: Nothing</P>
-<P><B>Exception Conditions</B>&nbsp;: None </P>
-<P><B>Pre-requisite Conditions</B>&nbsp;:&nbsp;</P>
-<ul>
-<p>::WS::Embeded::Listen should have been called for one or more port.</p>
-</ul>
+<A name=EventQueue></A>
+<H2>Enter the event queue</H2>
 
-<HR>
+<P>To serve any requests, the interpreter must enter the event queue using, for example:</P>
+<PRE>
+     vwait waitVariable
+</PRE>
+<HR />
 
 <A name=Stop></A>
-<H2>Stop Listening for Requests</H2>
-<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Start</I></B> </P>
-<P><B>Description</B>&nbsp;: Stop listening on all ports (i.e. enter the event loop). </P>
-<P><B>Arguments</B>&nbsp;:</P>
+<H2>Stop the server</H2>
+
+<P>To stop serving requests, the server socket may be closed.
+The socket handle was returned by <I>::WS::Embeded::Listen</I>.
+Optionally, the event queue may be stopped as follows:</P>
 <PRE>
-    value -- Value that ::WS::Embedded::Stop should return
+     close $handle
+     set waitVariable 1
 </PRE>
-<P><B>Returns</B>&nbsp;: Nothing </P>
-<P><B>Side-Effects</B>&nbsp;: Nothing</P>
-<P><B>Exception Conditions</B>&nbsp;: None </P>
-<P><B>Pre-requisite Conditions</B>&nbsp;:&nbsp;</P>
-<ul>
-<p>::WS::Embeded::Start should have been called.</p>
-</ul>
-
-
 </BODY>
 </HTML>

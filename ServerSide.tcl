@@ -74,8 +74,9 @@ namespace eval ::WS::Server {
 #                       Invoke an operation
 #
 # Arguments : this procedure uses position independent arguments, they are:
-#               -host           - The host name for this service
-#                                       Defaults to "localhost"
+#               -host           - The host name for this service.
+#                                 Defaults to "ip:port" in embedded mode,
+#                                 and to "localhost" otherwise.
 #               -description    - The HTML description for this service
 #               -service        - The service name (this will also be used for
 #                                 the Tcl namespace of the procedures that implement
