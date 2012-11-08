@@ -39,6 +39,11 @@
 ##                                                                           ##
 ###############################################################################
 
+package require Tcl 8.4
+# WS::Utils usable here for dict?
+if {![llength [info command dict]]} {
+    package require dict
+}
 package require uri
 package require base64
 package require html

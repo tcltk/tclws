@@ -38,11 +38,8 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.2.9
-#package require Tcl 8.5
-if {![llength [info command dict]]} {
-    package require dict
-}
+package require Tcl 8.4
+package require WS::Utils 2.2.9 ; # provides dict
 package require html
 package require log
 package require tdom

@@ -33,6 +33,23 @@
 ##                                                                           ##
 ###############################################################################
 
+package require Tcl 8.4
+# XXX WS::Utils usable here? (provide dict, lassign)
+if {![llength [info command dict]]} {
+    package require dict
+}
+if {![llength [info command lassign]]} {
+    proc lassign {inList args} {
+        set numArgs [llength $args]
+        set i -1
+        foreach var $args {
+            incr i
+            uplevel 1 [list set $var [lindex $inList $i]]
+        }
+        return [lrange $inList $numArgs end]
+    }
+}
+
 package require uri
 package require base64
 package require html
