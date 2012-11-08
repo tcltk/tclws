@@ -40,7 +40,7 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.2.9 ; # dict, lassign
+package require WS::Utils 2.3 ; # dict, lassign
 package require tdom 0.8
 package require http 2
 package require log
