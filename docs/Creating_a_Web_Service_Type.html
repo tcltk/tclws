@@ -5,6 +5,7 @@
 <META http-equiv=Content-Type content="text/html; charset=utf-8">
 <META content="Creating a Web Service Type from Tcl" name=KEYWORDS>
 
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
 </HEAD>
 <BODY>
 <H1>Creating a Web Service Type from Tcl</H1>
@@ -26,6 +27,7 @@
         class=tocnumber>3</SPAN> <SPAN class=toctext>Defining a derived type</SPAN></A>
         <LI class=toclevel-1><A href="#Getting_a_type_definition"><SPAN
         class=tocnumber>4</SPAN> <SPAN class=toctext>Getting a type
+        definition<li class="toclevel-1"><a href="#Template_dict_for_type_definition"><span class="tocnumber">5</span> <span class="toctext" type="">Generating a template dictionary for a type
         definition</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
 <P>
 
@@ -122,5 +124,21 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P><B>Exception Conditions</B>&nbsp;: None </P>
 <P><B>Pre-requisite Conditions</B>&nbsp;: The service must be defined. </P>
 
-</BODY>
-</HTML>
+<hr />
+<a name="Template_dict_for_type_definition"></a>
+</p><h2>Generating a template dictionary for a type definition </h2>
+<p><b>Procedure Name</b>&nbsp;: <i>::WS::Utils::GenerateTemplateDict</i> </p>
+<p><b>Description</b>&nbsp;: Generate a template dictionary object for a given type.</p>
+<p><b>Arguments</b>&nbsp;: </p><pre>     <i>mode</i>            - <b>Client</b> or <b>Server</b>
+     <i>serviceName</i>     - The service name the type is defined in
+     <i>type</i>            - The name of the type
+     <i>arraySize</i>       - Number of elements to generate in an array.  Default is 2.
+</pre>
+<p><b>Returns</b>&nbsp;: </p><pre>      A dictionary object for a given type.  If any circular references exist, they will have the value of &lt;** Circular Reference **&gt;
+</pre>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: None </p>
+<p><b>Pre-requisite Conditions</b>&nbsp;: The type and service must be defined. </p>
+
+</div>
+</body></html>

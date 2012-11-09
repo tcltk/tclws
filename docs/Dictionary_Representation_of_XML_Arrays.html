@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>Web Services for Tcl (aka tclws): Dictionary Representation of XML Arrays</title>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
+</head>
+<body>
+<p>
+XML arrays are represented in dictionary format as a list of values.  
+Lets consider what this looks like for a 
+&lt;href="#SimpleTypeArray"&gt;simple type&lt;/href&gt; and for a 
+&lt;href="#ComplexTypeArray"&gt;complex type&lt;/href&gt;.
+</p>
+
+<p><a name="SimpleTypeArray"></a>
+</p><h3>Array of Simple Type</h3>
+<p>
+Lets assume we have an element with the following definition:
+</p><pre class="verbatim">    &lt;xs:element minOccurs="0" maxOccurs="unbounded" name="Primes" type="xs:integer" /&gt;
+</pre>
+Lets also assume that we will have that element in our dictionary with 
+the first four prime numbers, thus the dictionary representation for 
+that element would look like:
+<pre class="verbatim">    Primes {2 3 5 7}
+</pre>
+Or, if we have are using attributes (i.e. parseInAttr and/or genOutAttr are set), it would look like:
+<pre class="verbatim">    Primes {{} {2 3 5 7}}
+</pre>
+<p></p>
+
+<p><a name="ComplexTypeArray"></a>
+</p><h3>Array of Complex Type</h3>
+<p>
+Lets assume we have the type definition:
+</p><pre class="verbatim">&lt;xs:element name="Person"&gt;
+  &lt;xs:complexType&gt;
+    &lt;xs:sequence&gt;
+      &lt;xs:element name="FristName" type="xs:string"/&gt;
+      &lt;xs:element name="LastName" type="xs:integer"/&gt;
+    &lt;/xs:sequence&gt;
+  &lt;/xs:complexType&gt;
+&lt;/xs:element&gt;
+</pre>
+Lets assume we have the following definition:
+<pre class="verbatim">    &lt;xs:element minOccurs="0" maxOccurs="unbounded" name="Attendees" type="Person" /&gt;
+</pre>
+Now lets assume the following people are are attending:
+<ul>
+<li> John Doe </li>
+<li> Jane Doe </li>
+</ul>
+Thus the dictionary representation for that element would look like:
+<pre class="verbatim">    Attendees {
+        {FirstName {John} LastName {Doe}}
+        {FirstName {Jane} LastName {Doe}}
+    }
+</pre>
+Or, if we have are using attributes (i.e. parseInAttr and/or genOutAttr are set), it would look like:
+<pre class="verbatim">    Attendees {
+        {{} {FirstName {{} {John}} LastName {{} {Doe}}}}
+        {{} {FirstName {{} {Jane}} LastName {{} {Doe}}}}
+    }
+</pre>
+<p></p>
+</div>
+</body></html>

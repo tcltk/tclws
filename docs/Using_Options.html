@@ -1,6 +1,7 @@
 <HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <HEAD>
 <TITLE>Using Web Service Options</TITLE>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
 </HEAD>
 
 <BODY>
@@ -12,20 +13,21 @@
     <TD>
       <H2>Contents</H2></DIV>
       <UL>
-        <LI class=toclevel-1><A href="#Overview"><SPAN class=tocnumber>1</SPAN> <SPAN class=toctext>Overview</SPAN></A>
-        <LI class=toclevel-1><A href="#Options"><SPAN class=tocnumber>2</SPAN> <SPAN class=toctext>Options</SPAN></A>
-        <UL>
-            <LI class=toclevel-2><A href="#UseNS"><SPAN
-            class=tocnumber>1</SPAN> <SPAN class=toctext>UseNS - put namespaces on field tags</SPAN></A>
-            <LI class=toclevel-2><A href="#StrictMode"><SPAN
-            class=tocnumber>2</SPAN> <SPAN class=toctext>StrictMode - WSDL processing mode</SPAN></A>
-            <LI class=toclevel-2><A href="#parseInAttr"><SPAN
-            class=tocnumber>3</SPAN> <SPAN class=toctext>parseInAttr - parse attributes on inbound tags</SPAN></A>
-            <LI class=toclevel-2><A href="#genOutAttr"><SPAN
-            class=tocnumber>4</SPAN> <SPAN class=toctext>genOutAttr - generate attributes on outbound tags</SPAN></A>
-        </UL>
-        <LI class=toclevel-1><A href="#SetOption"><SPAN class=tocnumber>3</SPAN> <SPAN class=toctext>Access Routine</SPAN></A>
-    </UL>
+        <li class="toclevel-1"><a href="#Overview"><span class="toctext">Overview</span></a>
+        </li><li class="toclevel-1"><a href="#Loading_the_Webservices_Utilities_Package"><span class="toctext">Loading the Webservices Utilities Package</span></a>
+        </li><li class="toclevel-1"><a href="#Options"> <span class="toctext">Options</span></a>
+        <ul>
+            <li class="toclevel-2"><a href="#UseNS"> <span class="toctext">UseNS - put namespaces on field tags</span></a>
+            </li><li class="toclevel-2"><a href="#StrictMode"> <span class="toctext">StrictMode - WSDL processing mode</span></a>
+            </li><li class="toclevel-2"><a href="#parseInAttr"><span class="toctext">parseInAttr - parse attributes on inbound tags</span></a>
+            </li><li class="toclevel-2"><a href="#genOutAttr"> <span class="toctext">genOutAttr - generate attributes on outbound tags</span></a>
+            </li><li class="toclevel-2"><a href="#useTypeNs"> <span class="toctext">useTypeNs - use type's namespace prefix as prefix of elements</span></a>
+            </li><li class="toclevel-2"><a href="#nsOnChangeOnly"> <span class="toctext">nsOnChangeOnly - only put namespace prefix when namespaces change</span></a>
+            </li><li class="toclevel-2"><a href="#suppressNS"> <span class="toctext">suppressNS - do not put a particular namespace prefix</span></a>
+            </li><li class="toclevel-2"><a href="#includeDirectory"> <span class="toctext">includeDirectory - disk directory to use for XSD includes when they can not be accessed via the Web.</span></a>
+        </li></ul>
+        </li><li class="toclevel-1"><a href="#SetOption"> <span class="toctext">Access Routine</span></a>
+    </li></ul>
 <P>
 
 </P>
@@ -33,20 +35,26 @@
 <H2>Overview</H2>
 </P>
 <P>The Webservices Client and Server packages make use of the following options:
-    <UL>
-      <LI><A href="#UseNS">UseNS</A>
-      <LI><A href="#StrictMode">StrictMode</A>
-      <LI><A href="#parseInAttr">parseInAttr</A>
-      <LI><A href="#genOutAttr">genOutAttr</A>
-    </UL>
-</P>
+    </p><ul>
+      <li><a href="#UseNS">UseNS</a>, when set the following options become relevant:
+      <ul>
+          <li><a href="#useTypeNs">useTypeNs</a>
+          </li><li><a href="#nsOnChangeOnly">nsOnChangeOnly</a>
+          </li><li><a href="#suppressNS">suppressNS</a>
+      </li></ul>
+      </li><li><a href="#StrictMode">StrictMode</a>
+      </li><li><a href="#parseInAttr">parseInAttr</a>
+      </li><li><a href="#genOutAttr">genOutAttr</a>
+      </li><li><a href="#includeDirectory">includeDirectory</a>
+    </li></ul>
+<p></p>
 
 <P>The attributes can be retrieved and set using <A href="#SetOption">::WS::Utils::SetOption</A>.</P>
 
 <HR>
-<A name=Loading_the_Webservices_Client_Package></A>
-<H2>Loading the Webservices Client Package </H2>
-<P>To load the webservices server package, do: </P><PRE> package require WS::Client
+<A name=Loading_the_Webservices_Utilities_Package></A>
+<H2>Loading the Webservices Utilities Package </H2>
+<P>To load the webservices server package, do: </P><PRE> package require WS::Utils
 </PRE>
 <P>This command will only load the utilities the first time it is used, so it
 causes no ill effects to put this in each file using the utilties. </P>
@@ -104,6 +112,39 @@ causes no ill effects to put this in each file using the utilties. </P>
 </P>
 <HR>
 
+ <p><a name="useTypeNs"></a>
+</p><h2>useTypeNs - use type's namespace prefix as prefix of elements </h2>
+<p>
+    The <i>useTypeNs</i> option, if set to a "true" value,
+    will use the prefix of the type's namespace instead of the prefix of the element's namespace.
+</p>
+<p>
+    The default value, "0", is for this option to be turned off.
+</p>
+<hr>
+
+<p><a name="nsOnChangeOnly"></a>
+</p><h2>nsOnChangeOnly - only put namespace prefix when namespaces change </h2>
+<p>
+    The <i>nsOnChangeOnly</i> option, if set to a "true" value,
+    will only place namespace prefixes when the namespaces change.
+</p>
+<p>
+    The default value, "0", is for this option to be turned off.
+</p>
+<hr>
+
+<p><a name="suppressNS"></a>
+</p><h2>suppressNS - do not put a given namespace prefix. </h2>
+<p>
+    The <i>suppressNS</i> option, if set, will cause the given namespace
+ to never be used as a prefix (i.e. tags that would normally have had 
+the given prefix will not have any prefix).
+</p>
+<p>
+    The default value, "{}", is for this option to be turned off.
+</p>
+<hr>
 
 <A name=genOutAttr></A>
 <H2>genOutAttr - generate attributes on outbound tags </H2>
@@ -119,10 +160,19 @@ causes no ill effects to put this in each file using the utilties. </P>
 </P>
 <HR>
 
+<p><a name="includeDirectory"></a>
+</p><h2>includeDirectory - disk directory to use for XSD includes when they can not be accessed via the Web. </h2>
+<p>
+    The <i>includeDirectory</i> option, if set, instructs TclWs to look in the specified directory for any XSD includes that can not be found via the web.
+</p>
+<p>
+    The default value, "{}", is for this option to be turned off.
+</p>
+<hr>
 
 <A name=SetOption></A>
 <H2>Access Routine </H2>
-<P><B>Procedure Name&nbsp;: <I>::WS::Client::SetOption</I></B> </P>
+<P><B>Procedure Name&nbsp;: <I>::WS::Utils::SetOption</I></B> </P>
 <P><B>Description&nbsp;: </B> Retrieve or set an option </P>
 <P><B>Arguments&nbsp;:</B> </P>
 <PRE>

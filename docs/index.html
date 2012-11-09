@@ -4,6 +4,7 @@
 <TITLE>Tcl Web Services</TITLE>
 <META NAME="Generator" CONTENT="TextPad 4.6">
 <META NAME="Author" CONTENT="Gerald W. Lester">
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
 </HEAD>
 
 <BODY>
@@ -25,6 +26,7 @@ be found here.
     <LI> <A HREF="Calling_a_Web_Service.html">Calling a Web Service from Tcl</A>
     <LI> <A HREF="Creating_a_Tcl_Web_Service.html">Creating a Tcl Web Service</A>
     <LI> <A HREF="Creating_a_Web_Service_Type.html">Creating a Web Service Type</A>
+    <LI> <A HREF="Dictionary_Representation_of_XML_Arrays.html">Dictionary Representation of XML Arrays</A></LI>
     <LI> <A HREF="Using_Options.html">Using Web Service Options</A>
     <LI> <A HREF="Embedded_Web_Service.html">Embeding a Web Service into an application</A>
     <LI> <A HREF="Tcl_Web_Service_Example.html">Tcl Web Service Example</A>
@@ -39,6 +41,18 @@ may very).
 
 <p>
 Standard BSD.
+<h1>Web Servers</h1>
+
+<p>
+ The server side works with the following web servers:
+</p><ul> 
+<li> <a href="http://tclhttpd.sourceforge.net/">TclHttpd</a>
+ </li><li> <a href="http://tcl.apache.org/rivet">Rivet</a>
+ </li><li> <a href="http://www.aolserver.com/">AOLserver</a>
+ </li><li> <a href="http://code.google.com/p/wub/">WUB</a>
+ </li><li> <a href="http://wiki.tcl.tk/23626">wibble</a>
+  </li><li> Embedded mode (see <a href="Embedded_Web_Service.html">Embedding</a>)
+</li></ul>
 </p>
 
 <h2>Packages Required</h2>
@@ -48,17 +62,28 @@ The following packages are used:
 </p>
 
 <UL>
-    <LI>Tcl 8.4
-    <LI>tdom 0.8.1
-    <LI>tls
-    <LI>log from TclLib
-    <LI>uri from TclLib
-    <LI>http from Tcl itself
-</UL>
+<li> <a href="http://tcl.sf.net/">Tcl 8.4</a> 
+ </li><li> <a href="http://www.tdom.org/">tdom 0.8.1</a>
+ <li> dict (if tcl8.4 is used)</a> 
+ </li><li> <a href="http://tls.sf.net/">tls</a> (client and embedded server)
+ </li><li> log from <a href="http://tcllib.sf.net/">TclLib</a>
+ </li><li> uri from <a href="http://tcllib.sf.net/">TclLib</a>
+ </li><li> struct::set from <a href="http://tcllib.sf.net/">TclLib</a>
+ </li><li> http from <a href="http://tcl.sf.net/">Tcl</a> itself 
+</li></ul>
+
 
 <p>
 Additionally, if you are running the TclHttpd on Windows, it is highly recommended that you use the iocpsock extension.
 </p>
 
+<p>
+Lastly following packages are additionally used in Embedded Server mode:
+</p><ul>
+ <li> base64 from <a href="http://tcllib.sf.net/">TclLib</a> (also channel server)
+ </li><li> html from <a href="http://tcllib.sf.net/">TclLib</a> (also channel server)
+ </li><li> ncgi from <a href="http://tcllib.sf.net/">TclLib</a>
+ </li><li> fileutil from <a href="http://tcllib.sf.net/">TclLib</a>
+</li></ul>
 </BODY>
 </HTML>

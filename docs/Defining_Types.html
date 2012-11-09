@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>Web Services for Tcl (aka tclws): Defining Types</title>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
+</head>
+<body>
+<table class="toc" id="toc">
+  <tbody><tr>
+    <td>
+      
+      <h2>Contents</h2>
+      <ul>
+        <li class="toclevel-1"><a href="#Overview"><span class="tocnumber">1</span> <span class="toctext">Overview</span></a>
+        </li><li class="toclevel-1"><a href="#Loading_the_Webservices_Utility_Package"><span class="tocnumber">2</span> <span class="toctext">Loading the Webservices
+        Utility Package</span></a>
+        </li><li class="toclevel-1"><a href="#Defining_a_type"><span class="tocnumber">3</span> <span class="toctext" type="">Defining a type</span></a>
+        </li><li class="toclevel-1"><a href="#Deriving_a_type"><span class="tocnumber">3</span> <span class="toctext" type="">Defining a derived type</span></a>
+        </li><li class="toclevel-1"><a href="#Getting_a_type_definition"><span class="tocnumber">4</span> <span class="toctext" type="">Getting a type
+        definition</span></a> </li>
+        <li class="toclevel-1"><a href="#Template_dict_for_type_definition"><span class="tocnumber">5</span> <span class="toctext" type="">Generating a template dictionary for a type
+        definition</span></a> </li></ul></td></tr></tbody></table>
+<p>
+
+</p>
+
+<p><a name="Overview"></a>
+</p><h2>Overview </h2>
+<p>Webservice Type declaration is part of the Webservices Utility package. </p>
+<p>When writing a web service it is often requried to write a complex type
+definition for an argument containing structured data. </p>
+<p>When calling an operation on a web service it is sometimes convient to define
+a complex type to return structured data as an XML fragment even though the
+sevice may state that it is only expecting a string. </p>
+
+<p><a name="Loading_the_Webservices_Utility_Package"></a>
+</p><h2>Loading the Webservices Utility Package </h2>
+<p>To load the webservices server package, do: </p><pre> package require WS::Utils
+</pre>
+<p>This command will only load the utilities the first time it is used, so it
+causes no ill effects to put this in each file using the utilties. </p>
+<hr>
+
+<p><a name="Defining_a_type"></a>
+</p><h2>Defining a type </h2>
+<p><b>Procedure Name</b>&nbsp;: <i>::WS::Utils::ServiceTypeDef</i> </p>
+<p><b>Description</b>&nbsp;: Define a type for a service. </p>
+<p><b>Arguments</b>&nbsp;: </p><pre>     <i>mode</i>            - <b>Client</b> or <b>Server</b>
+     <i>service</i>         - The name of the service this type definition is for
+     <i>type</i>            - The type to be defined/redefined
+     <i>definition</i>      - The definition of the type's fields.  This consist of one
+                           or more occurance of a field definition.  Each field definition
+                           consist of:  fieldName fieldInfo
+                           Where field info is: {<b>type</b> typeName <b>comment</b> commentString}
+                              <i>typeName</i> can be any simple or defined type.
+                              <i>commentString</i> is a quoted string describing the field.
+</pre>
+<p><b>Returns</b>&nbsp;: Nothing </p>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: None </p>
+<p><b>Pre-requisite Conditions</b>&nbsp;: None </p>
+<hr>
+
+<p><a name="Deriving_a_type"></a>
+</p><h2>Defining a derived type </h2>
+<p><b>Procedure Name</b>&nbsp;: <i>::WS::Utils::ServiceSimpleTypeDef</i> </p>
+<p><b>Description</b>&nbsp;: Define a derived type for a service. </p>
+<p><b>Arguments</b>&nbsp;: </p><pre>     <i>mode</i>            - <b>Client</b> or <b>Server</b>
+     <i>service</i>         - The name of the service this type definition is for
+     <i>type</i>            - The type to be defined/redefined
+     <i>definition</i>      - The definition of the type's fields.  This consist of one
+                           or more occurance of a field definition.  Each field definition
+                           consist of:  fieldName fieldInfo
+                           Where: {<b>type</b> typeName <b>comment</b> commentString}
+                              <b>baseType</b> <i>typeName</i> - any simple or defined type.
+                              <b>comment</b> <i>commentString</i> - a quoted string describing the field.
+                              <b>pattern</b> <i>value</i>
+                              <b>length</b> <i>value</i>
+                              <b>fixed</b> <i>"true"|"false"</i>
+                              <b>maxLength</b> <i>value</i>
+                              <b>minLength</b> <i>value</i>
+                              <b>minInclusive</b> <i>value</i>
+                              <b>maxInclusive</b> <i>value</i>
+                              <b>enumeration</b> <i>value</i>
+
+</pre>
+<p><b>Returns</b>&nbsp;: Nothing </p>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: None </p>
+<p><b>Pre-requisite Conditions</b>&nbsp;: None </p>
+<hr>
+
+<p><a name="Getting_a_type_definition"></a>
+</p><h2>Getting a type definition </h2>
+<p><b>Procedure Name</b>&nbsp;: <i>::WS::Utils::GetServiceTypeDef</i> </p>
+<p><b>Description</b>&nbsp;: Query for type definitions. </p>
+<p><b>Arguments</b>&nbsp;: </p><pre>     <i>mode</i>            - <b>Client</b> or <b>Server</b>
+     <i>service</i>         - The name of the service this query is for
+     <i>type</i>            - The type to be retrieved (optional)
+</pre>
+<p><b>Returns</b>&nbsp;: </p><pre>     If type not provided, a dictionary object describing all of the types
+     for the service.
+     If type provided, a dictionary object describing the type.
+       A definition consist of a dictionary object with the following key/values:
+         <b>xns</b>         - The namespace for this type.
+         <b>definition</b>  - The definition of the type's fields.  This consist of one
+                       or more occurance of a field definition.  Each field definition
+                       consist of:  fieldName fieldInfo
+                       Where field info is: {<b>type</b> <i>typeName</i> <b>comment</b> <b>commentString</b>}
+                         <i>typeName</i> can be any simple or defined type.
+                         <i>commentString</i> is a quoted string describing the field.
+</pre>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: None </p>
+<p><b>Pre-requisite Conditions</b>&nbsp;: The service must be defined. </p>
+
+<hr />
+<a name="Template_dict_for_type_definition"></a>
+</p><h2>Generating a template dictionary for a type definition </h2>
+<p><b>Procedure Name</b>&nbsp;: <i>::WS::Utils::GenerateTemplateDict</i> </p>
+<p><b>Description</b>&nbsp;: Generate a template dictionary object for a given type.</p>
+<p><b>Arguments</b>&nbsp;: </p><pre>     <i>mode</i>            - <b>Client</b> or <b>Server</b>
+     <i>serviceName</i>     - The service name the type is defined in
+     <i>type</i>            - The name of the type
+     <i>arraySize</i>       - Number of elements to generate in an array.  Default is 2.
+</pre>
+<p><b>Returns</b>&nbsp;: </p><pre>      A dictionary object for a given type.  If any circular references exist, they will have the value of &lt;** Circular Reference **&gt;
+</pre>
+<p><b>Side-Effects</b>&nbsp;: None </p>
+<p><b>Exception Conditions</b>&nbsp;: None </p>
+<p><b>Pre-requisite Conditions</b>&nbsp;: The type and service must be defined. </p>
+
+</div>
+</body></html>

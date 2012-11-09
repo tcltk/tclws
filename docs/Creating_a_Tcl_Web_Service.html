@@ -3,6 +3,7 @@
 <TITLE>Creating a Tcl Web Service</TITLE>
 <META http-equiv=Content-Type content="text/html; charset=utf-8">
 <META content="Creating a Tcl Web Service" name=KEYWORDS>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
 </HEAD>
 <BODY>
 <H1>Creating a Tcl Web Service</H1>
@@ -104,8 +105,9 @@ exist </p><PRE>               /service/&lt;ServiceName&gt;
                      Invoke an operation
 </PRE>
 <p><b>Arguments</b>&nbsp;: this procedure uses position independent arguments,
-they are: </p><PRE>             -host           - The host name for this service
-                                     Defaults to "localhost"
+they are: </p><pre>             -host           - The host name for this service.
+                               Defaults to "ip:port" in embedded mode,
+                               and to "localhost" otherwise."
              -description    - The HTML description for this service
              -xmlnamespace   - Extra XML namespaces used by the service
              -service        - The service name (this will also be used for
@@ -158,13 +160,14 @@ they are: </p><PRE>             -host           - The host name for this service
             -ports          - List of ports for embedded mode. Default: 80
                                     NOTE -- a call should be to
                                             ::WS::Embedded::Listen for each port
-                                            in this list prior to this call
+                                            in this list prior to calling ::WS::Embeded::Start
             -prefix         - Path prefix used for the namespace and endpoint
                               Defaults to "/service/" plus the service name
             -traceEnabled   - Boolean to enable/disable trace being passed back in exception
                               Defaults to "Y"
             -docFormat      - Format of the documentation for operations ("text" or "html").
                               Defaults to "text"
+            -stylesheet     - The CSS stylesheet URL used in the HTML documentation
 
 </PRE>
 <p><b>Returns</b>&nbsp;: Nothing </p>
@@ -180,11 +183,10 @@ they are: </p><PRE>             -host           - The host name for this service
 <p><b>Description</b>&nbsp;: Register an operation for a service and declare the
 procedure to handle the operations. </p>
 <p><b>Arguments</b>&nbsp;: </p><PRE>     <i>ServiceName    </i> -- Name of the service this operation is for
-     <i>NameInfo       </i> -- List of three elements:
+     <i>NameInfo       </i> -- List of two elements:
                              1) OperationName -- the name of the operation
                              2) ReturnType    -- the type of the procedure return,
                                                  this can be a simple or complex type
-                             3) Description   -- description of the return method
      <i>Arglist        </i> -- List of argument definitions,
                          each list element must be of the form:
                              1) ArgumentName -- the name of the argument

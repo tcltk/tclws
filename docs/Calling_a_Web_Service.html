@@ -1,6 +1,7 @@
 <HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <HEAD>
 <TITLE>Calling a Web Service from Tcl</TITLE>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
 </HEAD>
 
 <BODY>
@@ -43,7 +44,10 @@
         procedures to make synchronous calls</SPAN></A>
         <LI class=toclevel-1><A href="#Synchronous_Call_returning_the_raw_XML"><SPAN
         class=tocnumber>11</SPAN> <SPAN class=toctext>Synchronous Call returning
-        the raw XML</SPAN></A> </LI></UL></TD></TR></TBODY></TABLE>
+        the raw XML</SPAN></A> </li>
+<li class="toclevel-1"><a href="#Config"><span class="tocnumber">12</span>
+        <span class="toctext">Configuring Services</span></a>
+</LI></UL></TD></TR></TBODY></TABLE>
 <P>
 
 </P>
@@ -55,9 +59,9 @@ operations. It also includes several ways to call an operation. </P>
 <P>The following ways are provided to define remote operations: </P>
 <UL>
   <LI>Loading a pre-parsed WSDL
-  <LI>Quering a remote Web Services Server for its WSDL and parsing it
-  <LI>Parsing a saved WSDL </LI></UL>
-  <LI>Defining a REST based service by hand </LI></UL>
+  </li><li>Quering a remote Web Services Server for its WSDL and parsing it
+  </li><li>Parsing a saved WSDL </li></ul>
+  <ul><li>Defining a REST based service by hand </li></ul>
 <P>The parsed format is much more compact than the XML of a WSDL. </P>
 <P>The following ways are provided to directly call an operation of a Web
 Service Server: </P>
@@ -66,6 +70,14 @@ Service Server: </P>
   <LI>Synchronous Call returning the raw XML
   <LI>Asynchronous Call with separate success and error callbacks
   <LI>Creation of stub Tcl procedures to make synchronous calls </LI></UL>
+
+<p>This package makes use of the <b>log</b> package from <b>TclLib</b>.  In particular the following levels are used:
+</p><ul>
+  <li>error/warning -- errors encountered when parsing a WSDL.  Actual level depends on options that are set in the <b>::WS::Utils</b> package.
+  </li><li>info -- HTTP calls, including the XML, made to invoke operations and the replies received. <i>Introduced in 2.2.8.</i>
+  </li><li>debug -- detailed internal information.  This should only be used if you want to code dive into the TclWs package internals.
+</li></ul>
+
 <A name=Loading_the_Webservices_Client_Package></A>
 <H2>Loading the Webservices Client Package </H2>
 <P>To load the webservices server package, do: </P><PRE> package require WS::Client
@@ -173,10 +185,10 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P><B>Arguments&nbsp;:</B> </P><PRE>
      <I>serviceName</I> - Service name to add namespace to
      <I>methodName</I>  - The name of the method to add.
-     <I>inputArgs</I>   - List of input argument definitions where each argument
-                           definition is of the format: name typeInfo.
      <I>returnType</I>  - The type, if any returned by the procedure.  Format is:
                            xmlTag <I>typeInfo</I>.
+     <i>inputArgs</i>   - List of input argument definitions where each argument
+                           definition is of the format: name typeInfo.
 
     where, <I>typeInfo</I> is of the format <B>{</B>type typeName comment commentString<B>}</B>
 </PRE>
@@ -309,5 +321,29 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 </PRE>
 <P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
 
+<p><a name="Config"></a>
+</p><h2>Configuring a Service </h2>
+<p><b>Procedure Name&nbsp;: <i>::WS::Client::Config</i></b> </p>
+<p><b>Description&nbsp;: Configure a service's information</b> </p>
+<p><b>Arguments&nbsp;:</b> </p>
+<pre>     
+     <i>serviceName</i>     - The name of the Webservice
+     <i>item</i>   - The item to configure.  Must be one of
+<ul>
+<li>contentType -- default is "text/xml;charset=utf-8"</li>
+<li>location -- The URL of the service, derived from the WSDL.</li>
+<li>skipHeaderLevel -- boolean indicating the first level of the XML in a request header <i><b>shall be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
+<li>skipLevelOnReply -- boolean indicating the first level of the XML in a reply <i><b>may be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
+<li>skipLevelWhenActionPresent -- boolean indicating if the first level of the XML is to be skipped.  Derived from options.  Default is 0 (do not skip).</li>
+<li>suppressTargetNS -- boolean indicating if target namespace is not to be added to XML.  Derived from options.  Default is 0 (do not suppress). </li>
+<li>targetNamespace -- the target namespace of the service, derived from the WSDL.</li>
+</ul>
+     <i>value</i>         - Optional, the new value.
+</pre>
+<p><b>Returns&nbsp;:</b> </p><pre>     The value of the item.
+<p><b>Side-Effects&nbsp;: None</b> </p>
+<p><b>Exception Conditions&nbsp;&nbsp;: None</b> </p>
+<p><b>Pre-requisite Conditions&nbsp;: Service must have been defined.</b> </p></pre><p></p>
+</div>
 </BODY>
 </HTML>
