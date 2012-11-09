@@ -29,15 +29,12 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils
-
-package provide WS::CheckAndBuild 0.0.3
-
-if {![llength [info command dict]]} {
-    package require dict
-}
+package require Tcl 8.4
+package require WS::Utils ; # dict
 package require tdom
 package require log
+
+package provide WS::CheckAndBuild 0.0.3
 
 namespace eval ::WS::CheckAndBuild {
         variable resultTree
