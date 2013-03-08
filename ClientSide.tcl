@@ -51,7 +51,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.3.0
+package provide WS::Client 2.3.1
 
 namespace eval ::WS::Client {
     ##
@@ -97,6 +97,20 @@ namespace eval ::WS::Client {
         suppressTargetNS 0
         allowOperOverloading 1
         contentType {text/xml;charset=utf-8}
+        UseNS {}
+        parseInAttr {}
+        genOutAttr {}
+        suppressNS {}
+        useTypeNs {}
+        nsOnChangeOnly {}
+    }
+    set ::WS::Client::utilsOptionsList {
+        UseNS
+        parseInAttr
+        genOutAttr
+        suppressNS
+        useTypeNs
+        nsOnChangeOnly
     }
 }
 
@@ -211,11 +225,9 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) imports {}
     dict set serviceArr($serviceName) inTransform {}
     dict set serviceArr($serviceName) outTransform {}
-    dict set serviceArr($serviceName) skipLevelWhenActionPresent $options(skipLevelWhenActionPresent)
-    dict set serviceArr($serviceName) skipLevelOnReply $options(skipLevelOnReply)
-    dict set serviceArr($serviceName) skipHeaderLevel $options(skipHeaderLevel)
-    dict set serviceArr($serviceName) suppressTargetNS $options(suppressTargetNS)
-    dict set serviceArr($serviceName) contentType $options(contentType)
+    foreach item [array names options] {
+        dict set serviceArr($serviceName) $item $options($item)
+    }
     foreach {name value} $args {
         set name [string trimleft $name {-}]
         dict set serviceArr($serviceName) $name $value
@@ -271,23 +283,13 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
 ###########################################################################
 proc ::WS::Client::Config {serviceName item {value {}}} {
     variable serviceArr
+    variable options
 
     set serviceInfo $serviceArr($serviceName)
-    switch -exact -- $item {
-        contentType -
-        suppressTargetNS -
-        skipLevelOnReply -
-        skipHeaderLevel -
-        skipLevelWhenActionPresent -
-        location -
-        targetNamespace {
-            ##
-            ## Valid, so do nothing
-            ##
-        }
-        default {
-            return -code error "Uknown option '$item'"
-        }
+    set validOptionList [array names options]
+    lappend validOptionList location targetNamespace
+    if {[lsearch -exact $validOptionList $item] == -1} {
+        return -code error "Uknown option '$item'"
     }
 
     if {![string equal $value {}]} {
@@ -1190,7 +1192,13 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
             "Unknown operation '$operationName' for service '$serviceName'"
     }
     set url [dict get $serviceInfo location]
-    set query [buildCallquery $serviceName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -1312,7 +1320,13 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     }
 
     set url [dict get $serviceInfo location]
-    set query [buildCallquery $serviceName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -1347,9 +1361,21 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     } else {
         set outTransform [dict get $serviceInfo outTransform]
         if {![string equal $outTransform {}]} {
-            set body [$outTransform $serviceName $operationName REPLY $body]
+            SaveAndSetOptions $serviceName
+            if {[catch {set body [$outTransform $serviceName $operationName REPLY $body]} err]} {
+                RestoreSavedOptions $serviceName
+                return -code error -errorcode $::errorCode -errorlist $::errorList $err
+            } else {
+                RestoreSavedOptions $serviceName
+            }
         }
-        set hadError [catch {parseResults $serviceName $operationName $body} results]
+        SaveAndSetOptions $serviceName
+        if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
+            RestoreSavedOptions $serviceName
+            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        } else {
+            RestoreSavedOptions $serviceName
+        }
         if {$hadError} {
             ::log::log debug "Reply was $body"
             set errorCode $::errorCode
@@ -1447,7 +1473,13 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     set url [dict get $serviceInfo location]
-    set query [buildCallquery $serviceName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[llength $headers]} {
         ::log::log info [list \
             ::http::geturl $url \
@@ -1698,7 +1730,13 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
         set hadError 1
         set errorInfo [::http::error $token]
     } else {
-        set hadError [catch {parseResults $serviceName $operationName $body} results]
+        SaveAndSetOptions $serviceName
+        if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
+            RestoreSavedOptions $serviceName
+            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        } else {
+            RestoreSavedOptions $serviceName
+        }
         if {$hadError} {
             set errorCode $::errorCode
             set errorInfo $::errorInfo
@@ -2992,7 +3030,13 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     } else {
         set url [dict get $serviceInfo object $objectName location]
     }
-    set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -3111,7 +3155,13 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     } else {
         set url [dict get $serviceInfo object $objectName location]
     }
-    set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -3140,7 +3190,13 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set errorInfo {}
         set hadError 1
     } else {
-        set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]
+        SaveAndSetOptions $serviceName
+        if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
+            RestoreSavedOptions $serviceName
+            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        } else {
+            RestoreSavedOptions $serviceName
+        }
         if {$hadError} {
             ::log::log debug "Reply was [::http::data $token]"
             set errorCode $::errorCode
@@ -3242,7 +3298,13 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     set url [dict get $serviceInfo object $objectName location]
-    set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]
+    SaveAndSetOptions $serviceName
+    if {catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList} err]} {
+        RestoreSavedOptions $serviceName
+        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+    } else {
+        RestoreSavedOptions $serviceName
+    }
     if {[llength $headers]} {
         ::log::log info [list \
             ::http::geturl $url \
@@ -3531,7 +3593,13 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
         set hadError 1
         set errorInfo [::http::error $token]
     } else {
-        set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]
+        SaveAndSetOptions $serviceName
+        if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
+            RestoreSavedOptions $serviceName
+            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        } else {
+            RestoreSavedOptions $serviceName
+        }
         if {$hadError} {
             set errorCode $::errorCode
             set errorInfo $::errorInfo
@@ -3554,5 +3622,119 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     ## All done
     ##
     ::http::cleanup $token
+    return;
+}
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Client::asyncRestobCallDone
+#
+# Description : Save the global options of the utilities package and
+#               set them for how this service needs them.
+#
+# Arguments :
+#    serviceName        - the name of the service called
+#
+# Returns : Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  03/06/2012  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::SaveAndSetOptions {serviceName} {
+    variable serviceArr
+    variable utilsOptionsList
+
+    if {![info exists serviceArr($serviceName)]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT UNKSRV $serviceName] \
+            "Unknown service '$serviceName'"
+    }
+    set serviceInfo $serviceArr($serviceName)
+    set savedDict {}
+    foreach item $utilsOptionsList {
+        if {[dict exists $serviceInfo $item] && [string length [set value [dict get $serviceInfo $item]]]} {
+            dict set savedDict $item [::WS::Utils::SetOption $item]
+            ::WS::Utils::SetOption $item $value
+        }
+    }
+    dict set serviceArr($serviceName) UtilsSavedOptions $savedDict
+    return;
+}
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Client::RestoreSavedOptions
+#
+# Description : Restore the saved global options of the utilities package.
+#
+# Arguments :
+#    serviceName        - the name of the service called
+#
+# Returns : Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  03/06/2012  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::RestoreSavedOptions {serviceName} {
+    variable serviceArr
+
+    if {![info exists serviceArr($serviceName)]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT UNKSRV $serviceName] \
+            "Unknown service '$serviceName'"
+    }
+    set serviceInfo $serviceArr($serviceName)
+    set savedDict {}
+    foreach {item value} [dict get $serviceInfo UtilsSavedOptions] {
+        ::WS::Utils::SetOption $item $value
+    }
+    dict set serviceArr($serviceName) UtilsSavedOptions {}
     return;
 }
