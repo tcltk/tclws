@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2006-2011, Gerald W. Lester                                ##
+##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
 ##  Copyright (c) 2006, Arnulf Wiedemann                                     ##
@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.1
+package provide WS::Utils 2.3.2
 
 namespace eval ::WS {}
 
@@ -123,6 +123,7 @@ namespace eval ::WS::Utils {
         StrictMode error
         parseInAttr 0
         genOutAttr 0
+        valueAttrCompatiblityMode 1
         includeDirectory {}
         suppressNS {}
         useTypeNs 0
@@ -329,6 +330,7 @@ proc ::WS::Utils::SetOption {args} {
 #                           typeName can be any simple or defined type.
 #                           commentString is a quoted string describing the field.
 #       xns             - The namespace
+#       abstract        - Boolean indicating if this is an abstract, and hence mutable type
 #
 # Returns : Nothing
 #
@@ -352,7 +354,7 @@ proc ::WS::Utils::SetOption {args} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}}} {
+proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}} {abstract {false}}} {
     ::log::log debug [info level 0]
     variable typeInfo
 
@@ -364,6 +366,7 @@ proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}}} {
     }
     dict set typeInfo $mode $service $type definition $definition
     dict set typeInfo $mode $service $type xns $xns
+    dict set typeInfo $mode $service $type abstract $abstract
     return;
 }
 
@@ -1411,6 +1414,10 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
             lappend newItemList $item
         }
         set item $newItemList
+        set isAbstract false
+        if {[dict exists $typeInfo $mode $serviceName $partType abstract]} {
+            set isAbstract [dict get $typeInfo $mode $serviceName $partType abstract]
+        }
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -1422,7 +1429,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             dict set results $partName $attr [$item getAttribute $attr]
                         }
                     }
-                    dict set results $partName {} [$item asText]
+                    dict set results $partName $options(valueAttr) [$item asText]
                 } else {
                     dict set results $partName [$item asText]
                 }
@@ -1440,7 +1447,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                                 lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
-                        lappend rowList {} [$row asText]
+                        lappend rowList $options(valueAttr) [$row asText]
                         lappend tmp $rowList
                     } else {
                         lappend tmp [$row asText]
@@ -1453,12 +1460,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ## Non-simple non-array
                 ##
                 if {$options(parseInAttr)} {
+                    if {$isAbstract && [$item hasAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]} {
+                        set partType [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]
+                        $item removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
+                    }
                     foreach attr [$item attributes] {
                         if {[llength $attr] == 1} {
                             dict set results $partName $attr [$item getAttribute $attr]
                         }
                     }
-                    dict set results $partName {} [convertTypeToDict $mode $serviceName $item $partType $root]
+                    dict set results $partName $options(valueAttr) [convertTypeToDict $mode $serviceName $item $partType $root]
                 } else {
                     dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root]
                 }
@@ -1472,12 +1483,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 foreach row $item {
                     if {$options(parseInAttr)} {
                         set rowList {}
+                        if {$isAbstract && [$row hasAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]} {
+                            set partType [$row getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]
+                            $row removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
+                        }
                         foreach attr [$row attributes] {
                             if {[llength $attr] == 1} {
                                 lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
-                        lappend rowList {} [convertTypeToDict $mode $serviceName $row $partType $root 1]
+                        lappend rowList $options(valueAttr) [convertTypeToDict $mode $serviceName $row $partType $root 1]
                         lappend tmp $rowList
                     } else {
                         lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root 1]
@@ -1603,7 +1618,6 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         set typeName $type
     }
     set itemList {}
-
     if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
         set itemList [dict get $typeInfo $mode $service $typeName definition]
         set xns [dict get $typeInfo $mode $service $typeName xns]
@@ -1612,7 +1626,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         set itemList [list $typeName {type string}]
     }
     if {[info exists mutableTypeInfo([list $mode $service $typeName])]} {
-        set type [(*)[lindex mutableTypeInfo([list $mode $service $type]) 0] $mode $service $type $xns $dict]
+        set typeName [(*)[lindex mutableTypeInfo([list $mode $service $type]) 0] $mode $service $type $xns $dict]
         set typeInfoList [TypeInfo $mode $service $typeName]
         if {[lindex $typeInfoList 0]} {
             set itemList [dict get $typeInfo $mode $service $typeName definition]
@@ -1659,6 +1673,12 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
             }
         }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} itemXns = {$itemXns} tmpInfo = {$tmpInfo} attrList = {$attrList}"
+        set isAbstract false
+        set baseType [string trimright $itemType ()]
+        if {$options(genOutAttr) && [dict exists $typeInfo $mode $service $baseType abstract]} {
+            set isAbstract [dict get $typeInfo $mode $service $baseType abstract]
+        }
+        ::log::log notice "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} isAbstract = {$isAbstract}"
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -1670,10 +1690,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
+                    set resultValue {}
                     set dictList [dict keys [dict get $dict $useName]]
                     #::log::log debug "$useName <$dict> '$dictList'"
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {![string equal $attr {}]} {
+                        if {![string equal $attr $options(valueAttr)]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
                             set resultValue [dict get $dict $useName $attr]
@@ -1702,8 +1723,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         ::log::log debug "<$row> '$dictList'"
+                        set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {![string equal $attr {}]} {
+                            if {![string equal $attr $options(valueAttr)]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1728,10 +1750,16 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $itemXns:$itemName retNode]
                 }
                 if {$options(genOutAttr)} {
+                    #::log::log debug "Before 150 useName {$useName} dict {$dict}"
                     set dictList [dict keys [dict get $dict $useName]]
                     #::log::log debug "$useName <$dict> '$dictList'"
+                    set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {![string equal $attr  {}]} {
+                        if {$isAbstract && [string equal $attr {::type}]} {
+                            set itemType [dict get $dict $useName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
+                            set itemType $itemXns:$itemType
+                        } elseif {![string equal $attr $options(valueAttr)]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
                             set resultValue [dict get $dict $useName $attr]
@@ -1766,9 +1794,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
+                        set resultValue {}
                         #::log::log debug "<$row> '$dictList'"
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {![string equal $attr  {}]} {
+                            if {$isAbstract && [string equal $attr {::type}]} {
+                                set tmpType [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
+                                set tmpType $itemXns:$tmpType
+                            } elseif {![string equal $attr $options(valueAttr)]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1802,6 +1835,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         #    }
         #}
     }
+    ::log::log debug "Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]"
     return;
 }
 
@@ -1849,6 +1883,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     ::log::log debug "Entering ::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent {$dict} $type"
     variable typeInfo
     variable simpleTypes
+    variable options
 
     set typeInfoList [TypeInfo $mode $service $type]
     if {[lindex $typeInfoList 0]} {
@@ -1862,6 +1897,11 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     foreach {itemName itemDef} $itemList {
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef}"
         set itemType [dict get $itemDef type]
+        set isAbstract false
+        set baseType [string trimright $itemType ()]
+        if {$options(genOutAttr) && [dict exists $typeInfo $mode $service $baseType abstract]} {
+            set isAbstract [dict get $typeInfo $mode $service $baseType abstract]
+        }
         set typeInfoList [TypeInfo $mode $service $itemType]
         if {![dict exists $dict $itemName]} {
             continue
@@ -1882,8 +1922,9 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 $parent appendChild [$doc createElement $itemName retNode]
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
+                    set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {[string equal $attr  {}]} {
+                        if {[string equal $attr $options(valueAttr)]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -1906,8 +1947,9 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $itemName retNode]
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
+                        set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {[string equal $attr  {}]} {
+                            if {[string equal $attr $options(valueAttr)]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1929,8 +1971,12 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 $parent appendChild [$doc createElement $itemName retnode]
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
+                    set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {[string equal $attr  {}]} {
+                        if {$isAbstract && [string equal $attr {::type}]} {
+                            set itemType [dict get $dict $useName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
+                        } elseif {[string equal $attr $options(valueAttr)]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -1954,8 +2000,12 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     $parent appendChild [$doc createElement $itemName retnode]
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
+                        set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {[string equal $attr  {}]} {
+                            if {$isAbstract && [string equal $attr {::type}]} {
+                                set tmpType [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
+                            } elseif {[string equal $attr $options(valueAttr)]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -2940,7 +2990,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
         ::log:::log debug  "Defining $typeName"
-        ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns
+        ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns $isAbstractType
     } elseif {!$nodeFound} {
         #puts "Defined $typeName as simple type"
         ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base string comment {}] $tns
@@ -3261,6 +3311,11 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     ::log::log debug "Elemental Type is $typeName"
     set partList {}
     set partType {}
+    set isAbstractType false
+    if {[$node hasAttribute abstract]} {
+        set isAbstractType [$node getAttribute abstract]
+        ::log::log debug "\t Abstract type = $isAbstractType"
+    }
     set elements [$node selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
     ::log::log debug "\t element list is {$elements} partList {$partList}"
     foreach element $elements {
@@ -3405,7 +3460,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         }
     }
     if {[llength $partList]} {
-        ::WS::Utils::ServiceTypeDef $mode $serviceName $tns:$typeName $partList $tns
+        ::WS::Utils::ServiceTypeDef $mode $serviceName $tns:$typeName $partList $tns $isAbstractType
     } else {
         if {![dict exists $results types $tns:$typeName]} {
             set partList [list base string comment {} xns $tns]

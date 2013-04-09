@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2006-2008, Gerald W. Lester                                ##
+##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
 ##  Copyright (c) 2006, Arnulf Wiedemann                                     ##
@@ -40,7 +40,7 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3 ; # dict, lassign
+package require WS::Utils 2.3.2 ; # dict, lassign
 package require tdom 0.8
 package require http 2
 package require log
@@ -51,7 +51,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.3.1
+package provide WS::Client 2.3.2
 
 namespace eval ::WS::Client {
     ##
@@ -100,6 +100,7 @@ namespace eval ::WS::Client {
         UseNS {}
         parseInAttr {}
         genOutAttr {}
+        valueAttrCompatiblityMode 1
         suppressNS {}
         useTypeNs {}
         nsOnChangeOnly {}
@@ -108,6 +109,7 @@ namespace eval ::WS::Client {
         UseNS
         parseInAttr
         genOutAttr
+        valueAttrCompatiblityMode
         suppressNS
         useTypeNs
         nsOnChangeOnly
@@ -766,11 +768,12 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
         foreach {typeName partList} [dict get $serviceInfo types] {
             set definition [dict get $partList definition]
             set xns [dict get $partList xns]
+            set isAbstarct [dict get $partList abstract]
             if {[string equal [lindex [split $typeName {:}] 1] {}]} {
-                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition tns1
+                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition tns1 $isAbstarct
             } else {
                 #set typeName [lindex [split $typeName {:}] 1]
-                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition $xns
+                ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition $xns $isAbstarct
             }
         }
     }
@@ -1195,7 +1198,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -1323,7 +1326,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo "buildCallquery error -- $err"
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -1364,7 +1367,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             SaveAndSetOptions $serviceName
             if {[catch {set body [$outTransform $serviceName $operationName REPLY $body]} err]} {
                 RestoreSavedOptions $serviceName
-                return -code error -errorcode $::errorCode -errorlist $::errorList $err
+                return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
             } else {
                 RestoreSavedOptions $serviceName
             }
@@ -1372,7 +1375,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
             RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+            return -code error -errorcode $::errorCode -errorinfo $::errorInfo "parseResults -- $err"
         } else {
             RestoreSavedOptions $serviceName
         }
@@ -1476,7 +1479,7 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -1562,7 +1565,7 @@ proc ::WS::Client::List {serviceName} {
 
     set procList {}
 
-    foreach operationName [dict get $serviceInfo operList] {
+    foreach operationName [lsort -dictionary [dict get $serviceInfo operList]] {
         if {[dict get $serviceInfo operation $operationName cloned]} {
             continue
         }
@@ -1580,9 +1583,14 @@ proc ::WS::Client::List {serviceName} {
             }
         }
         set inputMsgType [dict get $serviceInfo operation $operationName inputs]
-        set inputFields [dict keys [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $inputMsgType] definition]]
-        if {![string equal $inputFields {}]} {
-            lappend argList [lsort -dictionary $inputFields]
+        if {![string equal $inputMsgType {}]} {
+            set inTypeDef [::WS::Utils::GetServiceTypeDef Client $serviceName $inputMsgType]
+            if {[dict exists $inTypeDef definition]} {
+                set inputFields [dict keys [dict get $inTypeDef definition]]
+                if {![string equal $inputFields {}]} {
+                    lappend argList [lsort -dictionary $inputFields]
+                }
+            }
         }
         set argList [join $argList]
 
@@ -1733,7 +1741,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
             RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
         } else {
             RestoreSavedOptions $serviceName
         }
@@ -2128,8 +2136,8 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     }
 
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
-    puts "set xns \[dict get \[::WS::Utils::GetServiceTypeDef Client $serviceName $msgType\] xns\]"
-    puts "\t [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType]"
+    #puts "set xns \[dict get \[::WS::Utils::GetServiceTypeDef Client $serviceName $msgType\] xns\]"
+    #puts "\t [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType]"
     set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType] xns]
     if {[info exists tnsArray($xns)]} {
         set xns $tnsArray($xns)
@@ -2143,7 +2151,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     if {[dict get $serviceInfo skipLevelWhenActionPresent] && [dict exists $serviceInfo operation $operationName action]} {
         set reply $bod
     } else {
-        ::log::log debug [list $bod appendChild \[$doc createElement $xns:$msgType reply\]]
+        ::log::log debug "$bod appendChild \[$doc createElement $xns:$msgType reply\]"
         $bod appendChild [$doc createElement $xns:$msgType reply]
     }
 
@@ -3033,7 +3041,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -3158,7 +3166,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -3193,7 +3201,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
             RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
         } else {
             RestoreSavedOptions $serviceName
         }
@@ -3301,7 +3309,7 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     SaveAndSetOptions $serviceName
     if {catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList} err]} {
         RestoreSavedOptions $serviceName
-        return -code error -errorcode $::errorCode -errorlist $::errorList $err
+        return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {
         RestoreSavedOptions $serviceName
     }
@@ -3399,6 +3407,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
     set options [::WS::Utils::SetOption]
     ::WS::Utils::SetOption UseNS 0
     ::WS::Utils::SetOption genOutAttr 1
+    ::WS::Utils::SetOption valueAttr {}
     ::WS::Utils::convertDictToType Client $serviceName $doc $body $argList $msgType
     set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {;}] end] {=}] end]
     foreach {option value} $options {
@@ -3596,7 +3605,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
             RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorlist $::errorList $err
+            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
         } else {
             RestoreSavedOptions $serviceName
         }

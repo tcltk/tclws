@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2006-2008, Gerald W. Lester                                ##
+##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
 ##  Copyright (c) 2006, Colin McCormack                                      ##
@@ -39,12 +39,12 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3 ; # provides dict
+package require WS::Utils 2.3.2 ; # provides dict
 package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.3.1
+package provide WS::Server 2.3.2
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
