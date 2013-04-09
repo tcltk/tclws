@@ -1308,6 +1308,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     variable mutableTypeInfo
     variable options
 
+    if {$options(valueAttrCompatiblityMode)} {
+        set valueAttr {}
+    } else {
+        set valueAttr {::value}
+    }
     ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root $isArray]
     if {[dict exists $typeInfo $mode $serviceName $type]} {
         set typeName $type
@@ -1429,7 +1434,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             dict set results $partName $attr [$item getAttribute $attr]
                         }
                     }
-                    dict set results $partName $options(valueAttr) [$item asText]
+                    dict set results $partName $valueAttr [$item asText]
                 } else {
                     dict set results $partName [$item asText]
                 }
@@ -1447,7 +1452,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                                 lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
-                        lappend rowList $options(valueAttr) [$row asText]
+                        lappend rowList $valueAttr [$row asText]
                         lappend tmp $rowList
                     } else {
                         lappend tmp [$row asText]
@@ -1469,7 +1474,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             dict set results $partName $attr [$item getAttribute $attr]
                         }
                     }
-                    dict set results $partName $options(valueAttr) [convertTypeToDict $mode $serviceName $item $partType $root]
+                    dict set results $partName $valueAttr [convertTypeToDict $mode $serviceName $item $partType $root]
                 } else {
                     dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root]
                 }
@@ -1492,7 +1497,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                                 lappend rowList $attr [$row getAttribute $attr]
                             }
                         }
-                        lappend rowList $options(valueAttr) [convertTypeToDict $mode $serviceName $row $partType $root 1]
+                        lappend rowList $valueAttr [convertTypeToDict $mode $serviceName $row $partType $root 1]
                         lappend tmp $rowList
                     } else {
                         lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root 1]
@@ -1694,7 +1699,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     set dictList [dict keys [dict get $dict $useName]]
                     #::log::log debug "$useName <$dict> '$dictList'"
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {![string equal $attr $options(valueAttr)]} {
+                        if {![string equal $attr $valueAttr]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
                             set resultValue [dict get $dict $useName $attr]
@@ -1725,7 +1730,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                         ::log::log debug "<$row> '$dictList'"
                         set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {![string equal $attr $options(valueAttr)]} {
+                            if {![string equal $attr $valueAttr]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1759,7 +1764,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                             set itemType [dict get $dict $useName $attr]
                             $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
                             set itemType $itemXns:$itemType
-                        } elseif {![string equal $attr $options(valueAttr)]} {
+                        } elseif {![string equal $attr $valueAttr]} {
                             lappend attrList $attr [dict get $dict $useName $attr]
                         } else {
                             set resultValue [dict get $dict $useName $attr]
@@ -1801,7 +1806,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                                 set tmpType [dict get $row $attr]
                                 $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
                                 set tmpType $itemXns:$tmpType
-                            } elseif {![string equal $attr $options(valueAttr)]} {
+                            } elseif {![string equal $attr $valueAttr]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1885,6 +1890,11 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     variable simpleTypes
     variable options
 
+    if {$options(valueAttrCompatiblityMode)} {
+        set valueAttr {}
+    } else {
+        set valueAttr {::value}
+    }
     set typeInfoList [TypeInfo $mode $service $type]
     if {[lindex $typeInfoList 0]} {
         set itemList [dict get $typeInfo $mode $service $type definition]
@@ -1924,7 +1934,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {[string equal $attr $options(valueAttr)]} {
+                        if {[string equal $attr $valueAttr]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -1949,7 +1959,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                         set dictList [dict keys $row]
                         set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {[string equal $attr $options(valueAttr)]} {
+                            if {[string equal $attr $valueAttr]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
@@ -1976,7 +1986,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                         if {$isAbstract && [string equal $attr {::type}]} {
                             set itemType [dict get $dict $useName $attr]
                             $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
-                        } elseif {[string equal $attr $options(valueAttr)]} {
+                        } elseif {[string equal $attr $valueAttr]} {
                             lappend attrList $attr [dict get $dict $itemName $attr]
                         } else {
                             set resultValue [dict get $dict $itemName $attr]
@@ -2005,7 +2015,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                             if {$isAbstract && [string equal $attr {::type}]} {
                                 set tmpType [dict get $row $attr]
                                 $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
-                            } elseif {[string equal $attr $options(valueAttr)]} {
+                            } elseif {[string equal $attr $valueAttr]} {
                                 lappend attrList $attr [dict get $row $attr]
                             } else {
                                 set resultValue [dict get $row $attr]
