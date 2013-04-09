@@ -1431,7 +1431,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 if {$options(parseInAttr)} {
                     foreach attr [$item attributes] {
                         if {[llength $attr] == 1} {
-                            dict set results $partName $attr [$item getAttribute $attr]
+                            set attrValue [$item getAttribute $attr]
+                            if {[string match $xsiNsPattern $attr]} {
+                                set attr [string range $attr [string length $xsiNsPattern] end]
+                            }
+                            dict set results $partName $attr $attrValue
                         }
                     }
                     dict set results $partName $valueAttr [$item asText]
@@ -1448,8 +1452,12 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                     if {$options(parseInAttr)} {
                         set rowList {}
                         foreach attr [$row attributes] {
+                            set attrValue [$row getAttribute $attr]
                             if {[llength $attr] == 1} {
-                                lappend rowList $attr [$row getAttribute $attr]
+                                if {[string match $xsiNsPattern $attr]} {
+                                    set attr [string range $attr [string length $xsiNsPattern] end]
+                                }
+                                lappend rowList $attr $attrValue
                             }
                         }
                         lappend rowList $valueAttr [$row asText]
@@ -1471,7 +1479,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                     }
                     foreach attr [$item attributes] {
                         if {[llength $attr] == 1} {
-                            dict set results $partName $attr [$item getAttribute $attr]
+                            set attrValue [$item getAttribute $attr]
+                            if {[string match $xsiNsPattern $attr]} {
+                                set attr [string range $attr [string length $xsiNsPattern] end]
+                            }
+                            dict set results $partName $attr $attrValue
                         }
                     }
                     dict set results $partName $valueAttr [convertTypeToDict $mode $serviceName $item $partType $root]
@@ -1494,7 +1506,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         }
                         foreach attr [$row attributes] {
                             if {[llength $attr] == 1} {
-                                lappend rowList $attr [$row getAttribute $attr]
+                                set attrValue [$row getAttribute $attr]
+                                if {[string match $xsiNsPattern $attr]} {
+                                    set attr [string range $attr [string length $xsiNsPattern] end]
+                                }
+                                lappend rowList $attr $attrValue
                             }
                         }
                         lappend rowList $valueAttr [convertTypeToDict $mode $serviceName $row $partType $root 1]
@@ -1615,6 +1631,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type]
     }
 
+    if {$options(valueAttrCompatiblityMode)} {
+        set valueAttr {}
+    } else {
+        set valueAttr {::value}
+    }
     set typeInfoList [TypeInfo $mode $service $type]
     ::log::log debug "\t typeInfoList = {$typeInfoList}"
     if {[dict exists $typeInfo $mode $service $service:$type]} {
@@ -1699,10 +1720,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                     set dictList [dict keys [dict get $dict $useName]]
                     #::log::log debug "$useName <$dict> '$dictList'"
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                        if {![string equal $attr $valueAttr]} {
-                            lappend attrList $attr [dict get $dict $useName $attr]
-                        } else {
+                        if {[string equal $attr $valueAttr]} {
                             set resultValue [dict get $dict $useName $attr]
+                        } elseif {[string match {::*} $attr]} {
+                            set baseAttr [string range $attr 2 end]
+                            set attrValue [dict get $dict $useName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                        } else {
+                            lappend attrList $attr [dict get $dict $useName $attr]
                         }
                     }
                 } else {
@@ -1730,10 +1755,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                         ::log::log debug "<$row> '$dictList'"
                         set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
-                            if {![string equal $attr $valueAttr]} {
-                                lappend attrList $attr [dict get $row $attr]
-                            } else {
+                            if {[string equal $attr $valueAttr]} {
                                 set resultValue [dict get $row $attr]
+                            } elseif {[string match {::*} $attr]} {
+                                set baseAttr [string range $attr 2 end]
+                                set attrValue [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                            } else {
+                                lappend attrList $attr [dict get $row $attr]
                             }
                         }
                     } else {
@@ -1764,10 +1793,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                             set itemType [dict get $dict $useName $attr]
                             $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
                             set itemType $itemXns:$itemType
-                        } elseif {![string equal $attr $valueAttr]} {
-                            lappend attrList $attr [dict get $dict $useName $attr]
-                        } else {
+                        } elseif {[string equal $attr $valueAttr]} {
                             set resultValue [dict get $dict $useName $attr]
+                        } elseif {[string match {::*} $attr]} {
+                            set baseAttr [string range $attr 2 end]
+                            set attrValue [dict get $dict $useName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                        } else {
+                            lappend attrList $attr [dict get $dict $useName $attr]
                         }
                     }
                 } else {
@@ -1806,10 +1839,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
                                 set tmpType [dict get $row $attr]
                                 $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
                                 set tmpType $itemXns:$tmpType
-                            } elseif {![string equal $attr $valueAttr]} {
-                                lappend attrList $attr [dict get $row $attr]
-                            } else {
+                            } elseif {[string equal $attr $valueAttr]} {
                                 set resultValue [dict get $row $attr]
+                            } elseif {[string match {::*} $attr]} {
+                                set baseAttr [string range $attr 2 end]
+                                set attrValue [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                            } else {
+                                lappend attrList $attr [dict get $row $attr]
                             }
                         }
                     } else {
@@ -1935,9 +1972,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {[string equal $attr $valueAttr]} {
-                            lappend attrList $attr [dict get $dict $itemName $attr]
-                        } else {
                             set resultValue [dict get $dict $itemName $attr]
+                        } elseif {[string match {::*} $attr]} {
+                            set baseAttr [string range $attr 2 end]
+                            set attrValue [dict get $dict $itemName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                        } else {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
                         }
                     }
                 } else {
@@ -1960,9 +2001,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                         set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                             if {[string equal $attr $valueAttr]} {
-                                lappend attrList $attr [dict get $row $attr]
-                            } else {
                                 set resultValue [dict get $row $attr]
+                            } elseif {[string match {::*} $attr]} {
+                                set baseAttr [string range $attr 2 end]
+                                set attrValue [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                            } else {
+                                lappend attrList $attr [dict get $row $attr]
                             }
                         }
                     } else {
@@ -1987,9 +2032,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                             set itemType [dict get $dict $useName $attr]
                             $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
                         } elseif {[string equal $attr $valueAttr]} {
-                            lappend attrList $attr [dict get $dict $itemName $attr]
-                        } else {
                             set resultValue [dict get $dict $itemName $attr]
+                        } elseif {[string match {::*} $attr]} {
+                            set baseAttr [string range $attr 2 end]
+                            set attrValue [dict get $dict $itemName $attr]
+                            $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                        } else {
+                            lappend attrList $attr [dict get $dict $itemName $attr]
                         }
                     }
                 } else {
@@ -2016,9 +2065,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                                 set tmpType [dict get $row $attr]
                                 $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $tmpType
                             } elseif {[string equal $attr $valueAttr]} {
-                                lappend attrList $attr [dict get $row $attr]
-                            } else {
                                 set resultValue [dict get $row $attr]
+                            } elseif {[string match {::*} $attr]} {
+                                set baseAttr [string range $attr 2 end]
+                                set attrValue [dict get $row $attr]
+                                $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:$baseAttr $attrValue
+                            } else {
+                                lappend attrList $attr [dict get $row $attr]
                             }
                         }
                     } else {
