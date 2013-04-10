@@ -1313,6 +1313,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     } else {
         set valueAttr {::value}
     }
+    set xsiNsUrl {http://www.w3.org/2001/XMLSchema-instance}
     ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root $isArray]
     if {[dict exists $typeInfo $mode $serviceName $type]} {
         set typeName $type
@@ -1429,12 +1430,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ## Simple non-array
                 ##
                 if {$options(parseInAttr)} {
-                    foreach attr [$item attributes] {
-                        if {[llength $attr] == 1} {
+                    foreach attrList [$item attributes] {
+                        lassign $attrList attr nsAlias nsUrl
+                        if {[string equal $nsUrl $xsiNsUrl]} {
+                            set attrValue [$item getAttribute ${nsAlias}:$attr]
+                            dict set results $partName ::$attr $attrValue
+                        } elseif {![string equal $nsAlias {}]} {
+                            set attrValue [$item getAttribute ${nsAlias}:$attr]
+                            dict set results $partName $attr $attrValue
+                        } else {
                             set attrValue [$item getAttribute $attr]
-                            if {[string match $xsiNsPattern $attr]} {
-                                set attr [string range $attr [string length $xsiNsPattern] end]
-                            }
                             dict set results $partName $attr $attrValue
                         }
                     }
@@ -1451,12 +1456,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 foreach row $item {
                     if {$options(parseInAttr)} {
                         set rowList {}
-                        foreach attr [$row attributes] {
-                            set attrValue [$row getAttribute $attr]
-                            if {[llength $attr] == 1} {
-                                if {[string match $xsiNsPattern $attr]} {
-                                    set attr [string range $attr [string length $xsiNsPattern] end]
-                                }
+                        foreach attrList [$row attributes] {
+                            lassign $attrList attr nsAlias nsUrl
+                            if {[string equal $nsUrl $xsiNsUrl]} {
+                                set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                lappend rowList ::$attr $attrValue
+                            } elseif {![string equal $nsAlias {}]} {
+                                set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                lappend rowList $attr $attrValue
+                            } else {
+                                set attrValue [$row getAttribute $attr]
                                 lappend rowList $attr $attrValue
                             }
                         }
@@ -1477,12 +1486,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         set partType [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]
                         $item removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
                     }
-                    foreach attr [$item attributes] {
-                        if {[llength $attr] == 1} {
+                    foreach attrList [$item attributes] {
+                        lassign $attrList attr nsAlias nsUrl
+                        if {[string equal $nsUrl $xsiNsUrl]} {
+                            set attrValue [$item getAttribute ${nsAlias}:$attr]
+                            dict set results $partName ::$attr $attrValue
+                        } elseif {![string equal $nsAlias {}]} {
+                            set attrValue [$item getAttribute ${nsAlias}:$attr]
+                            dict set results $partName $attr $attrValue
+                        } else {
                             set attrValue [$item getAttribute $attr]
-                            if {[string match $xsiNsPattern $attr]} {
-                                set attr [string range $attr [string length $xsiNsPattern] end]
-                            }
                             dict set results $partName $attr $attrValue
                         }
                     }
@@ -1504,12 +1517,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             set partType [$row getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]
                             $row removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
                         }
-                        foreach attr [$row attributes] {
-                            if {[llength $attr] == 1} {
+                        foreach attrList [$row attributes] {
+                            lassign $attrList attr nsAlias nsUrl
+                            if {[string equal $nsUrl $xsiNsUrl]} {
+                                set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                lappend rowList ::$attr $attrValue
+                            } elseif {![string equal $nsAlias {}]} {
+                                set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                lappend rowList $attr $attrValue
+                            } else {
                                 set attrValue [$row getAttribute $attr]
-                                if {[string match $xsiNsPattern $attr]} {
-                                    set attr [string range $attr [string length $xsiNsPattern] end]
-                                }
                                 lappend rowList $attr $attrValue
                             }
                         }
