@@ -104,7 +104,8 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P>
     The <I>parseInAttr</I> option, if set to a "true" value,
     will convert all attributes of inbound field tags to dictionary entries for that tag.
-    The key will be the attribute name and the value will be the value of the attribute.
+    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
+    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
     The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
 </P>
 <P>
@@ -152,7 +153,8 @@ the given prefix will not have any prefix).
     The <I>genOutAttr</I> option, if set to a "true" value,
     will convert all dictionary keys of the entry for a given field tag to attribute value pairs
     of the tag in the outbound XML.
-    The key will be the attribute name and the value will be the value of the attribute.
+    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
+    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
     The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
 </P>
 <P>
