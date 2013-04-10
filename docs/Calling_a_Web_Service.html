@@ -45,9 +45,11 @@
         <LI class=toclevel-1><A href="#Synchronous_Call_returning_the_raw_XML"><SPAN
         class=tocnumber>11</SPAN> <SPAN class=toctext>Synchronous Call returning
         the raw XML</SPAN></A> </li>
-<li class="toclevel-1"><a href="#Config"><span class="tocnumber">12</span>
-        <span class="toctext">Configuring Services</span></a>
-</LI></UL></TD></TR></TBODY></TABLE>
+        <li class="toclevel-1"><a href="#Config"><span class="tocnumber">12</span>
+        <span class="toctext">Configuring Services</span></a> </LI>
+        <li class="toclevel-1"><a href="#TypeCasting"><span class="tocnumber">13</span>
+        <span class="toctext">Dealing With Casting Abstract Types to Concrete Types</span></a> </LI>
+      </UL></TD></TR></TBODY></TABLE>
 <P>
 
 </P>
@@ -350,6 +352,25 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 <p><b>Side-Effects&nbsp;: None</b> </p>
 <p><b>Exception Conditions&nbsp;&nbsp;: None</b> </p>
 <p><b>Pre-requisite Conditions&nbsp;: Service must have been defined.</b> </p></pre><p></p>
+
+
+<p><a name="TypeCasting"></a>
+</p><h2>Dealing With Casting Abstract Types to Concrete Types </h2>
+<p>
+    If you turn on <i>parseInAttr</i> and <i>genOutAttr</i>, the system will
+    semi-automatically deal with casting of elements declared as a being of a
+    type that is an abstract type to/from the concrete type actually to be used
+    in a message.  On an element that is decleared to be a type which is an
+    abstract type, the value of the <b>::type</b> key in the dictionary will
+    specify the concrete type to be actually used (or for a reply message the
+    concrete type that was actually used).
+</p>
+<p>
+    <B>NOTE:</B> While in the WSDL the concreate type must be an extention
+    of the abstract type, the package does not enforce this restriction, so
+    caution must be taken.
+</p>
+
 </div>
 </BODY>
 </HTML>
