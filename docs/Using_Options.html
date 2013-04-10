@@ -105,7 +105,7 @@ causes no ill effects to put this in each file using the utilties. </P>
     The <I>parseInAttr</I> option, if set to a "true" value,
     will convert all attributes of inbound field tags to dictionary entries for that tag.
     The key will be the attribute name and the value will be the value of the attribute.
-    The value of the tag will have an key of the null string (i.e. <B>{}</B>).
+    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
 </P>
 <P>
     The default value, "0", is for this option to be turned off.
@@ -138,7 +138,7 @@ causes no ill effects to put this in each file using the utilties. </P>
 </p><h2>suppressNS - do not put a given namespace prefix. </h2>
 <p>
     The <i>suppressNS</i> option, if set, will cause the given namespace
- to never be used as a prefix (i.e. tags that would normally have had 
+ to never be used as a prefix (i.e. tags that would normally have had
 the given prefix will not have any prefix).
 </p>
 <p>
@@ -153,7 +153,20 @@ the given prefix will not have any prefix).
     will convert all dictionary keys of the entry for a given field tag to attribute value pairs
     of the tag in the outbound XML.
     The key will be the attribute name and the value will be the value of the attribute.
-    The value of the tag will have a key of the null string (i.e. <B>{}</B>).
+    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
+</P>
+<P>
+    The default value, "0", is for this option to be turned off.
+</P>
+<HR>
+
+<A name=valueAttrCompatiblityMode></A>
+<H2>valueAttrCompatiblityMode - specify dictionary key for value when attributes are in use</H2>
+<P>
+    This option is only meaningful when the
+    <i>parseInAttr</i> or <I>genOutAttr</I> option is set to a "true" value.
+    When set to a "true" value, the value of the tag will have a key of the null string (i.e. <B>{}</B>).
+    When set to a "false" value, the value of the tag will have a key of <B>::value</B>.
 </P>
 <P>
     The default value, "0", is for this option to be turned off.

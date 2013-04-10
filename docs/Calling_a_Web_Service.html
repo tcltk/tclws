@@ -337,8 +337,9 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 <li>skipLevelWhenActionPresent -- boolean indicating if the first level of the XML is to be skipped.  Derived from options.  Default is 0 (do not skip).</li>
 <li>suppressTargetNS -- boolean indicating if target namespace is not to be added to XML.  Derived from options.  Default is 0 (do not suppress). </li>
 <li>targetNamespace -- the target namespace of the service, derived from the WSDL.</li>
-<li>parseInAttr - parse attributes on inbound tags</li>
-<li>genOutAttr - generate attributes on outbound tags</li>
+<li>parseInAttr - parse attributes on inbound tags, see <A HREF="Using_Options.html#parseInAttr">here</A> for details</li>
+<li>genOutAttr - generate attributes on outbound tags, see <A HREF="Using_Options.html#genOutAttr">here</A> for details</li>
+<li>valueAttrCompatiblityMode - If this and genOutAttr/parseInAttr are set, then values are specified in the dictionary as {}.  Otherwise if genOutAttr/parseInAttr is set this is not set, then the values are specified in the dictionary as ::value.</li>
 <li>useTypeNs - use type's namespace prefix as prefix of elements</li>
 <li>nsOnChangeOnly - only put namespace prefix when namespaces change</li>
 <li>suppressNS - do not put a particular namespace prefix</li>
