@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.2
+package provide WS::Utils 2.3.3
 
 namespace eval ::WS {}
 
@@ -2425,6 +2425,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     } else {
         set xns $baseUrl
     }
+    ::log::log debug "@3a {$xns} {[dict get $serviceInfo tnsList url]}"
     if {![dict exists $serviceInfo tnsList url $xns]} {
         set tns [format {tns%d} [incr tnsCount]]
         dict set serviceInfo targetNamespace $tns $xns
@@ -2433,7 +2434,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     } else {
         set tns [dict get $serviceInfo tnsList url $xns]
     }
-    ::log::log debug "@3 TNS count for $baseUrl is $tnsCount {$tns}"
+    ::log::log debug "@3 TNS count for $xns is $tnsCount {$tns}"
 
     set prevTnsDict [dict get $serviceInfo tnsList tns]
     dict set serviceInfo tns {}
@@ -4030,6 +4031,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
 #
 ###########################################################################
 proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
+
     set typePartsList [split $type {:}]
     if {[llength $typePartsList] == 1} {
         set result $tns:$type
@@ -4037,7 +4039,10 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
         lassign $typePartsList tmpTns tmpType
         if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
             set result [dict get $serviceInfo tnsList tns $tmpTns]:$tmpType
+        } elseif {[dict exists $serviceInfo types $type]} {
+            set result $type
         } else {
+            ::log::log error $serviceInfo
             ::log::log error "Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}"
             set result $tns:$type
             return -code error
