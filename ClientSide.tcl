@@ -291,7 +291,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
     set validOptionList [array names options]
     lappend validOptionList location targetNamespace
     if {[lsearch -exact $validOptionList $item] == -1} {
-        return -code error "Uknown option '$item'"
+        return -code error "Uknown option '$item' -- must be one of: [join $validOptionList {, }]"
     }
 
     if {![string equal $value {}]} {
@@ -2149,13 +2149,15 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     }
 
     if {[dict get $serviceInfo skipLevelWhenActionPresent] && [dict exists $serviceInfo operation $operationName action]} {
+        set forceNs 1
         set reply $bod
     } else {
         ::log::log debug "$bod appendChild \[$doc createElement $xns:$msgType reply\]"
         $bod appendChild [$doc createElement $xns:$msgType reply]
+        set forceNs 0
     }
 
-    ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType
+    ::WS::Utils::convertDictToType Client $serviceName $doc $reply $argList $xns:$msgType $forceNs
 
     set encoding [lindex [split [lindex [split [dict get $serviceInfo contentType] {:}] end] {=}] end]
     set xml [format {<?xml version="1.0"  encoding="%s"?>} $encoding]

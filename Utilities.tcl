@@ -1384,7 +1384,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
                         set nodeType [$childNode nodeType]
-                        ::log::log debug "\t\t Looking at [$childNode localName] ($allowAny,$isArray,$nodeType,$partName)"
+                        ::log::log debug "\t\t Looking at {[$childNode localName],[$childNode nodeName]} ($allowAny,$isArray,$nodeType,$partName)"
                         # From SOAP1.1 Spec:
                         #    Within an array value, element names are not significant
                         # for distinguishing accessors. Elements may have any name.
@@ -1636,7 +1636,7 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
+proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0}} {
     ::log::log debug "Entering ::WS::Utils::convertDictToType $mode $service $doc $parent {$dict} $type"
     variable typeInfo
     variable simpleTypes
@@ -1680,7 +1680,10 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         }
     }
     ::log::log debug "\titemList is {$itemList} in $xns"
-    set currentNs $xns
+    set entryNs $currentNs
+    if {!$forceNs} {
+        set currentNs $xns
+    }
     set fieldList {}
     foreach {itemName itemDef} $itemList {
         set baseName [lindex [split $itemName {:}] end]
@@ -1894,6 +1897,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type} {
         #    }
         #}
     }
+    set currentNs $entryNs
     ::log::log debug "Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]"
     return;
 }
