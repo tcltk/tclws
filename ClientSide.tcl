@@ -51,7 +51,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.3.3
+package provide WS::Client 2.3.4
 
 namespace eval ::WS::Client {
     ##
@@ -2087,7 +2087,8 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
         "xmlns:xsi"      "http://www.w3.org/2001/XMLSchema-instance" \
-        "xmlns:xs"      "http://www.w3.org/2001/XMLSchema"
+        "xmlns:xs"      "http://www.w3.org/2001/XMLSchema" \
+        "xmlns" [dict get $xnsList tns1]
     array unset tnsArray *
     array set tnsArray {
         "http://schemas.xmlsoap.org/soap/envelope/" "xmlns:SOAP-ENV"
