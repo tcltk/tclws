@@ -1366,6 +1366,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
         set partXns $xns
         catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
+        set tmpTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
         ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
         ##
         ## Try for fully qualified name
@@ -1429,6 +1430,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple non-array
                 ##
+                set baseType [dict get $tmpTypeInfo base]
                 if {$options(parseInAttr)} {
                     foreach attrList [$item attributes] {
                         lassign $attrList attr nsAlias nsUrl
@@ -1443,15 +1445,24 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             dict set results $partName $attr $attrValue
                         }
                     }
-                    dict set results $partName $valueAttr [$item asText]
+                    if {[string equal $baseType {XML}]} {
+                        dict set results $partName $valueAttr [$item asXML]
+                    } else {
+                        dict set results $partName $valueAttr [$item asText]
+                    }
                 } else {
-                    dict set results $partName [$item asText]
+                    if {[string equal $baseType {XML}]} {
+                        dict set results $partName [$item asXML]
+                    } else {
+                        dict set results $partName [$item asText]
+                    }
                 }
             }
             {0 1} {
                 ##
                 ## Simple array
                 ##
+                set baseType [dict get $tmpTypeInfo base]
                 set tmp {}
                 foreach row $item {
                     if {$options(parseInAttr)} {
@@ -1469,10 +1480,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                                 lappend rowList $attr $attrValue
                             }
                         }
-                        lappend rowList $valueAttr [$row asText]
+                        if {[string equal $baseType {XML}]} {
+                            lappend rowList $valueAttr [$row asXML]
+                        } else {
+                            lappend rowList $valueAttr [$row asText]
+                        }
                         lappend tmp $rowList
                     } else {
-                        lappend tmp [$row asText]
+                        if {[string equal $baseType {XML}]} {
+                            lappend tmp [$row asXML]
+                        } else {
+                            lappend tmp [$row asText]
+                        }
                     }
                 }
                 dict set results $partName $tmp
@@ -1753,7 +1772,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                 } else {
                     set resultValue [dict get $dict $useName]
                 }
-                $retNode appendChild [$doc createTextNode $resultValue]
+                if {[string equal [dict get $tmpInfo base] {XML}]} {
+                    $retNode appendXML $resultValue
+                } else {
+                    $retNode appendChild [$doc createTextNode $resultValue]
+                }
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
                 }
@@ -1788,7 +1811,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     } else {
                         set resultValue $row
                     }
-                    $retNode appendChild [$doc createTextNode $resultValue]
+                    if {[string equal [dict get $tmpInfo base] {XML}]} {
+                        $retNode appendXML $resultValue
+                    } else {
+                        $retNode appendChild [$doc createTextNode $resultValue]
+                    }
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
@@ -2892,10 +2919,12 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     variable currentSchema
     variable nsList
     variable unkownRef
+    variable defaultType
 
     ::log::log debug "Entering [info level 0]"
 
     set isAbstractType false
+    set defaultType string
     set typeName $tns:[$node getAttribute name]
     ::log::log debug "Complex Type is $typeName"
     if {[$node hasAttribute abstract]} {
@@ -3016,6 +3045,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 foreach child [$middleNode childNodes] {
                     set parent [$child parent]
                     set contentType [$child localName]
+                    ::log::log debug "Conent Type is {$contentType}"
                     switch -exact -- $contentType {
                         restriction {
                             set nodeFound 1
@@ -3040,10 +3070,18 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set nodeFound 1
                         }
                         extension {
-                            set tmp [partList $mode $child $serviceName results $tns]
-                            if {[llength $tmp]} {
+                            ::log::log debug "Calling partList for $contentType of $typeName"
+                            if {[catch {set tmp [partList $mode $child $serviceName results $tns]} msg]} {
+                                ::log::log debug "Error in partList {$msg}, errorInfo: $errorInfo"
+                            }
+                            ::log::log debug "partList for $contentType of $typeName is {$tmp}"
+                            if {[llength $tmp]  && ![string equal [lindex $tmp 0] {}]} {
                                 set nodeFound 1
                                 set partList [concat $partList $tmp]
+                            } elseif {[llength $tmp]} {
+                                ##
+                                ## Found extension, but it is an empty type
+                                ##
                             } else {
                                 ::log:::log debug  "Unknown extension!"
                                 return
@@ -3071,14 +3109,21 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
         }
     }
+    ::log::log debug "at end of foreach {$typeName} with {$partList}"
     if {[llength $partList] || $isAbstractType} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
         ::log:::log debug  "Defining $typeName"
-        ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns $isAbstractType
+        if {[llength $partList]  && ![string equal [lindex $partList 0] {}]} {
+            ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns $isAbstractType
+        } else {
+            ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base $defaultType comment {}] $tns
+        }
+
     } elseif {!$nodeFound} {
         #puts "Defined $typeName as simple type"
-        ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base string comment {}] $tns
+        #::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns $isAbstractType
+        ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base $defaultType comment {}] $tns
     } else {
         set xml [string trim [$node asXML]]
         return \
@@ -3132,12 +3177,14 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable currentSchema
     variable unkownRef
     variable nsList
+    variable defaultType
     upvar 1 $dictVar results
 
     set partList {}
     set middle [$node localName]
     ::log::log debug "Entering [info level 0] -- for $middle"
     switch -exact -- $middle {
+        anyAttribute -
         attribute {
             ##
             ## Do Nothing
@@ -3185,7 +3232,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 set baseInfo [GetServiceTypeDef $mode $serviceName $baseName]
                 ::log::log debug "\t baseInfo is {$baseInfo}"
                 if {[llength $baseInfo] == 0} {
-                    ::log::log debug "\t Unknown refrence '$baseName'"
+                    ::log::log debug "\t Unknown reference '$baseName'"
                     set unkownRef($baseName) 1
                     return;
                 }
@@ -3274,6 +3321,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 }
             }
             if {!$elementsFound} {
+                set defaultType XML
                 return
             }
         }
@@ -3327,6 +3375,9 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             parseElementalType $mode results $serviceName $node $tns
             return
         }
+    }
+    if {[llength $partList] == 0} {
+        set partList {{}}
     }
     return $partList
 }
