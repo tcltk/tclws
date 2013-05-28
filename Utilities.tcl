@@ -128,6 +128,7 @@ namespace eval ::WS::Utils {
         suppressNS {}
         useTypeNs 0
         nsOnChangeOnly 0
+		anyType string
     }
 
     set ::WS::Utils::standardAttributes {
@@ -1430,7 +1431,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple non-array
                 ##
-                set baseType [dict get $tmpTypeInfo base]
+				if {[dict exists $tmpTypeInfo base]} {
+					set baseType [dict get $tmpTypeInfo base]
+				} else {
+					set baseType string
+				}
                 if {$options(parseInAttr)} {
                     foreach attrList [$item attributes] {
                         lassign $attrList attr nsAlias nsUrl
@@ -1462,7 +1467,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple array
                 ##
-                set baseType [dict get $tmpTypeInfo base]
+				if {[dict exists $tmpTypeInfo base]} {
+					set baseType [dict get $tmpTypeInfo base]
+				} else {
+					set baseType string
+				}
                 set tmp {}
                 foreach row $item {
                     if {$options(parseInAttr)} {
@@ -1772,7 +1781,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                 } else {
                     set resultValue [dict get $dict $useName]
                 }
-                if {[string equal [dict get $tmpInfo base] {XML}]} {
+                if {[dict exists $tmpInfo base] && [string equal [dict get $tmpInfo base] {XML}]} {
                     $retNode appendXML $resultValue
                 } else {
                     $retNode appendChild [$doc createTextNode $resultValue]
@@ -1811,7 +1820,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     } else {
                         set resultValue $row
                     }
-                    if {[string equal [dict get $tmpInfo base] {XML}]} {
+                    if {[dict exists $tmpInfo base] && [string equal [dict get $tmpInfo base] {XML}]} {
                         $retNode appendXML $resultValue
                     } else {
                         $retNode appendChild [$doc createTextNode $resultValue]
@@ -3178,6 +3187,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable unkownRef
     variable nsList
     variable defaultType
+	variable options
     upvar 1 $dictVar results
 
     set partList {}
@@ -3321,7 +3331,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 }
             }
             if {!$elementsFound} {
-                set defaultType XML
+                set defaultType $options(anyType)
                 return
             }
         }
