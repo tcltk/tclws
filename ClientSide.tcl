@@ -161,7 +161,7 @@ proc ::WS::Client::SetOption {option args} {
         if {[llength $args] == 0} {
             return $options($option)
         } elseif {[llength $args] == 1} {
-            set options($option) [lindex $args 1]
+            set options($option) [lindex $args 0]
         } else {
             return  -code error \
                     -errorcode [list WS CLIENT INVALDCNT $args] \
