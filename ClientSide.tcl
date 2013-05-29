@@ -2103,7 +2103,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
         "xmlns:xsi"      "http://www.w3.org/2001/XMLSchema-instance" \
         "xmlns:xs"      "http://www.w3.org/2001/XMLSchema"
-    if {![dict exists $serviceInfo noTargetNs] && [dict get $serviceInfo noTargetNs]} {
+    if {[dict exists $serviceInfo noTargetNs] && ![dict get $serviceInfo noTargetNs]} {
         $env setAttribute "xmlns" [dict get $xnsList tns1]
     }
     array unset tnsArray *
