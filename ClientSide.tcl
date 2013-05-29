@@ -104,6 +104,8 @@ namespace eval ::WS::Client {
         suppressNS {}
         useTypeNs {}
         nsOnChangeOnly {}
+        noTargetNs 0
+        errorOnRedefine 0
     }
     set ::WS::Client::utilsOptionsList {
         UseNS
@@ -215,6 +217,12 @@ proc ::WS::Client::SetOption {option args} {
 proc ::WS::Client::CreateService {serviceName type url target args} {
     variable serviceArr
     variable options
+
+    if {$options(errorOnRedefine) && [info exists serviceArr($serviceName)]} {
+        return -code error "Service '$serviceName' already exists"
+    } elseif {[info exists serviceArr($serviceName)]} {
+        unset serviceArr($serviceName)
+    }
 
     dict set serviceArr($serviceName) types {}
     dict set serviceArr($serviceName) operList {}
@@ -753,12 +761,19 @@ proc ::WS::Client::AddOutputHeader {serviceName operation headerType} {
 ###########################################################################
 proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     variable serviceArr
+    variable options
 
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
     } else {
         set serviceName [dict get $serviceInfo name]
     }
+    if {$options(errorOnRedefine) && [info exists serviceArr($serviceName)]} {
+        return -code error "Service '$serviceName' already exists"
+    } elseif {[info exists serviceArr($serviceName)]} {
+        unset serviceArr($serviceName)
+    }
+
     if {[llength $headers]} {
         dict set serviceInfo headers $headers
     }
@@ -2087,8 +2102,10 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
         "xmlns:xsi"      "http://www.w3.org/2001/XMLSchema-instance" \
-        "xmlns:xs"      "http://www.w3.org/2001/XMLSchema" \
-        "xmlns" [dict get $xnsList tns1]
+        "xmlns:xs"      "http://www.w3.org/2001/XMLSchema"
+    if {![dict get $serviceInfo noTargetNs]} {
+        $env setAttribute "xmlns" [dict get $xnsList tns1]
+    }
     array unset tnsArray *
     array set tnsArray {
         "http://schemas.xmlsoap.org/soap/envelope/" "xmlns:SOAP-ENV"
