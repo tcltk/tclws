@@ -1431,23 +1431,25 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple non-array
                 ##
-				if {[dict exists $tmpTypeInfo base]} {
-					set baseType [dict get $tmpTypeInfo base]
-				} else {
-					set baseType string
-				}
+		if {[dict exists $tmpTypeInfo base]} {
+		    set baseType [dict get $tmpTypeInfo base]
+		} else {
+		    set baseType string
+		}
                 if {$options(parseInAttr)} {
                     foreach attrList [$item attributes] {
-                        lassign $attrList attr nsAlias nsUrl
-                        if {[string equal $nsUrl $xsiNsUrl]} {
-                            set attrValue [$item getAttribute ${nsAlias}:$attr]
-                            dict set results $partName ::$attr $attrValue
-                        } elseif {![string equal $nsAlias {}]} {
-                            set attrValue [$item getAttribute ${nsAlias}:$attr]
-                            dict set results $partName $attr $attrValue
-                        } else {
-                            set attrValue [$item getAttribute $attr]
-                            dict set results $partName $attr $attrValue
+                        catch {
+                            lassign $attrList attr nsAlias nsUrl
+                            if {[string equal $nsUrl $xsiNsUrl]} {
+                                set attrValue [$item getAttribute ${nsAlias}:$attr]
+                                dict set results $partName ::$attr $attrValue
+                            } elseif {![string equal $nsAlias {}]} {
+                                set attrValue [$item getAttribute ${nsAlias}:$attr]
+                                dict set results $partName $attr $attrValue
+                            } else {
+                                set attrValue [$item getAttribute $attr]
+                                dict set results $partName $attr $attrValue
+                            }
                         }
                     }
                     if {[string equal $baseType {XML}]} {
@@ -1467,26 +1469,28 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple array
                 ##
-				if {[dict exists $tmpTypeInfo base]} {
-					set baseType [dict get $tmpTypeInfo base]
-				} else {
-					set baseType string
-				}
+		if {[dict exists $tmpTypeInfo base]} {
+		    set baseType [dict get $tmpTypeInfo base]
+		} else {
+		    set baseType string
+		}
                 set tmp {}
                 foreach row $item {
                     if {$options(parseInAttr)} {
                         set rowList {}
                         foreach attrList [$row attributes] {
-                            lassign $attrList attr nsAlias nsUrl
-                            if {[string equal $nsUrl $xsiNsUrl]} {
-                                set attrValue [$row getAttribute ${nsAlias}:$attr]
-                                lappend rowList ::$attr $attrValue
-                            } elseif {![string equal $nsAlias {}]} {
-                                set attrValue [$row getAttribute ${nsAlias}:$attr]
-                                lappend rowList $attr $attrValue
-                            } else {
-                                set attrValue [$row getAttribute $attr]
-                                lappend rowList $attr $attrValue
+                            catch {
+                                lassign $attrList attr nsAlias nsUrl
+                                if {[string equal $nsUrl $xsiNsUrl]} {
+                                    set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                    lappend rowList ::$attr $attrValue
+                                } elseif {![string equal $nsAlias {}]} {
+                                    set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                    lappend rowList $attr $attrValue
+                                } else {
+                                    set attrValue [$row getAttribute $attr]
+                                    lappend rowList $attr $attrValue
+                                }
                             }
                         }
                         if {[string equal $baseType {XML}]} {
@@ -1515,16 +1519,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         $item removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
                     }
                     foreach attrList [$item attributes] {
-                        lassign $attrList attr nsAlias nsUrl
-                        if {[string equal $nsUrl $xsiNsUrl]} {
-                            set attrValue [$item getAttribute ${nsAlias}:$attr]
-                            dict set results $partName ::$attr $attrValue
-                        } elseif {![string equal $nsAlias {}]} {
-                            set attrValue [$item getAttribute ${nsAlias}:$attr]
-                            dict set results $partName $attr $attrValue
-                        } else {
-                            set attrValue [$item getAttribute $attr]
-                            dict set results $partName $attr $attrValue
+                        catch {
+                            lassign $attrList attr nsAlias nsUrl
+                            if {[string equal $nsUrl $xsiNsUrl]} {
+                                set attrValue [$item getAttribute ${nsAlias}:$attr]
+                                dict set results $partName ::$attr $attrValue
+                            } elseif {![string equal $nsAlias {}]} {
+                                set attrValue [$item getAttribute ${nsAlias}:$attr]
+                                dict set results $partName $attr $attrValue
+                            } else {
+                                set attrValue [$item getAttribute $attr]
+                                dict set results $partName $attr $attrValue
+                            }
                         }
                     }
                     dict set results $partName $valueAttr [convertTypeToDict $mode $serviceName $item $partType $root]
@@ -1546,16 +1552,18 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             $row removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
                         }
                         foreach attrList [$row attributes] {
-                            lassign $attrList attr nsAlias nsUrl
-                            if {[string equal $nsUrl $xsiNsUrl]} {
-                                set attrValue [$row getAttribute ${nsAlias}:$attr]
-                                lappend rowList ::$attr $attrValue
-                            } elseif {![string equal $nsAlias {}]} {
-                                set attrValue [$row getAttribute ${nsAlias}:$attr]
-                                lappend rowList $attr $attrValue
-                            } else {
-                                set attrValue [$row getAttribute $attr]
-                                lappend rowList $attr $attrValue
+                            catch {
+                                lassign $attrList attr nsAlias nsUrl
+                                if {[string equal $nsUrl $xsiNsUrl]} {
+                                    set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                    lappend rowList ::$attr $attrValue
+                                } elseif {![string equal $nsAlias {}]} {
+                                    set attrValue [$row getAttribute ${nsAlias}:$attr]
+                                    lappend rowList $attr $attrValue
+                                } else {
+                                    set attrValue [$row getAttribute $attr]
+                                    lappend rowList $attr $attrValue
+                                }
                             }
                         }
                         lappend rowList $valueAttr [convertTypeToDict $mode $serviceName $row $partType $root 1]
