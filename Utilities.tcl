@@ -1318,8 +1318,19 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root $isArray]
     if {[dict exists $typeInfo $mode $serviceName $type]} {
         set typeName $type
-    } else {
+    } elseif {[dict exists $typeInfo $mode $serviceName $serviceName:$type]} {
         set typeName $serviceName:$type
+    } else {
+        ##
+        ## Assume this is a simple type
+        ##
+        set baseType [::WS::Utils::GetServiceTypeDef $mode $serviceName $type]
+        if {[string equal $baseType {XML}]} {
+            set results [$node asXML]
+        } else {
+            set results [$node asText]
+        }
+        return $results
     }
     set typeDefInfo [dict get $typeInfo $mode $serviceName $typeName]
     ::log::log debug "\t type def = {$typeDefInfo}"
@@ -3062,7 +3073,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 foreach child [$middleNode childNodes] {
                     set parent [$child parent]
                     set contentType [$child localName]
-                    ::log::log debug "Conent Type is {$contentType}"
+                    ::log::log debug "Content Type is {$contentType}"
                     switch -exact -- $contentType {
                         restriction {
                             set nodeFound 1
