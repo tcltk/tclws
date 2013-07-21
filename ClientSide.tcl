@@ -40,7 +40,7 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3.5 ; # dict, lassign
+package require WS::Utils 2.3.7 ; # dict, lassign
 package require tdom 0.8
 package require http 2
 package require log
@@ -51,7 +51,7 @@ catch {
     http::register https 443 ::tls::socket
 }
 
-package provide WS::Client 2.3.5
+package provide WS::Client 2.3.7
 
 namespace eval ::WS::Client {
     ##
@@ -710,6 +710,55 @@ proc ::WS::Client::AddOutputHeader {serviceName operation headerType} {
     set serviceArr($serviceName) $serviceInfo
     return ;
 
+}
+
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::GetParsedWsdl
+#
+# Description : Get a service definition
+#
+# Arguments :
+#       serviceName - Name of the service.
+#
+# Returns :     The parsed service information
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        UNKSERVICE
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  07/06/2006  G.Lester     Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::GetParsedWsdl {serviceName} {
+    variable serviceArr
+
+    if {![info exists serviceArr($serviceName)]} {
+        return \
+            -code error "Unknown service '$serviceName'" \
+            -errorcode [list UNKSERVICE $serviceName]
+    }
+
+    return $serviceArr($serviceName)
 }
 
 ###########################################################################

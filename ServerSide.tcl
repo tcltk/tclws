@@ -39,12 +39,12 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3.2 ; # provides dict
+package require WS::Utils 2.3.7 ; # provides dict
 package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.3.4
+package provide WS::Server 2.3.7
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}

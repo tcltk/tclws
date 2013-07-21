@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.5
+package provide WS::Utils 2.3.7
 
 namespace eval ::WS {}
 
@@ -128,7 +128,7 @@ namespace eval ::WS::Utils {
         suppressNS {}
         useTypeNs 0
         nsOnChangeOnly 0
-		anyType string
+	anyType string
     }
 
     set ::WS::Utils::standardAttributes {
