@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.7
+package provide WS::Utils 2.3.8
 
 namespace eval ::WS {}
 
@@ -172,7 +172,8 @@ namespace eval ::WS::Utils {
 }
 
 
-
+
+
 ###########################################################################
 #
 # Public Procedure Header - as this procedure is modified, please be sure
@@ -1261,7 +1262,8 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
     return $typeInfo
 }
 
-
+
+
 ###########################################################################
 #
 # Private Procedure Header - as this procedure is modified, please be sure
@@ -1685,6 +1687,7 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 ###########################################################################
 proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0}} {
     ::log::log debug "Entering ::WS::Utils::convertDictToType $mode $service $doc $parent {$dict} $type"
+    # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
     variable simpleTypes
     variable options
@@ -1712,7 +1715,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         set itemList [dict get $typeInfo $mode $service $typeName definition]
         set xns [dict get $typeInfo $mode $service $typeName xns]
     } else {
-        set xns $simpleTypes($mode,$service,$typeName)
+        if {[info exists simpleTypes($mode,$service,$typeName)]} {
+          set xns [dict get $simpleTypes($mode,$service,$typeName) xns]
+        } elseif {[info exists simpleTypes($mode,$service,$currentNs:$typeName)]} {
+          set xns [dict get $simpleTypes($mode,$service,$currentNs:$typeName) xns]
+        } else {
+          error "Simple type cannot be found: $typeName"
+        }
         set itemList [list $typeName {type string}]
     }
     if {[info exists mutableTypeInfo([list $mode $service $typeName])]} {
@@ -1722,7 +1731,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
             set itemList [dict get $typeInfo $mode $service $typeName definition]
             set xns [dict get $typeInfo $mode $service $typeName xns]
         } else {
-            set xns $simpleTypes($mode,$service,$typeName)
+            if {[info exists simpleTypes($mode,$service,$typeName)]} {
+              set xns [dict get $simpleTypes($mode,$service,$typeName) xns]
+            } elseif {[info exists simpleTypes($mode,$service,$currentNs:$typeName)]} {
+              set xns [dict get $simpleTypes($mode,$service,$currentNs:$typeName) xns]
+            } else {
+              error "Simple type cannot be found: $typeName"
+            }
             set itemList [list $type {type string}]
         }
     }
@@ -1760,7 +1775,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
             set itemXns {}
         }
         foreach key [dict keys $itemDef] {
-            if {[lsearch -exact $standardAttributes $key] == -1} {
+            if {[lsearch -exact $standardAttributes $key] == -1 && $key ne "isList" && $key ne "xns"} {
                 lappend attrList $key [dict get $itemDef $key]
                 ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
             }
@@ -1999,9 +2014,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
 ###########################################################################
 proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     ::log::log debug "Entering ::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent {$dict} $type"
+    # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
     variable simpleTypes
     variable options
+    variable standardAttributes
 
     if {$options(valueAttrCompatiblityMode)} {
         set valueAttr {}
@@ -2013,7 +2030,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         set itemList [dict get $typeInfo $mode $service $type definition]
         set xns [dict get $typeInfo $mode $service $type xns]
     } else {
-        set xns $simpleTypes($mode,$service,$type)
+        if {[info exists simpleTypes($mode,$service,$type)]} {
+          set xns [dict get $simpleTypes($mode,$service,$type) xns]
+        } elseif {[info exists simpleTypes($mode,$service,$currentNs:$type)]} {
+          set xns [dict get $simpleTypes($mode,$service,$currentNs:$type) xns]
+        } else {
+          error "Simple type cannot be found: $type"
+        }
         set itemList [list $type {type string}]
     }
     ::log::log debug "\titemList is {$itemList}"
@@ -2031,7 +2054,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         }
         set attrList {}
         foreach key [dict keys $itemDef] {
-            if {[lsearch -exact $standardAttributes $key] == -1} {
+            if {[lsearch -exact $standardAttributes $key] == -1 && $key ne "isList" && $key ne "xns"} {
                 lappend attrList $key [dict get $itemDef $key]
                 ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
             }
@@ -2166,6 +2189,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
             }
         }
     }
+    # ::log::log debug "Leaving ::WS::Utils::convertDictToTypeNoNs with xml: [$parent asXML]"
     return;
 }
 
@@ -2222,7 +2246,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
         set itemList [dict get $typeInfo $mode $service $type definition]
         set xns [dict get $typeInfo $mode $service $type xns]
     } else {
-        set xns $simpleTypes($mode,$service,$type)
+        if {[info exists simpleTypes($mode,$service,$type)]} {
+          set xns [dict get $simpleTypes($mode,$service,$type) xns]
+        } else {
+          error "Simple type cannot be found: $type"
+        }
         set itemList [list $type {type string}]
     }
     if {[info exists mutableTypeInfo([list $mode $service $type])]} {
@@ -2232,7 +2260,11 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
             set itemList [dict get $typeInfo $mode $service $type definition]
             set xns [dict get $typeInfo $mode $service $type xns]
         } else {
-            set xns $simpleTypes($mode,$service,$type)
+            if {[info exists simpleTypes($mode,$service,$type)]} {
+              set xns [dict get $simpleTypes($mode,$service,$type) xns]
+            } else {
+              error "Simple type cannot be found: $type"
+            }
             set itemList [list $type {type string}]
         }
     }
@@ -3052,7 +3084,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             choice -
             sequence -
             all {
-                set elementList [$middleNode selectNodes -namespaces $nsList xs:element]
+                # set elementList [$middleNode selectNodes -namespaces $nsList xs:element]
                 set partMax [$middleNode getAttribute maxOccurs 1]
                 set tmp [partList $mode $middleNode $serviceName results $tns $partMax]
                 if {[llength $tmp]} {
@@ -3063,6 +3095,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base string comment $comment] $tns
                     return
                 }
+            # simpleType {
+            #   $middleNode setAttribute name [$node getAttribute name]
+            #   parseSimpleType $mode results $serviceName $middleNode $tns
+            #   return
+            # }
             }
             complexType {
                 $middleNode setAttribute name $typeName
@@ -3206,7 +3243,8 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable unkownRef
     variable nsList
     variable defaultType
-	variable options
+    variable options
+    variable simpleTypes
     upvar 1 $dictVar results
 
     set partList {}
@@ -3285,6 +3323,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             foreach element $elementList {
                 ::log::log debug "\t\tprocessing $element ([$element nodeName])"
                 set comment {}
+                set additional_defininition_elements {}
                 if {[catch {
                     set elementsFound 1
                     set attrName name
@@ -3310,17 +3349,24 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         ## See if really a complex definition
                         ##
                         if {[$element hasChildNodes]} {
-                            set isComplex 0
+                            set isComplex 0; set isSimple 0
                             foreach child [$element childNodes] {
-                                if {[string equal [$child localName] {annotation}]} {
-                                    set comment [string trim [$child asText]]
-                                } else {
-                                    set isComplex 1
+                                switch -exact -- [$child localName] {
+                                  annotation {set comment [string trim [$child asText]]}
+                                  simpleType {set isSimple  1}
+                                  default    {set isComplex 1}
                                 }
                             }
                             if {$isComplex} {
                                 set partType $partName
                                 parseComplexType $mode results $serviceName $element $tns
+                            } elseif {$isSimple} {
+                                set partType $partName
+                                parseComplexType $mode results $serviceName $element $tns
+                                if {[info exists simpleTypes($mode,$serviceName,$tns:$partName)]} {
+                                  set additional_defininition_elements $simpleTypes($mode,$serviceName,$tns:$partName)
+                                  set partType [dict get $additional_defininition_elements baseType]
+                                }
                             } else {
                                 set partType [getQualifiedType $results [$element getAttribute type string] $tns]
                             }
@@ -3337,9 +3383,9 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         set partMax [$element getAttribute maxOccurs 1]
                     }
                     if {$partMax <= 1} {
-                        lappend partList $partName [list type $partType comment $comment]
+                        lappend partList $partName [concat [list type $partType comment $comment] $additional_defininition_elements]
                     } else {
-                        lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment]
+                        lappend partList $partName [concat [list type [string trimright ${partType} {()}]() comment $comment] $additional_defininition_elements]
                     }
                 } msg]} {
                     ::log::log error "\tError processing {$msg} for [$element asXML]"
@@ -3738,7 +3784,8 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     }
 }
 
-
+
+
 ###########################################################################
 #
 # Private Procedure Header - as this procedure is modified, please be sure
@@ -3859,7 +3906,8 @@ proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
     return $result
 }
 
-
+
+
 ###########################################################################
 #
 # Private Procedure Header - as this procedure is modified, please be sure
@@ -3933,7 +3981,8 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
     return $result
 }
 
-
+
+
 ###########################################################################
 #
 # Private Procedure Header - as this procedure is modified, please be sure
@@ -4232,7 +4281,7 @@ proc ::WS::Utils::GenerateTemplateDict {mode serviceName type {arraySize 2}} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
+proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}}} {
     variable typeInfo
     variable mutableTypeInfo
     variable options
@@ -4252,7 +4301,13 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
         set generatedTypes([list $mode $serviceName $type]) 1
     }
 
-    set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+    # set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
+    set typeDefInfo [GetServiceTypeDef $mode $serviceName $type]
+    if {![llength $typeDefInfo]} {
+      ## We failed to locate the type. try with the last known xns...
+      set typeDefInfo [GetServiceTypeDef $mode $serviceName ${xns}:$type]
+    }
+
     ::log::log debug "\t type def = {$typeDefInfo}"
     set xns [dict get $typeDefInfo xns]
 
@@ -4265,6 +4320,17 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
         return $results
     }
 
+    if {![dict exists $typeDefInfo definition]} {
+      ## This is a simple type, simulate a type definition...
+      if {![dict exists $typeDefInfo type]} {
+        if {[dict exists $typeDefInfo baseType]} {
+          dict set typeDefInfo type [dict get $typeDefInfo baseType]
+        } else {
+          dict set typeDefInfo type xs:string
+        }
+      }
+      set typeDefInfo [dict create definition [dict create $type $typeDefInfo]]
+    }
     set partsList [dict keys [dict get $typeDefInfo definition]]
     ::log::log debug "\t partsList is {$partsList}"
     foreach partName $partsList {
@@ -4280,7 +4346,16 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
                 ##
                 ## Simple non-array
                 ##
-                dict set results $partName {Simple non-array}
+                set msg {Simple non-array}
+                ## Is there an enumenration?
+                foreach attr {enumeration type comment} {
+                  if {[dict exists $typeDefInfo definition $partName $attr]} {
+                    set value [dict get $typeDefInfo definition $partName $attr]
+                    set value [string map {\{ ( \} ) \" '} $value]
+                    append msg ", $attr=\{$value\}"
+                  }
+                }
+                dict set results $partName $msg
             }
             {0 1} {
                 ##
@@ -4296,7 +4371,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
                 ##
                 ## Non-simple non-array
                 ##
-                dict set results $partName [_generateTemplateDict $mode $serviceName $partType $arraySize]
+                dict set results $partName [_generateTemplateDict $mode $serviceName $partType $arraySize $xns]
             }
             {1 1} {
                 ##
@@ -4310,7 +4385,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
                         lappend tmp $partName {<** Circular Reference **>}
                     } else {
                         unset -nocomplain -- generatedTypes([list $mode $serviceName $partType])
-                        lappend tmp [_generateTemplateDict $mode $serviceName $partType $arraySize]
+                        lappend tmp [_generateTemplateDict $mode $serviceName $partType $arraySize $xns]
                     }
                 }
                 dict set results $partName $tmp
@@ -4327,7 +4402,8 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize} {
 }
 
 
-
+
+
 ###########################################################################
 #
 # Private Procedure Header - as this procedure is modified, please be sure
