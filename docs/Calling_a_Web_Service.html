@@ -323,6 +323,25 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 </PRE>
 <P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
 
+
+<p><a name="Template"></a>
+</p><h2>Generating a Template Dictionary</h2>
+<p><b>Procedure Name&nbsp;: <i>::WS::Utils::GenerateTemplateDict</i></b> </p>
+<p><b>Description&nbsp;: Generate a template dictionary object for a given type.</b> </p>
+<p><b>Arguments&nbsp;:</b> </p>
+<pre>
+     <i>mode</i>            - The mode, <b>Client</b> or <b>Server</b>
+     <i>serviceName</i>     - The name of the Webservice
+     <i>type</i>            - The name of the type
+     <i>arraySize</i>       - Number of elements to generate in an array.  Default is 2
+<ul>
+</pre>
+<p><b>Returns&nbsp;:</b> </p><pre>A dictionary object for a given type.  If any circular references exist, they will have the value of &lt;** Circular Reference **&gt;
+<p><b>Side-Effects&nbsp;: None</b> </p>
+<p><b>Exception Conditions&nbsp;&nbsp;: None</b> </p>
+<p><b>Pre-requisite Conditions&nbsp;: Service must have been defined.</b> </p></pre><p></p>
+
+
 <p><a name="Config"></a>
 </p><h2>Configuring a Service </h2>
 <p><b>Procedure Name&nbsp;: <i>::WS::Client::Config</i></b> </p>
