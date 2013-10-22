@@ -2893,24 +2893,28 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     }
     dict lappend serviceInfo imports $url
     set importedXref($mode,$serviceName,$url) [list $mode $serviceName $tnsCount]
-    switch -exact -- [dict get [::uri::split $url] scheme] {
+    set urlScheme [dict get [::uri::split $url] scheme]
+    ::log::log debug "URL Scheme of {$url} is {$urlScheme}"
+    switch -exact -- $urlScheme {
         file {
-            upvar #0 [::uri::geturl $url] token
-            set xml $token(data)
-            unset token
+            ::log::log debug "In file processor -- {$urlTail}"
+            set fn [file join  $options(includeDirectory) [string range $urlTail 8 end]]
+            set ifd  [open $fn r]
+            set xml [read $ifd]
+            close $ifd
             ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
         }
         https -
         http {
+            ::log::log debug "In http/https processor"
             set ncode -1
-            catch {
-                set token [geturl_followRedirects $url]
-                ::http::wait $token
-                set ncode [::http::ncode $token]
-                set xml [::http::data $token]
-                ::http::cleanup $token
-                ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
-            }
+            set token [geturl_followRedirects $url]
+            parray $token
+            ::http::wait $token
+            set ncode [::http::ncode $token]
+            set xml [::http::data $token]
+            ::http::cleanup $token
+            ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
             if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
                 return \
                     -code error \
