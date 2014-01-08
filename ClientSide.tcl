@@ -1013,6 +1013,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     $wsdlDoc documentElement wsdlNode
     set nsCount 1
     set targetNs [$wsdlNode getAttribute targetNamespace]
+    set ::WS::Utils::targetNs $targetNs
     dict set nsDict url $targetNs tns$nsCount
     foreach itemList [$wsdlNode attributes xmlns:*] {
         set ns [lindex $itemList 0]
@@ -1081,6 +1082,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     }
 
     $wsdlDoc delete
+    unset -nocomplain ::WS::Utils::targetNs
 
     return $serviceInfo
 
@@ -1412,37 +1414,49 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ##
     ## Check for errors
     ##
-    set body [::http::data $token]
-    ::log::log info "\tReceived: $body"
     set httpStatus [::http::status $token]
-    if {![string equal $httpStatus ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [::http::error $token]
-        if {[string equal $results {}] && [string equal [::http::status $token] ok]} {
-            set results [::http::code $token]
-        }
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
-    } else {
+    if {{![string equal $httpStatus ok] && [::http::ncode $token] == 500} {
+        set body [::http::data $token]
+        ::log::log debug "\tReceived: $body"
         set outTransform [dict get $serviceInfo outTransform]
         if {![string equal $outTransform {}]} {
             SaveAndSetOptions $serviceName
-            if {[catch {set body [$outTransform $serviceName $operationName REPLY $body]} err]} {
-                RestoreSavedOptions $serviceName
-                return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
+            catch {set body [$outTransform $serviceName $operationName REPLY $body]}
+            RestoreSavedOptions $serviceName
+        }
+        set hadError [catch {parseResults $serviceName $operationName $body} results]
+        if {$hadError} {
+            lassign $::errorCode mainError subError
+            if {[string equal $mainError WSCLIENT] && [string equal $subError NOSOAP]} {
+                ::log::log debug "\tHTTP error $body"
+                set results $body
+                set errorCode [list WSCLIENT HTTPERROR $body]
+                set errorInfo {}
+                set hadError 1
             } else {
-                RestoreSavedOptions $serviceName
+                ::log::log debug "Reply was $body"
+                set errorCode $::errorCode
+                set errorInfo $::errorInfo
             }
         }
-        SaveAndSetOptions $serviceName
-        if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
-            RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorinfo $::errorInfo "parseResults -- $err"
-        } else {
+    } elseif {![string equal $httpStatus ok] || [::http::ncode $token] != 200} {
+        ::log::log debug "\tHTTP error [array get $token]"
+        set results [::http::error $token]
+        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
+        set errorInfo {}
+        set hadError 1
+    } else {
+        set body [::http::data $token]
+        ::log::log debug "\tReceived: $body"
+        set outTransform [dict get $serviceInfo outTransform]
+        if {![string equal $outTransform {}]} {
+            SaveAndSetOptions $serviceName
+            catch {set body [$outTransform $serviceName $operationName REPLY $body]}
             RestoreSavedOptions $serviceName
         }
+        SaveAndSetOptions $serviceName
+        catch {set hadError [catch {parseResults $serviceName $operationName $body} results]}
+        RestoreSavedOptions $serviceName
         if {$hadError} {
             ::log::log debug "Reply was $body"
             set errorCode $::errorCode
@@ -2487,6 +2501,8 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     } else {
         set target $location
     }
+    set tmpTargetNs $::WS::Utils::targetNs
+    set ::WS::Utils::targetNs $target
     CreateService $serviceName WSDL $location $target xns $xns
     set serviceInfo $serviceArr($serviceName)
     dict set serviceInfo tnsList $tnsDict
@@ -2505,9 +2521,15 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     ##
     ## All done, so return results
     ##
-    dict unset serviceInfo tnsList
+    #dict unset serviceInfo tnsList
     dict set serviceInfo suppressTargetNS $options(suppressTargetNS)
+    foreach {key value} [dict get $serviceInfo tnsList url] {
+        dict set serviceInfo targetNamespace $value $key
+    }
     set serviceArr($serviceName) $serviceInfo
+
+    set ::WS::Utils::targetNs $tmpTargetNs
+
     ::log::log debug "Leaving [lindex [info level 0] 0] with $serviceInfo"
     return $serviceInfo
 }
@@ -2792,7 +2814,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                         "Mixed usageage not supported!'"
                 }
             }
-            set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
+            #set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
             ::log:::log debug "\t Messages are {$typeList}"
             foreach type $typeList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
