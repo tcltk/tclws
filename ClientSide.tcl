@@ -1415,7 +1415,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ## Check for errors
     ##
     set httpStatus [::http::status $token]
-    if {{![string equal $httpStatus ok] && [::http::ncode $token] == 500} {
+    if {![string equal $httpStatus ok] && [::http::ncode $token] == 500} {
         set body [::http::data $token]
         ::log::log debug "\tReceived: $body"
         set outTransform [dict get $serviceInfo outTransform]
@@ -1907,7 +1907,6 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         set inXML [string range $inXML $first end]
     }
     dom parse $inXML doc
-    $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
         xsi "http://www.w3.org/2001/XMLSchema-instance"
