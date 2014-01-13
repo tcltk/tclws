@@ -1415,7 +1415,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ## Check for errors
     ##
     set httpStatus [::http::status $token]
-    if {![string equal $httpStatus ok] && [::http::ncode $token] == 500} {
+    if {[string equal $httpStatus ok] && [::http::ncode $token] == 500} {
         set body [::http::data $token]
         ::log::log debug "\tReceived: $body"
         set outTransform [dict get $serviceInfo outTransform]
