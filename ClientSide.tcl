@@ -1053,6 +1053,8 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     } else {
         set url $targetNs
     }
+
+    array unset ::WS::Utils::includeArr
     ::WS::Utils::ProcessIncludes $wsdlNode $url
 
     if {[string length $defaults(-serviceAlias)]} {
@@ -3397,7 +3399,7 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     }
     set url [dict get $serviceInfo object $objectName location]
     SaveAndSetOptions $serviceName
-    if {catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList} err]} {
+    if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
         return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     } else {

@@ -749,6 +749,7 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     }
     $doc documentElement schema
     if {[catch {ProcessIncludes $schema $baseUrl} errMsg]} {
+        puts stderr "Error processing include $schema $baseUrl"
         puts stderr $::errorInfo
         puts stderr $::errorCode
         puts stderr $errMsg
@@ -801,21 +802,31 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
 #
 #
 ###########################################################################
-proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
-    variable ::WS::Utils::xsltSchemaDom
+proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
+    variable xsltSchemaDom
     variable nsList
+    variable options
+    variable includeArr
 
-    set includeNodeList [$rootNode selectNodes -namespaces $nsList xs:include]
+    set includeNodeList [$rootNode selectNodes -namespaces $nsList descendant::xs:include]
     set inXml [$rootNode asXML]
     set included 0
     foreach includeNode $includeNodeList {
         if {![$includeNode hasAttribute schemaLocation]} {
             continue
         }
-        incr included
         set urlTail [$includeNode getAttribute schemaLocation]
         set url [::uri::resolve $baseUrl  $urlTail]
-        ::log::log debug "\t Importing {$url}"
+        if {[lsearch -exact $includePath $url] != -1} {
+            log::log warning "Include loop detected: [join $includePath { -> }]"
+            continue
+        } elseif {[info exists includeArr($url)]} {
+            continue
+        } else {
+            set includeArr($url) 1
+        }
+        incr included
+        ::log::log info "\t Including {$url} from base {$baseUrl}"
         switch -exact -- [dict get [::uri::split $url] scheme] {
             file {
                 upvar #0 [::uri::geturl $url] token
@@ -864,6 +875,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl} {
         $tmpdoc delete
         set children 0
         set top [$doc documentElement]
+        ::WS::Utils::ProcessIncludes $top $url [concat $includePath $baseUrl]
         foreach childNode [$top childNodes] {
             if {[catch {
                     #set newNode [$parentNode appendXML [$childNode asXML]]
@@ -2434,7 +2446,7 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
     ## temp_type == newType of newType
     ##
     set tnsCountVar [llength [dict get $::WS::Client::serviceArr($serviceName) targetNamespace]]
-    set tns tnx$tnsCountVar
+    set tns tns$tnsCountVar
     set dataNode {}
     $schemeNode nextSibling dataNode
     if {![info exists dataNode] || ![string length $dataNode]} {
@@ -2511,10 +2523,18 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     variable unkownRef
 
     set currentSchema $schemaNode
+    set tmpTargetNs $::WS::Utils::targetNs
+    foreach attr [$schemaNode attributes] {
+        set value {?}
+        catch {set value [$schemaNode getAttribute $attr]}
+        ::log::log debug "Attribute $attr = $value"
+    }
     if {[$schemaNode hasAttribute targetNamespace]} {
         set xns [$schemaNode getAttribute targetNamespace]
+        ::log::log debug "In Parse Scheme, found targetNamespace attribute with {$xns}"
+        set ::WS::Utils::targetNs $xns
     } else {
-        set xns $baseUrl
+        set xns $::WS::Utils::targetNs
     }
     ::log::log debug "@3a {$xns} {[dict get $serviceInfo tnsList url]}"
     if {![dict exists $serviceInfo tnsList url $xns]} {
@@ -2626,8 +2646,15 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
 
     if {$lastUnknownRefCount} {
         switch -exact -- $options(StrictMode) {
+            debug -
+            warning {
+                set ::WS::Utils::targetNs $tmpTargetNs
+                ::log::log $options(StrictMode) "Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]"
+            }
             error -
             default {
+                set ::WS::Utils::targetNs $tmpTargetNs
+                set ofd [open full.xsd w];puts $ofd [$schemaNode asXML];close $ofd
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
@@ -2658,6 +2685,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     log::log error "\t error info: $errorInfo"
                     log::log error "\t error in: [lindex [info level 0] 0]"
                     log::log error "\t error code: $errorCode"
+                    set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2688,6 +2716,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     log::log error "\t last element: $::elementName"
                     log::log error "\t error in: [lindex [info level 0] 0]"
                     log::log error "\t error code: $errorCode"
+                    set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2718,6 +2747,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     log::log error "\t error in: [lindex [info level 0] 0]"
                     log::log error "\t error code: $errorCode"
                     log::log error "\t last element: $::elementName"
+                    set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2747,6 +2777,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     log::log error "\t error info: $errorInfo"
                     log::log error "\t error in: [lindex [info level 0] 0]"
                     log::log error "\t error code: $errorCode"
+                    set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2776,6 +2807,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     log::log error "\t error info: $errorInfo"
                     log::log error "\t error in: [lindex [info level 0] 0]"
                     log::log error "\t error code: $errorCode"
+                    set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -2786,6 +2818,9 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
+    set ::WS::Utils::targetNs $tmpTargetNs
+    ::log::log debug "Leaving :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
+    ::log::log debug "Target NS is now: $::WS::Utils::targetNs"
     dict set serviceInfo tnsList tns $prevTnsDict
 }
 
@@ -2856,6 +2891,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     }
     set urlTail [$importNode getAttribute $attrName]
     set url [::uri::resolve $baseUrl  $urlTail]
+    ::log::log info "Including $url"
 
     set lastPos [string last / $url]
     set testUrl [string range $url 0 [expr {$lastPos - 1}]]
@@ -2909,23 +2945,29 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             ::log::log debug "In http/https processor"
             set ncode -1
             set token [geturl_followRedirects $url]
-            parray $token
+            #parray $token
             ::http::wait $token
             set ncode [::http::ncode $token]
+            puts "returned code {$ncode}"
             set xml [::http::data $token]
             ::http::cleanup $token
-            ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
             if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
                 return \
                     -code error \
                     -errorcode [list WS CLIENT HTTPFAIL $url $ncode] \
                     "HTTP get of import file failed '$url'"
-            } elseif {($ncode != 200) && ![string equal $options(includeDirectory) {}]} {
-                set fn [file join  $options(includeDirectory) $urlTail]
+            } elseif {($ncode == 200) && ![string equal $options(includeDirectory) {}]} {
+                set fn [file join  $options(includeDirectory) [file tail $urlTail]]
+                ::log::log info "Could not access $url -- using $fn"
                 set ifd  [open $fn r]
                 set xml [read $ifd]
                 close $ifd
-                ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar
+            }
+            if {[catch {ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar} err]} {
+                ::log::log info "Error during processing of XML: $err"
+                #puts stderr "error Info: $::errorInfo"
+            } else {
+                #puts stderr "import successful"
             }
         }
         default {
@@ -3735,6 +3777,9 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     ::log::log debug "Entering [info level 0]"
 
     set typeName [$node getAttribute name]
+    if {$typeName in {SAP_VALID_FROM}} {
+        set foo 1
+    }
     set isList no
     ::log::log debug "Simple Type is $typeName"
     if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $tns:$typeName]]} {
@@ -3743,6 +3788,9 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     }
     #puts "Simple Type is $typeName"
     set restrictionNode [$node selectNodes -namespaces $nsList xs:restriction]
+    if {[string equal $restrictionNode {}]} {
+        set restrictionNode [$node selectNodes -namespaces $nsList xs:simpleType/xs:restriction]
+    }
     if {[string equal $restrictionNode {}]} {
         set restrictionNode [$node selectNodes -namespaces $nsList xs:list/xs:simpleType/xs:restriction]
     }
@@ -4492,6 +4540,8 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
                 ::log::log debug "initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir"
                 set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
             }
+            return $token
+        } elseif {![string match {20[1237]} $ncode]} {
             return $token
         }
         array set meta [set ${token}(meta)]
