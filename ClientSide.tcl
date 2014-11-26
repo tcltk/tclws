@@ -48,7 +48,7 @@ package require uri
 
 catch {
     package require tls
-    http::register https 443 [list ::tls::socket -ssl2 no -ssl3 no]
+    http::register https 443 [list ::tls::socket -ssl2 no -ssl3 no -tls1 yes]
 }
 
 package provide WS::Client 2.3.8
