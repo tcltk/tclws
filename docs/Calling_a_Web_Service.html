@@ -213,8 +213,10 @@ causes no ill effects to put this in each file using the utilties. </P>
 </PRE> </P>
 <P><B>Arguments&nbsp;:</B> </P><PRE>
      <I>serviceName</I>  - The name of the Webservice
-     <I>inTransform</I>  - Input transform <I>cmd</I>, defaults to {}
-     <I>outTransform</I> - Output transform<I>cmd</I>, defaults to {}
+     <I>inTransform</I>  - Input transform <I>cmd</I>, defaults to {}.
+     The inTransform is the proc which allows to transform the SOAP output message, which will be input in the server.
+     <I>outTransform</I> - Output transform<I>cmd</I>, defaults to {}.
+     The outTransform is the proc which allows to transform the SOAP input message, which is the answer of the server.
 </PRE>
 <P><B>Returns&nbsp;: None</B></P>
 <P><B>Side-Effects&nbsp;: None</B> </P>
