@@ -52,7 +52,7 @@ namespace eval ::WS::Embeded {
 
     set portList [list]
     set forever {}
-    
+
     variable returnCodeText [dict create 200 OK 404 "Not Found"\
 	    500 "Internal Server Error" 501 "Not Implemented"]
 }

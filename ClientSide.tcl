@@ -1909,6 +1909,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         set inXML [string range $inXML $first end]
     }
     dom parse $inXML doc
+    $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
         xsi "http://www.w3.org/2001/XMLSchema-instance"
