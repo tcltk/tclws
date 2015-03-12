@@ -2104,7 +2104,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
     ::WS::Utils::SetOption suppressNS {}
     set inTransform [dict get $serviceInfo inTransform]
     if {![string equal $inTransform {}]} {
-        set query [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
+        set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
     ::log::log debug "Leaving ::WS::Client::buildCallquery with {$xml}"
