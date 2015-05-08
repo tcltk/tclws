@@ -1274,7 +1274,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[dict exists $serviceInfo operation $operationName action]} {
-        lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
+        lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     if {[llength $headers]} {
         ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
@@ -1402,7 +1402,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[dict exists $serviceInfo operation $operationName action]} {
-        lappend headers  SOAPAction [dict get $serviceInfo operation $operationName action]
+        lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     if {[llength $headers]} {
         ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers [string map {\{ \" \} \"} $headers]]
