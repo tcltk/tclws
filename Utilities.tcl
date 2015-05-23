@@ -836,7 +836,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             set includeArr($url) 1
         }
         incr included
-        ::log::log debug "\t Including {$url} from base {$baseUrl}"
+        ::log::log info "\t Including {$url} from base {$baseUrl}"
         switch -exact -- [dict get [::uri::split $url] scheme] {
             file {
                 upvar #0 [::uri::geturl $url] token
