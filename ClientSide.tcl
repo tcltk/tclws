@@ -2906,7 +2906,14 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
         set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']/w:input[attribute::name='%s']/parent::*} \
                         $portName $operName $inName]
     }
+    ::log:::log debug "\t operNode query is {$operQuery}"
     set operNode [$wsdlNode selectNodes $operQuery]
+    if {[string equal $operNode {}] && ![string equal $inName {}]} {
+        set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']} \
+                        $portName $operName]
+        ::log:::log debug "\t operNode query is {$operQuery}"
+        set operNode [$wsdlNode selectNodes $operQuery]
+    }
 
     set inputMsgNode [$operNode selectNodes {w:input}]
     if {![string equal $inputMsgNode {}]} {

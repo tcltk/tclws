@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.8
+package provide WS::Utils 2.3.9
 
 namespace eval ::WS {}
 
@@ -808,15 +808,25 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
     variable options
     variable includeArr
 
-    set includeNodeList [$rootNode selectNodes -namespaces $nsList descendant::xs:include]
+    ::log::log debug "ProcessIncludes base: {$baseUrl} inculde: {$includePath}"
+
+    set includeNodeList [concat \
+                            [$rootNode selectNodes -namespaces $nsList descendant::xs:include] \
+                            [$rootNode selectNodes -namespaces $nsList descendant::w:include] \
+    ]
     set inXml [$rootNode asXML]
     set included 0
     foreach includeNode $includeNodeList {
-        if {![$includeNode hasAttribute schemaLocation]} {
+        ::log::log debug "\t Processing Include [$includeNode asXML]"
+        if {[$includeNode hasAttribute schemaLocation]} {
+            set urlTail [$includeNode getAttribute schemaLocation]
+            set url [::uri::resolve $baseUrl  $urlTail]
+        } elseif {[$includeNode hasAttribute location]} {
+            set url [$includeNode getAttribute location]
+            set urlTail [file tail [dict get [::uri::split $url] path]]
+        } else {
             continue
         }
-        set urlTail [$includeNode getAttribute schemaLocation]
-        set url [::uri::resolve $baseUrl  $urlTail]
         if {[lsearch -exact $includePath $url] != -1} {
             log::log warning "Include loop detected: [join $includePath { -> }]"
             continue
@@ -826,7 +836,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             set includeArr($url) 1
         }
         incr included
-        ::log::log info "\t Including {$url} from base {$baseUrl}"
+        ::log::log debug "\t Including {$url} from base {$baseUrl}"
         switch -exact -- [dict get [::uri::split $url] scheme] {
             file {
                 upvar #0 [::uri::geturl $url] token
@@ -2595,6 +2605,12 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             }
         }
 
+        foreach element [$schemaNode selectNodes -namespaces $nsList w:import] {
+            if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
+                ::log::log notice "Import failed due to: {$msg}.  Trace: $::errorInfo"
+            }
+        }
+
         ::log::log debug  "Parsing Element types for $xns as $tns"
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
             ::log::log debug "\tprocessing $element"
@@ -2668,7 +2684,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     ##
     ## Ok, one more pass to report errors
     ##
-    foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
+    set importNodeList [concat \
+                            [$schemaNode selectNodes -namespaces $nsList xs:import] \
+                            [$schemaNode selectNodes -namespaces $nsList w:import] \
+    ]
+    foreach element $importNodeList {
         if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
             switch -exact -- $options(StrictMode) {
                 debug -
