@@ -2081,6 +2081,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
 
     set style [dict get $serviceInfo operation $operationName style]
     set suppressTargetNS [dict get $serviceInfo suppressTargetNS]
+    set inSuppressNs [::WS::Utils::SetOption suppressNS]
     if {$suppressTargetNS} {
         ::WS::Utils::SetOption suppressNS tns1
     } else {
@@ -2101,7 +2102,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
         }
     }
 
-    ::WS::Utils::SetOption suppressNS {}
+    ::WS::Utils::SetOption suppressNS $inSuppressNs
     set inTransform [dict get $serviceInfo inTransform]
     if {![string equal $inTransform {}]} {
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]

@@ -756,9 +756,11 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     }
 
     set prevSchema $currentSchema
-    set currentSchema $schema
-
-    parseScheme $mode $baseUrl $schema $serviceName serviceInfo tnsCount
+    set nodeList [$schema selectNodes -namespaces $nsList descendant::xs:schema]
+    foreach node $nodeList {
+        set currentSchema $node
+        parseScheme $mode $baseUrl $node $serviceName serviceInfo tnsCount
+    }
 
     set currentSchema $prevSchema
     $doc delete
