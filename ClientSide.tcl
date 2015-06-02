@@ -46,9 +46,11 @@ package require http 2
 package require log
 package require uri
 
-catch {
+if {[catch {
     package require tls
     http::register https 443 [list ::tls::socket -ssl2 no -ssl3 no -tls1 yes]
+} err]} {
+    log::log warning "No https support: $err"
 }
 
 package provide WS::Client 2.3.8
