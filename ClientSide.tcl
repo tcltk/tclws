@@ -1527,6 +1527,9 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 ###########################################################################
 proc ::WS::Client::FormatHTTPError {token} {
     if {[string equal [::http::status $token] ok]} {
+        if {[::http::size $token] == 0} {
+            return "HTTP failure socket closed"
+        }
         return "HTTP failure code [::http::ncode $token]"
     } else {
         return "HTTP error: [::http::error $token]"
