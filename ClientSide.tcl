@@ -922,6 +922,16 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
                 set token [::WS::Utils::geturl_followRedirects $url]
             }
             ::http::wait $token
+            if {![string equal [::http::status $token] ok] ||
+                [::http::ncode $token] != 200} {
+                set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
+                set errorInfo [FormatHTTPError $token]
+                ::http::cleanup $token
+                return \
+                    -code error \
+                    -errorcode $errorCode \
+                    $errorInfo
+            }
             set wsdlInfo [ParseWsdl [::http::data $token] -headers [string map {\{ \" \} \"} $headers] -serviceAlias $serviceAlias]
             ::http::cleanup $token
         }
@@ -1294,10 +1304,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
-        set results [::http::error $token]
-        if {[string equal $results {}] && [string equal [::http::status $token] ok]} {
-            set results [::http::code $token]
-        }
+        set results [FormatHTTPError $token]
         set hadError 1
     } else {
         set hadError 0
@@ -1443,7 +1450,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         }
     } elseif {![string equal $httpStatus ok] || [::http::ncode $token] != 200} {
         ::log::log debug "\tHTTP error [array get $token]"
-        set results [::http::error $token]
+        set results [FormatHTTPError $token]
         set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set hadError 1
@@ -1478,6 +1485,52 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         return $results
     }
 
+}
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::FormatHTTPError
+#
+# Description : Format error after a http::geturl failure.
+# A failure consists wether in the HTTP return code unequal to 200
+# or in the status equal "error". Status "timeout" is untreated, as this
+# http feature is not used in the package.
+#
+# Arguments :
+#       tolken          - tolken of the http::geturl request
+#
+# Returns :
+#       Error message
+#
+# Side-Effects :        None
+#
+# Pre-requisite Conditions :    HTTP failure must be present
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  06/02/2015  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Client::FormatHTTPError {token} {
+    if {[string equal [::http::status $token] ok]} {
+        return "HTTP failure code [::http::ncode $token]"
+    } else {
+        return "HTTP error: [::http::error $token]"
+    }
 }
 
 ###########################################################################
@@ -1816,7 +1869,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
-        set errorInfo [::http::error $token]
+        set errorInfo [FormatHTTPError $token]
     } else {
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
@@ -3166,7 +3219,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
-        set results [::http::error $token]
+        set results [FormatHTTPError $token]
         set hadError 1
     } else {
         set hadError 0
@@ -3294,7 +3347,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     if {![string equal $httpStatus ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         ::log::log debug "\tHTTP error [array get $token]"
-        set results [::http::error $token]
+        set results [FormatHTTPError $token]
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
         set hadError 1
@@ -3701,7 +3754,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
-        set errorInfo [::http::error $token]
+        set errorInfo [FormatHTTPError $token]
     } else {
         SaveAndSetOptions $serviceName
         if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
