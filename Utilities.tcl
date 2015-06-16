@@ -4563,8 +4563,6 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
                 set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
             }
             return $token
-        } elseif {![string match {20[1237]} $ncode]} {
-            return $token
         }
         array set meta [set ${token}(meta)]
         if {![info exist meta(Location)]} {
