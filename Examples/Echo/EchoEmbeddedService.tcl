@@ -33,9 +33,10 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Server 2.3.0
-package require WS::Utils 2.3.0
-package require WS::Embeded 2.3.0
+lappend auto_path [file join [file dirname [info script]] ../..]
+package require WS::Server
+package require WS::Utils
+package require WS::Embeded
 
 ##
 ## Define the service
@@ -83,11 +84,14 @@ package require WS::Embeded 2.3.0
 }
 
 set ::errorInfo {}
-::WS::Embeded::Listen 8015
+set SocketHandle [::WS::Embeded::Listen 8015]
 set ::errorInfo {}
 
-puts stdout {Starting event loop}
+puts stdout {Server started. Press Enter to stop}
 flush stdout
-::WS::Embeded::Start
+fileevent stdin readable {set QuitNow 1}
+vwait QuitNow
+close $SocketHandle
 puts stdout {Exited event loop}
 flush stdout
+
