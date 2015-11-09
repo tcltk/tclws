@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.9
+package provide WS::Utils 2.3.10
 
 namespace eval ::WS {}
 
@@ -4532,16 +4532,51 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
     }
 }
 
-
-
-
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::geturl_followRedirects
+#
+# Description : fetch via http following redirects.
+#               May not be used as asynchronous call with -command option.
+#
+# Arguments :
+#       url        - target document url
+#       args       - additional argument list to http::geturl call
+#
+# Returns :     nothing
+#
+# Side-Effects :        Save final url in redirectArray to forward info to
+#                       procedure "processImport".
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald Lester
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  02/24/2011  G. Lester    Initial version
+#  2.3.10  11/09/2015  H. Oehlmann  Allow only 5 redirects (loop protection)
+#
+###########################################################################
 proc ::WS::Utils::geturl_followRedirects {url args} {
     ::log::log debug "[info level 0]"
-    #global redirectArray
     set initialUrl $url
     set finalUrl $url
     array set URI [::uri::split $url] ;# Need host info from here
-    while {1} {
+    for {set loop 1} {$loop <=5} {incr loop} {
         if {[llength $args]} {
             ::log::log info [concat [list ::http::geturl $url] $args]
             set token [eval [list http::geturl $url] $args]
@@ -4550,8 +4585,8 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
             set token [::http::geturl $url]
         }
         set ncode [::http::ncode $token]
-        ::log::log info "ncode = $ncode"
-        if {![string match {30[1237]} $ncode]} {
+        puts **$ncode
+        if {![string match {30[12378]} $ncode]} {
             ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
             if {![string equal $finalUrl {}]} {
                 ::log::log debug "Getting initial URL directory"
@@ -4564,13 +4599,16 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
             }
             return $token
         }
+        # http code announces redirect (3xx)
         array set meta [set ${token}(meta)]
         if {![info exist meta(Location)]} {
+            ::log::log debug "Redirect http code without Location"
             return $token
         }
         array set uri [::uri::split $meta(Location)]
         unset meta
         array unset meta
+        ::http::cleanup $token
         if {[string equal $uri(host) {}]} {
             set uri(host) $URI(host)
         }
@@ -4579,4 +4617,6 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
         ::log::log debug "url = $url"
         set finalUrl $url
     }
+    # > 5 redirects reached -> exit with error
+    return -code error "http redirect limit exceeded"
 }

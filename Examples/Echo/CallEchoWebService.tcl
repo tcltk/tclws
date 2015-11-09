@@ -33,8 +33,9 @@
 ##                                                                           ##
 ###############################################################################
 
-package require WS::Utils 2.1.3
-package require WS::Client 2.1.3
+set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ../..]]
+package require WS::Utils
+package require WS::Client
 
 ##
 ## Get Definition of the offered services

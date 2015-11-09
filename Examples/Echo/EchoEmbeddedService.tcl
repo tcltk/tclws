@@ -33,10 +33,11 @@
 ##                                                                           ##
 ###############################################################################
 
-lappend auto_path [file join [file dirname [info script]] ../..]
+set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ../..]]
 package require WS::Server
 package require WS::Utils
 package require WS::Embeded
+catch {console show}
 
 ##
 ## Define the service
@@ -87,11 +88,13 @@ set ::errorInfo {}
 set SocketHandle [::WS::Embeded::Listen 8015]
 set ::errorInfo {}
 
-puts stdout {Server started. Press Enter to stop}
+proc x {} {
+    close $::SocketHandle
+    exit
+}
+
+puts stdout {Server started. Press x and Enter to stop}
 flush stdout
 fileevent stdin readable {set QuitNow 1}
 vwait QuitNow
-close $SocketHandle
-puts stdout {Exited event loop}
-flush stdout
-
+x
