@@ -4585,6 +4585,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
             set token [::http::geturl $url]
         }
         set ncode [::http::ncode $token]
+        ::log::log info "ncode = $ncode"
         if {![string match {30[12378]} $ncode]} {
             ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
             if {![string equal $finalUrl {}]} {
