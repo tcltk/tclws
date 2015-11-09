@@ -53,7 +53,7 @@ if {[catch {
     log::log warning "No https support: $err"
 }
 
-package provide WS::Client 2.3.8
+package provide WS::Client 2.3.9
 
 namespace eval ::WS::Client {
     ##
@@ -530,17 +530,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
         }
         http -
         https {
-            set token [::http::geturl $url]
-            ::http::wait $token
-            set ncode [::http::ncode $token]
-            set xml [::http::data $token]
-            ::http::cleanup $token
-            if {$ncode != 200} {
-                return \
-                    -code error \
-                    -errorcode [list WS CLIENT HTTPFAIL $url] \
-                    "HTTP get of import file failed '$url'"
-            }
+            set xml [::WS::Utils::geturl_fetchbody $url]
         }
         default {
             return \
@@ -919,23 +909,11 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
         http -
         https {
             if {[llength $headers]} {
-                set token [::WS::Utils::geturl_followRedirects $url -headers $headers]
+                set body [::WS::Utils::geturl_fetchbody $url -headers $headers]
             } else {
-                set token [::WS::Utils::geturl_followRedirects $url]
+                set body [::WS::Utils::geturl_fetchbody $url]
             }
-            ::http::wait $token
-            if {![string equal [::http::status $token] ok] ||
-                [::http::ncode $token] != 200} {
-                set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-                set errorInfo [FormatHTTPError $token]
-                ::http::cleanup $token
-                return \
-                    -code error \
-                    -errorcode $errorCode \
-                    $errorInfo
-            }
-            set wsdlInfo [ParseWsdl [::http::data $token] -headers $headers -serviceAlias $serviceAlias]
-            ::http::cleanup $token
+            set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias]
         }
         default {
             return \
@@ -1289,42 +1267,14 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
-
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    ::log::log info "\nReceived: $body"
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawCall with {$results}"
-        return $results
-    }
-
+    ::log::log debug "Leaving ::WS::Client::DoRawCall with {$body}"
+    return $body
 }
 
 ###########################################################################
@@ -1414,27 +1364,21 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar ncode $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] ]
+        set token [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar ncode $url -query $query -type [dict get $serviceInfo contentType] ]
     }
-    ::http::wait $token
 
     ##
     ## Check for errors
     ##
-    set httpStatus [::http::status $token]
-    if {[string equal $httpStatus ok] && [::http::ncode $token] == 500} {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
-        if {![string equal $outTransform {}]} {
-            SaveAndSetOptions $serviceName
-            catch {set body [$outTransform $serviceName $operationName REPLY $body]}
-            RestoreSavedOptions $serviceName
-        }
+    set outTransform [dict get $serviceInfo outTransform]
+    if {![string equal $outTransform {}]} {
+        SaveAndSetOptions $serviceName
+        catch {set body [$outTransform $serviceName $operationName REPLY $body]}
+        RestoreSavedOptions $serviceName
+    }
+    if { $ncode == 500} {
         set hadError [catch {parseResults $serviceName $operationName $body} results]
         if {$hadError} {
             lassign $::errorCode mainError subError
@@ -1450,21 +1394,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
                 set errorInfo $::errorInfo
             }
         }
-    } elseif {![string equal $httpStatus ok] || [::http::ncode $token] != 200} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
     } else {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
-        if {![string equal $outTransform {}]} {
-            SaveAndSetOptions $serviceName
-            catch {set body [$outTransform $serviceName $operationName REPLY $body]}
-            RestoreSavedOptions $serviceName
-        }
         SaveAndSetOptions $serviceName
         catch {set hadError [catch {parseResults $serviceName $operationName $body} results]}
         RestoreSavedOptions $serviceName
@@ -1474,7 +1404,6 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             set errorInfo $::errorInfo
         }
     }
-    ::http::cleanup $token
     if {$hadError} {
         ::log::log debug "Leaving (error) ::WS::Client::DoCall"
         return \
@@ -3208,41 +3137,14 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
-
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$results}"
-        return $results
-    }
-
+    ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$body}"
+    return $body
 }
 
 ###########################################################################
@@ -3333,56 +3235,21 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [list::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [geturl_fetchbody -bodyalwaysok 1\
+            $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
-
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    ::log::log info "\tReceived: $body"
-    set httpStatus [::http::status $token]
-    set hadError 0
-    set results {}
-    if {![string equal $httpStatus ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
-    } else {
-        SaveAndSetOptions $serviceName
-        if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
-            RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-        } else {
-            RestoreSavedOptions $serviceName
-        }
-        if {$hadError} {
-            ::log::log debug "Reply was [::http::data $token]"
-            set errorCode $::errorCode
-            set errorInfo $::errorInfo
-        }
-    }
-    ::http::cleanup $token
-    if {$hadError} {
+    SaveAndSetOptions $serviceName
+    if {[catch {parseRestResults $serviceName $objectName $operationName $body} results]} {
+        ::log::log debug "Reply was $body"
         ::log::log debug "Leaving (error) ::WS::Client::DoRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
-        return $results
+        return -code error $results
     }
-
+    RestoreSavedOptions $serviceName
+    ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
+    return $results
 }
 
 ###########################################################################
