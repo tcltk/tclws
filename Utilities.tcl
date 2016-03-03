@@ -4618,5 +4618,97 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
         set finalUrl $url
     }
     # > 5 redirects reached -> exit with error
-    return -code error "http redirect limit exceeded"
+    return -errorcode [list WS CLIENT REDIRECTLIMIT $url]\
+            -code error "http redirect limit exceeded for $url"
+}
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::geturl_fetchbody
+#
+# Description : fetch via http following redirects and return data or error
+#
+# Arguments :
+#       ?-codeok list? - list of acceptable http codes.
+#                       If not given, 200 is used
+#       ?-codevar varname ? - Uplevel variable name to return current code
+#                       value.
+#       ?-bodyalwaysok bool? - If a body is delivered any ncode is ok
+#       url        - target document url
+#       args       - additional argument list to http::geturl call
+#
+# Returns :     fetched data
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  11/08/2015  H.Oehlmann   Initial version
+#
+###########################################################################
+proc ::WS::Utils::geturl_fetchbody {args} {
+    set codeOkList {200}
+    set codeVar ""
+    set bodyAlwaysOk 0
+    ::log::log info [concat ::WS::Utils::geturl_fetchbody $args]
+    if {[lindex $args 0] eq "-codeok"} {
+        set codeOkList [lindex $args 1]
+        set args [lrange $args 2 end]
+    }
+    if {[lindex $args 0] eq "-codevar"} {
+        set codeVar [lindex $args 1]
+        set args [lrange $args 2 end]
+    }
+    if {[lindex $args 0] eq "-bodyalwaysok"} {
+        set bodyAlwaysOk [lindex $args 1]
+        set args [lrange $args 2 end]
+    }
+    
+    set token [eval ::WS::Utils::geturl_followRedirects $args]
+    ::http::wait $token
+    if {[string equal [::http::status $token] ok]} {
+        if {[::http::size $token] == 0} {
+            ::log::log debug "\tHTTP error: no data"
+            ::http::cleanup $token
+            return -errorcode [list WS CLIENT NODATA [lindex $args 0]]\
+                    -code error "HTTP failure socket closed"
+        }
+        if {![string equal $codeVar ""]} {
+            upvar 1 $codeVar ncode
+        }
+        set ncode [::http::ncode $token]
+        set body [::http::data $token]
+        ::http::cleanup $token
+        if {$bodyAlwaysOk && ![string equal $body ""]
+            || -1 != [lsearch $codeOkList $ncode]
+        } {
+            # >> Fetch ok
+            ::log::log debug "\tReceived: $body"
+            return $body
+        }
+        ::log::log debug "\tHTTP error: Wrong code $ncode or no data"
+        return -code error -errorcode [list WS CLIENT HTTPERROR $ncode]\
+                "HTTP failure code $ncode"
+    }
+    ::log::log debug "\tHTTP error [array get $token]"
+    set error [::http::error $token]
+    ::http::cleanup $token
+    return -errorcode [list WS CLIENT HTTPERROR $error]\
+            -code error "HTTP error: $error"
 }
