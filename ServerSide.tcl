@@ -1531,9 +1531,9 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/"
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
     $bod appendChild [$doc createElement "SOAP-ENV:Fault" flt]
-    $flt appendChild [$doc createElement "SOAP-ENV:faultcode" fcd]
-    $fcd appendChild [$doc  createTextNode $faultcode]
-    $flt appendChild [$doc createElement "SOAP-ENV:faultstring" fst]
+    $flt appendChild [$doc createElement "faultcode" fcd]
+    $fcd appendChild [$doc createTextNode $faultcode]
+    $flt appendChild [$doc createElement "faultstring" fst]
     $fst appendChild [$doc createTextNode $faultstring]
 
     if { $detail != {} } {
