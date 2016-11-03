@@ -73,6 +73,7 @@ namespace eval ::WS::Utils {
         xs http://www.w3.org/2001/XMLSchema
     }
     array set ::WS::Utils::simpleTypes {
+        anyType 1
         string 1
         boolean 1
         decimal 1
