@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.3.8
+package provide WS::Client 2.3.9
 
 namespace eval ::WS::Client {
     # register https only if not jet registered
