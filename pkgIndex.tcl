@@ -18,5 +18,3 @@ package ifneeded WS::Channel 2.0.0 [list source [file join $dir ChannelServer.tc
 
 package ifneeded WS::Wub 2.2.1 [list source [file join $dir WubServer.tcl]]
 package ifneeded Wsdl 2.0.0 [list source [file join $dir WubServer.tcl]]
-
-package ifneeded WS::CheckAndBuild 0.0.3 [list source [file join $dir CheckAndBuild.tcl]]
