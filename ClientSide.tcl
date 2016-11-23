@@ -1879,6 +1879,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     ##
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
+    set results {}
     if {![string equal [::http::status $token] ok] ||
         ([::http::ncode $token] != 200 && [string equal $body {}])} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
