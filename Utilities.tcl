@@ -59,7 +59,7 @@ package require log
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.3.10
+package provide WS::Utils 2.4.0
 
 namespace eval ::WS {}
 
@@ -72,6 +72,28 @@ namespace eval ::WS::Utils {
         d http://schemas.xmlsoap.org/wsdl/soap/
         xs http://www.w3.org/2001/XMLSchema
     }
+
+    # mapping of how the simple SOAP types should be serialized using YAJL into JSON.
+    array set ::WS::Utils::simpleTypesJson {
+        boolean "bool"
+        float "number"
+        double "double"
+        integer "integer"
+        int "integer"
+        long "integer"
+        short "integer"
+        byte "integer"
+        nonPositiveInteger "integer"
+        negativeInteger "integer"
+        nonNegativeInteger "integer"
+        unsignedLong "integer"
+        unsignedInt "integer"
+        unsignedShort "integer"
+        unsignedByte "integer"
+        positiveInteger "integer"
+        decimal "number"
+    }
+
     array set ::WS::Utils::simpleTypes {
         anyType 1
         string 1
@@ -129,7 +151,7 @@ namespace eval ::WS::Utils {
         suppressNS {}
         useTypeNs 0
         nsOnChangeOnly 0
-	anyType string
+        anyType string
     }
 
     set ::WS::Utils::standardAttributes {
@@ -219,7 +241,7 @@ proc ::WS::Utils::GetCrossreference {mode service} {
 
     dict for {type typeDict} [dict get $typeInfo $mode $service] {
         foreach {field fieldDict} [dict get $typeDict definition] {
-            set fieldType [string trimright [dict get $fieldDict type] {()}]
+            set fieldType [string trimright [dict get $fieldDict type] {()?}]
             incr crossreference($fieldType,count)
             lappend crossreference($fieldType,usedBy) $type.$field
         }
@@ -565,7 +587,7 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
     variable typeInfo
     variable simpleTypes
 
-    set type [string trimright $type {()}]
+    set type [string trimright $type {()?}]
     set results {}
     if {[string equal $type {}]} {
         ::log::log debug "@1"
@@ -655,7 +677,7 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
 proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
     variable simpleTypes
 
-    set type [string trimright $type {()}]
+    set type [string trimright $type {()?}]
     if {[string equal -nocase -length 3 $type {xs:}]} {
         return [::WS::Utils::GetServiceTypeDef $mode $service $type]
     }
@@ -915,7 +937,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
 # Procedure Name : ::WS::Utils::TypeInfo
 #
 # Description : Return a list indicating if the type is simple or complex
-#               and if it is a scalar or an array.
+#               and if it is a scalar or an array.  Also if it is optional
 #
 # Arguments :
 #    type       - the type name, possibly with a () to specify it is an array
@@ -945,11 +967,16 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
 #  2.3.0   10/31/2012  G. Lester    Corrected missing newline.
 #
 ###########################################################################
-proc ::WS::Utils::TypeInfo {mode service type} {
+proc ::WS::Utils::TypeInfo {mode service type {findOptional 0}} {
     variable simpleTypes
     variable typeInfo
 
     set type [string trim $type]
+    set isOptional 0
+    if {[string equal [string index $type end] {?}]} {
+        set isOptional 1
+        set type [string trimright $type {?}]
+    }
     if {[string equal [string range $type end-1 end] {()}]} {
         set isArray 1
         set type [string range $type 0 end-2]
@@ -962,6 +989,9 @@ proc ::WS::Utils::TypeInfo {mode service type} {
     #set isNotSimple [expr {$isNotSimple || [dict exists $typeInfo $mode $service $service:$type]}]
     lassign [split $type {:}] tns baseType
     set isNotSimple [expr {!([info exist simpleTypes($type)] || [info exist simpleTypes($baseType)] || [info exist simpleTypes($mode,$service,$type)] || [info exist simpleTypes($mode,$service,$baseType)] )}]
+    if {$findOptional} {
+        return [list $isNotSimple $isArray $isOptional]
+    }
     return [list $isNotSimple $isArray]
 }
 
@@ -1274,14 +1304,17 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
 proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
     set typeInfo {maxOccurs 1 minOccurs 1 name * type *}
     dict set typeInfo name $field
-    set typeList [TypeInfo $mode $serviceName $type]
+    set typeList [TypeInfo $mode $serviceName $type 1]
     if {[lindex $typeList 0] == 0} {
-        dict set typeInfo type xs:[string trimright $type {()}]
+        dict set typeInfo type xs:[string trimright $type {()?}]
     } else {
-        dict set typeInfo type $serviceName:[string trimright $type {()}]
+        dict set typeInfo type $serviceName:[string trimright $type {()?}]
     }
     if {[lindex $typeList 1]} {
         dict set typeInfo maxOccurs unbounded
+    }
+    if {[lindex $typeList 2]} {
+        dict set typeInfo minOccurs 0
     }
 
     return $typeInfo
@@ -1384,6 +1417,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     set arrayOverride [expr {$isArray && ([llength $partsList] == 1)}]
     foreach partName $partsList {
         set partType [dict get $typeDefInfo definition $partName type]
+        set partType [string trimright $partType {?}]
         if {[dict exists $typeDefInfo definition $partName allowAny] && [dict get $typeDefInfo definition $partName allowAny]} {
             set allowAny 1
         } else {
@@ -1469,11 +1503,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple non-array
                 ##
-		if {[dict exists $tmpTypeInfo base]} {
-		    set baseType [dict get $tmpTypeInfo base]
-		} else {
-		    set baseType string
-		}
+                if {[dict exists $tmpTypeInfo base]} {
+                    set baseType [dict get $tmpTypeInfo base]
+                } else {
+                    set baseType string
+                }
                 if {$options(parseInAttr)} {
                     foreach attrList [$item attributes] {
                         catch {
@@ -1507,11 +1541,11 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ##
                 ## Simple array
                 ##
-		if {[dict exists $tmpTypeInfo base]} {
-		    set baseType [dict get $tmpTypeInfo base]
-		} else {
-		    set baseType string
-		}
+                if {[dict exists $tmpTypeInfo base]} {
+                    set baseType [dict get $tmpTypeInfo base]
+                } else {
+                    set baseType string
+                }
                 set tmp {}
                 foreach row $item {
                     if {$options(parseInAttr)} {
@@ -1719,6 +1753,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     variable standardAttributes
     variable currentNs
 
+    array set serviceData $::WS::Server::serviceArr($service)
     if {!$options(UseNS)} {
         return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type]
     }
@@ -1729,6 +1764,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         set valueAttr {::value}
     }
     set typeInfoList [TypeInfo $mode $service $type]
+    set type [string trimright $type {?}]
     ::log::log debug "\t typeInfoList = {$typeInfoList}"
     if {[dict exists $typeInfo $mode $service $service:$type]} {
         set typeName $service:$type
@@ -1777,10 +1813,14 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType ={$itemType}"
-        set typeInfoList [TypeInfo $mode $service $itemType]
+        set typeInfoList [TypeInfo $mode $service $itemType 1]
         ::log::log debug "Expr [list ![dict exists $dict $itemName] && ![dict exists $dict $baseName]]"
         if {![dict exists $dict $itemName] && ![dict exists $dict $baseName]} {
             ::log::log debug "Neither {$itemName} nor {$baseName} are in dictionary {$dict}, skipping"
+            # If required parameters are being enforced and this field is not optional, throw an error
+            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+                error "Required field $itemName is missing from response"
+            }
             continue
         } elseif {[dict exists $dict $baseName]} {
             set useName $baseName
@@ -1788,7 +1828,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
             set useName $itemName
         }
         set itemXns $xns
-        set tmpInfo [GetServiceTypeDef $mode $service [string trimright $itemType {()}]]
+        set tmpInfo [GetServiceTypeDef $mode $service [string trimright $itemType {()?}]]
         if {$options(useTypeNs) && [dict exists $tmpInfo xns]} {
             set itemXns [dict get $tmpInfo xns]
         }
@@ -1807,11 +1847,13 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} itemXns = {$itemXns} tmpInfo = {$tmpInfo} attrList = {$attrList}"
         set isAbstract false
-        set baseType [string trimright $itemType ()]
+        set baseType [string trimright $itemType {()?}]
         if {$options(genOutAttr) && [dict exists $typeInfo $mode $service $baseType abstract]} {
             set isAbstract [dict get $typeInfo $mode $service $baseType abstract]
         }
-        ::log::log notice "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} isAbstract = {$isAbstract}"
+        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} isAbstract = {$isAbstract}"
+        # Strip the optional flag off the typeInfoList
+        set typeInfoList [lrange $typeInfoList 0 1]
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -1937,7 +1979,6 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $useName]
-                set tmpType [string trimright $itemType ()]
                 #::log::log debug "\t\t [llength $dataList] rows {$dataList}"
                 foreach row $dataList {
                     if {[string equal $itemXns $options(suppressNS)] || [string equal $itemXns {}]} {
@@ -1967,6 +2008,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     } else {
                         set resultValue $row
                     }
+                    if {[string index $itemType end] eq {?}} {
+                        set tmpType "[string trimright $itemType {()?}]?"
+                    } else {
+                        set tmpType [string trimright $itemType {()}]
+                    }
                     if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
                         set tmpNs $currentNs
                         set currentNs $itemXns
@@ -1994,6 +2040,152 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     }
     set currentNs $entryNs
     ::log::log debug "Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]"
+    return;
+}
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::convertDictToJson
+#
+# Description : Convert a dictionary object into a JSON tree.
+#
+# Arguments :
+#    mode        - The mode, Client or Server
+#    service     - The service name the type is defined in
+#    doc         - The document (yajltcl)
+#    dict        - The dictionary to convert
+#    type        - The name of the type
+#
+# Returns : None
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Jeff Lawson
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  03/23/2011  J.Lawson     Initial version
+#
+#
+###########################################################################
+proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
+    ::log::log debug "Entering ::WS::Utils::convertDictToJson $mode $service $doc {$dict} $type"
+    variable typeInfo
+    variable simpleTypes
+    variable simpleTypesJson
+    variable options
+    variable standardAttributes
+
+    array set serviceData $::WS::Server::serviceArr($service)
+    set typeInfoList [TypeInfo $mode $service $type]
+    set type [string trimright $type {?}]
+    if {[dict exists $typeInfo $mode $service $service:$type]} {
+        set typeName $service:$type
+    } else {
+        set typeName $type
+    }
+	set itemList {}
+    if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
+        set itemList [dict get $typeInfo $mode $service $typeName definition]
+        set xns [dict get $typeInfo $mode $service $typeName xns]
+    } else {
+        set xns $simpleTypes($mode,$service,$typeName)
+        set itemList [list $typeName {type string}]
+    }
+    if {[info exists mutableTypeInfo([list $mode $service $typeName])]} {
+        set typeName [(*)[lindex mutableTypeInfo([list $mode $service $type]) 0] $mode $service $type $xns $dict]
+        set typeInfoList [TypeInfo $mode $service $typeName]
+        if {[lindex $typeInfoList 0]} {
+            set itemList [dict get $typeInfo $mode $service $typeName definition]
+        } else {
+            set itemList [list $type {type string}]
+        }
+    }
+    ::log::log debug "\titemList is {$itemList}"
+    set fieldList {}
+    foreach {itemName itemDef} $itemList {
+        lappend fieldList $itemName
+        set itemType [dict get $itemDef type]
+        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType = {$itemType}"
+        set typeInfoList [TypeInfo $mode $service $itemType 1]
+        if {![dict exists $dict $itemName]} {
+            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+                error "Required field $itemName is missing from response"
+            }
+            continue
+        }
+
+        if {[info exists simpleTypesJson([string trimright $itemType {()?}])]} {
+            set yajlType $simpleTypesJson([string trimright $itemType {()?}])
+        } else {
+            set yajlType "string"
+        }
+
+        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
+        set typeInfoList [lrange $typeInfoList 0 1]
+        switch $typeInfoList {
+            {0 0} {
+                ##
+                ## Simple non-array
+                ##
+                set resultValue [dict get $dict $itemName]
+                $doc string $itemName $yajlType $resultValue
+            }
+            {0 1} {
+                ##
+                ## Simple array
+                ##
+                set dataList [dict get $dict $itemName]
+                $doc string $itemName array_open
+                foreach row $dataList {
+                    $doc $yajlType $row
+                }
+                $doc array_close
+            }
+            {1 0} {
+                ##
+                ## Non-simple non-array
+                ##
+                $doc string $itemName map_open
+                set resultValue [dict get $dict $itemName]
+                convertDictToJson $mode $service $doc $resultValue $itemType
+                $doc map_close
+            }
+            {1 1} {
+                ##
+                ## Non-simple array
+                ##
+                set dataList [dict get $dict $itemName]
+                $doc string $itemName array_open
+                if {[string index $itemType end] eq {?}} {
+                    set tmpType "[string trimright $itemType {()?}]?"
+                } else {
+                    set tmpType [string trimright $itemType {()}]
+                }
+                foreach row $dataList {
+                    $doc map_open
+                    convertDictToJson $mode $service $doc $row $tmpType
+                    $doc map_close
+                }
+                $doc array_close
+            }
+        }
+    }
     return;
 }
 
@@ -2045,6 +2237,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     variable options
     variable standardAttributes
 
+    array set serviceData $::WS::Server::serviceArr($service)
     if {$options(valueAttrCompatiblityMode)} {
         set valueAttr {}
     } else {
@@ -2069,12 +2262,15 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef}"
         set itemType [dict get $itemDef type]
         set isAbstract false
-        set baseType [string trimright $itemType ()]
+        set baseType [string trimright $itemType {()?}]
         if {$options(genOutAttr) && [dict exists $typeInfo $mode $service $baseType abstract]} {
             set isAbstract [dict get $typeInfo $mode $service $baseType abstract]
         }
-        set typeInfoList [TypeInfo $mode $service $itemType]
+        set typeInfoList [TypeInfo $mode $service $itemType 1]
         if {![dict exists $dict $itemName]} {
+            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+                error "Required field $itemName is missing from response"
+            }
             continue
         }
         set attrList {}
@@ -2085,6 +2281,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
             }
         }
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
+        set typeInfoList [lrange $typeInfoList 0 1]
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -2178,7 +2375,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 ## Non-simple array
                 ##
                 set dataList [dict get $dict $itemName]
-                set tmpType [string trimright $itemType ()]
+                set tmpType [string trimright $itemType {()}]
                 foreach row $dataList {
                     $parent appendChild [$doc createElement $itemName retnode]
                     if {$options(genOutAttr)} {
@@ -2267,6 +2464,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
 
     set typeInfoList [TypeInfo $mode $service $type]
     ::log::log debug "\t typeInfoList = {$typeInfoList}"
+    set type [string trimright $type {?}]
     if {[lindex $typeInfoList 0]} {
         set itemList [dict get $typeInfo $mode $service $type definition]
         set xns [dict get $typeInfo $mode $service $type xns]
@@ -2295,7 +2493,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
     }
     ::log::log debug "\titemList is {$itemList} in $xns"
     foreach {itemName itemDef} $itemList {
-        set itemType [dict get $itemList $itemName type]
+        set itemType [string trimright [dict get $itemList $itemName type] {?}]
         set typeInfoList [TypeInfo $mode $service $itemType]
         ::log::log debug "\t\t Looking for {$itemName} in {$dict}"
         if {![dict exists $dict $itemName]} {
@@ -2371,7 +2569,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 } else {
                     set attrType $itemType
                 }
-                set attrType [string trim $attrType {()}]
+                set attrType [string trim $attrType {()?}]
                 $parent setAttribute xmlns:soapenc {http://schemas.xmlsoap.org/soap/encoding/}
                 $parent setAttribute soapenc:arrayType [format {%s[%d]} $attrType [llength $dataList]]
                 $parent setAttribute xsi:type soapenc:Array
@@ -2673,7 +2871,6 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             error -
             default {
                 set ::WS::Utils::targetNs $tmpTargetNs
-                set ofd [open full.xsd w];puts $ofd [$schemaNode asXML];close $ofd
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
@@ -2914,7 +3111,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     }
     set urlTail [$importNode getAttribute $attrName]
     set url [::uri::resolve $baseUrl  $urlTail]
-    ::log::log info "Including $url"
+    ::log::log debug "Including $url"
 
     set lastPos [string last / $url]
     set testUrl [string range $url 0 [expr {$lastPos - 1}]]
@@ -3133,7 +3330,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     }
                 } else {
                     set partName [$middleNode getAttribute name]
-                    set partType [getQualifiedType $results [$middleNode getAttribute type string:string] $tns]
+                    set partType [string trimright [getQualifiedType $results [$middleNode getAttribute type string:string] $tns] {?}]
                     set partMax [$middleNode getAttribute maxOccurs 1]
                     if {$partMax <= 1} {
                         lappend partList $partName [list type $partType comment $comment]
@@ -3200,7 +3397,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set partName item
                             set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                             set partType [string map {{[]} {()}} $partType]
-                            lappend partList $partName [list type [string trimright ${partType} {()}]() comment $comment allowAny 1]
+                            lappend partList $partName [list type [string trimright ${partType} {()?}]() comment $comment allowAny 1]
                             set nodeFound 1
                         }
                         extension {
@@ -3329,7 +3526,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         element {
             catch {
                 set partName [$node getAttribute name]
-                set partType [getQualifiedType $results [$node getAttribute type string] $tns]
+                set partType [string trimright [getQualifiedType $results [$node getAttribute type string] $tns] {?}]
                 set partMax [$node getAttribute maxOccurs 1]
                 if {$partMax <= 1} {
                     set partList [list $partName [list type $partType comment {}]]
@@ -3405,7 +3602,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     if {$isRef} {
                         set partType {}
                         set partTypeInfo {}
-                        set partType [getQualifiedType $results $partName $tns]
+                        set partType [string trimright [getQualifiedType $results $partName $tns] {?}]
                         set partTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
                         set partName [lindex [split $partName {:}] end]
                         ::log::log debug "\t\t\t part name is {$partName} type is {$partTypeInfo}"
@@ -3454,7 +3651,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     if {$partMax <= 1} {
                         lappend partList $partName [concat [list type $partType comment $comment] $additional_defininition_elements]
                     } else {
-                        lappend partList $partName [concat [list type [string trimright ${partType} {()}]() comment $comment] $additional_defininition_elements]
+                        lappend partList $partName [concat [list type [string trimright ${partType} {()?}]() comment $comment] $additional_defininition_elements]
                     }
                 } msg]} {
                     ::log::log error "\tError processing {$msg} for [$element asXML]"
@@ -3490,7 +3687,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     set partName item
                     set partType [getQualifiedType $results $attrArr(arrayType) $tns]
                     set partType [string map {{[]} {()}} $partType]
-                    set partList [list $partName [list type [string trimright ${partType} {()}]() comment {} allowAny 1]]
+                    set partList [list $partName [list type [string trimright ${partType} {()?}]() comment {} allowAny 1]]
                 }
                 extension {
                     set extension [$node selectNodes -namespaces $nsList xs:extension]
@@ -3683,7 +3880,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         if {$partMax <= 1} {
             lappend partList $partName [list type $partType comment {}]
         } else {
-            lappend partList $partName [list type [string trimright ${partType} {()}]() comment {}]
+            lappend partList $partName [list type [string trimright ${partType} {()?}]() comment {}]
         }
     }
     if {[llength $elements] == 0} {
@@ -3736,7 +3933,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 lappend partList $typeName [list type $partType comment {}]
             }
         } else {
-            lappend partList $typeName [list type [string trimright ${partType} {()}]() comment {}]
+            lappend partList $typeName [list type [string trimright ${partType} {()?}]() comment {}]
         }
     }
     if {[llength $partList]} {
@@ -3913,7 +4110,8 @@ proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
     ## Get the type information
     ##
     set typeInfoList [TypeInfo $mode $serviceName $typeName]
-    set baseTypeName [string trimright $typeName {()}]
+    set baseTypeName [string trimright $typeName {()?}]
+    set typeName [string trimright $typeName {?}]
     set typeInfo [GetServiceTypeDef $mode $serviceName $baseTypeName]
     set isComplex [lindex $typeInfoList 0]
     set isArray [lindex $typeInfoList 1]
@@ -4106,8 +4304,9 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
     ##
     ## Get the type information
     ##
-    set baseTypeName [string trimright $typeName {()}]
+    set baseTypeName [string trimright $typeName {()?}]
     set typeInfo [GetServiceTypeDef $mode $serviceName $baseTypeName]
+    set typeName [string trimright $typeName {?}]
     set xns [dict get $typeInfo $mode $service $type xns]
 
     foreach {field fieldDef} [dict get $typeInfo definition] {
@@ -4118,7 +4317,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
         set fieldInfoArr(minOccurs) 0
         array set fieldInfoArr $fieldDef
         set typeInfoList [TypeInfo $mode $serviceName $fieldInfoArr(type)]
-        set fieldBaseType [string trimright $fieldInfoArr(type) {()}]
+        set fieldBaseType [string trimright $fieldInfoArr(type) {()?}]
         set isComplex [lindex $typeInfoList 0]
         set isArray [lindex $typeInfoList 1]
         if {[dict exists $valueInfos $field]} {
@@ -4376,6 +4575,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
         set generatedTypes([list $mode $serviceName $type]) 1
     }
 
+    set type [string trimright $type {?}]
     # set typeDefInfo [dict get $typeInfo $mode $serviceName $type]
     set typeDefInfo [GetServiceTypeDef $mode $serviceName $type]
     if {![llength $typeDefInfo]} {
@@ -4409,7 +4609,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
     set partsList [dict keys [dict get $typeDefInfo definition]]
     ::log::log debug "\t partsList is {$partsList}"
     foreach partName $partsList {
-        set partType [dict get $typeDefInfo definition $partName type]
+        set partType [string trimright [dict get $typeDefInfo definition $partName type] {?}]
         set partXns $xns
         catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
@@ -4598,6 +4798,8 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
                 ::log::log debug "initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir"
                 set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
             }
+            return $token
+        } elseif {![string match {20[1237]} $ncode]} {
             return $token
         }
         # http code announces redirect (3xx)

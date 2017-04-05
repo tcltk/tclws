@@ -48,7 +48,7 @@ package require uri
 package require base64
 package require html
 
-package provide WS::Wub 2.2.1
+package provide WS::Wub 2.4.0
 
 namespace eval ::WS::Wub {
 

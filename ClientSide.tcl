@@ -47,10 +47,10 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.3.9
+package provide WS::Client 2.4.0
 
 namespace eval ::WS::Client {
-    # register https only if not jet registered
+    # register https only if not yet registered
     if {[catch { http::unregister https } lPortCmd]} {
         # not registered -> register on my own
         if {[catch {
@@ -844,7 +844,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
             set definition [dict get $partList definition]
             set xns [dict get $partList xns]
             set isAbstarct [dict get $partList abstract]
-            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
+            if {[lindex [split $typeName {:}] 1] eq {}} {
                 ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition tns1 $isAbstarct
             } else {
                 #set typeName [lindex [split $typeName {:}] 1]
@@ -856,7 +856,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     if {[dict exists $serviceInfo simpletypes]} {
         foreach partList [dict get $serviceInfo simpletypes] {
             lassign $partList typeName definition
-            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
+            if {[lindex [split $typeName {:}] 1] eq {}} {
                 ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $definition tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
@@ -2084,7 +2084,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         }
     }
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
-    if {![string equal $rootName {}]} {
+    if {$rootName ne {}} {
         set bodyData [::WS::Utils::convertTypeToDict \
                          Client $serviceName $rootNode $expectedMsgType $body]
         if {![llength $bodyData] && ([dict get $serviceInfo skipLevelWhenActionPresent] || [dict get $serviceInfo skipLevelOnReply])} {
@@ -2896,7 +2896,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             } else {
                 set operList {}
             }
-	    lappend operList $operName
+            lappend operList $operName
             dict set serviceInfo inputMessages $inMessage $operList
 
             ##
