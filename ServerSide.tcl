@@ -1808,17 +1808,6 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flav
         }
     }
 
-
-    # FlightAware-specific error logging
-    if {$flavor == "rest"} {
-        if {[string match "QUIET*" $faultstring]} {
-            set faultstring [regsub {^QUIET\s*} $faultstring {}]
-        } else {
-            flightaware_error_sql "::WebServices::Server::generateError caught an error '$faultstring' code '$faultcode': $detail" warning
-        }
-    }
-
-    
     switch -exact -- $flavor {
         rest {
             set doc [yajl create #auto]
