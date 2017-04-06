@@ -1912,7 +1912,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
             set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
 
             $doc map_open
-            ::WS::Utils::convertDictToJson Server $serviceName $doc $results ${serviceName}:${operation}Results
+            ::WS::Utils::convertDictToJson Server $serviceName $doc $results ${serviceName}:${operation}Results $serviceData(-enforceRequired)
             $doc map_close
 
             set output [$doc get]
@@ -1942,13 +1942,13 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
                 foreach headerType $serviceData(-outheaders) {
                     #$header appendChild [$doc createElement ${serviceName}:${headerType} part]
                     #::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
-                    ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType
+                    ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType 0 $serviceData(-enforceRequired)
                 }
             }
             $env appendChild [$doc createElement "SOAP-ENV:Body" body]
             $body appendChild [$doc createElement ${serviceName}:${operation}Results reply]
 
-            ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results
+            ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results 0 $serviceData(-enforceRequired)
 
             append output  \
                 {<?xml version="1.0"  encoding="utf-8"?>} \

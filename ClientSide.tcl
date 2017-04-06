@@ -933,7 +933,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
                 set token [::WS::Utils::geturl_followRedirects $url]
             }
             ::http::wait $token
-            if {[::http::status $token] ne ok ||
+            if {[::http::status $token] ne {ok} ||
                 [::http::ncode $token] != 200} {
                 set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
                 set errorInfo [FormatHTTPError $token]
@@ -1311,7 +1311,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     ##
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
-    if {[::http::status $token] ne ok ||
+    if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
@@ -1435,7 +1435,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ## Check for errors
     ##
     set httpStatus [::http::status $token]
-    if {$httpStatus eq ok && [::http::ncode $token] == 500} {
+    if {$httpStatus eq {ok} && [::http::ncode $token] == 500} {
         set body [::http::data $token]
         ::log::log debug "\tReceived: $body"
         set outTransform [dict get $serviceInfo outTransform]
@@ -1459,7 +1459,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
                 set errorInfo $::errorInfo
             }
         }
-    } elseif {$httpStatus ne ok || [::http::ncode $token] != 200} {
+    } elseif {$httpStatus ne {ok} || [::http::ncode $token] != 200} {
         ::log::log debug "\tHTTP error [array get $token]"
         set results [FormatHTTPError $token]
         set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
@@ -1537,7 +1537,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 #
 ###########################################################################
 proc ::WS::Client::FormatHTTPError {token} {
-    if {[::http::status $token] eq ok} {
+    if {[::http::status $token] eq {ok}} {
         if {[::http::size $token] == 0} {
             return "HTTP failure socket closed"
         }
@@ -1880,7 +1880,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
     set results {}
-    if {[::http::status $token] ne ok ||
+    if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
@@ -2731,7 +2731,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 set style $tmpStyle
                 #puts "Using style for first binding {$style}"
             }
-            if {!($style eq document || $style eq rpc)} {
+            if {!($style eq {document} || $style eq {rpc} )} {
                 ::log:::log debug "Leaving [lindex [info level 0] 0] with error @1"
                 return \
                     -code error \
@@ -2741,8 +2741,8 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 
             if {![info exists use]} {
                 set use [[$binding selectNodes {w:operation[1]/w:input/d:body}] getAttribute use]
-                if {!($style eq document && $use eq literal) &&
-                    !($style eq rpc && $use eq encoded)} {
+                if {!($style eq {document} && $use eq {literal} ) &&
+                    !($style eq {rpc} && $use eq {encoded} )} {
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @2"
                     return \
                         -code error \
@@ -3230,7 +3230,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     ## Check for errors
     ##
     set body [::http::data $token]
-    if {[::http::status $token] ne ok ||
+    if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set errorInfo {}
@@ -3359,7 +3359,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     set httpStatus [::http::status $token]
     set hadError 0
     set results {}
-    if {$httpStatus ne ok ||
+    if {$httpStatus ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         ::log::log debug "\tHTTP error [array get $token]"
         set results [FormatHTTPError $token]
@@ -3765,7 +3765,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     ##
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
-    if {[::http::status $token] ne ok ||
+    if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1

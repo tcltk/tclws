@@ -1744,7 +1744,7 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0}} {
+proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0} {enforceRequired 0}} {
     ::log::log debug "Entering ::WS::Utils::convertDictToType $mode $service $doc $parent {$dict} $type"
     # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
@@ -1753,9 +1753,8 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     variable standardAttributes
     variable currentNs
 
-    array set serviceData $::WS::Server::serviceArr($service)
     if {!$options(UseNS)} {
-        return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type]
+        return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type $enforceRequired]
     }
 
     if {$options(valueAttrCompatiblityMode)} {
@@ -1818,7 +1817,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         if {![dict exists $dict $itemName] && ![dict exists $dict $baseName]} {
             ::log::log debug "Neither {$itemName} nor {$baseName} are in dictionary {$dict}, skipping"
             # If required parameters are being enforced and this field is not optional, throw an error
-            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+            if {$enforceRequired && ![lindex $typeInfoList 2]} {
                 error "Required field $itemName is missing from response"
             }
             continue
@@ -1966,9 +1965,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                 if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
                     set tmpNs $currentNs
                     set currentNs $itemXns
-                    convertDictToType $mode $service $doc $retNode $resultValue $itemType
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired
                 } else {
-                    convertDictToType $mode $service $doc $retNode $resultValue $itemType
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired
                 }
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
@@ -2016,9 +2015,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
                         set tmpNs $currentNs
                         set currentNs $itemXns
-                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired
                     } else {
-                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired
                     }
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
@@ -2083,7 +2082,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
+proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired 0}} {
     ::log::log debug "Entering ::WS::Utils::convertDictToJson $mode $service $doc {$dict} $type"
     variable typeInfo
     variable simpleTypes
@@ -2091,7 +2090,6 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
     variable options
     variable standardAttributes
 
-    array set serviceData $::WS::Server::serviceArr($service)
     set typeInfoList [TypeInfo $mode $service $type]
     set type [string trimright $type {?}]
     if {[dict exists $typeInfo $mode $service $service:$type]} {
@@ -2124,7 +2122,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
         ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType = {$itemType}"
         set typeInfoList [TypeInfo $mode $service $itemType 1]
         if {![dict exists $dict $itemName]} {
-            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+            if {$enforceRequired && ![lindex $typeInfoList 2]} {
                 error "Required field $itemName is missing from response"
             }
             continue
@@ -2163,7 +2161,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
                 ##
                 $doc string $itemName map_open
                 set resultValue [dict get $dict $itemName]
-                convertDictToJson $mode $service $doc $resultValue $itemType
+                convertDictToJson $mode $service $doc $resultValue $itemType $enforceRequired
                 $doc map_close
             }
             {1 1} {
@@ -2179,7 +2177,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
                 }
                 foreach row $dataList {
                     $doc map_open
-                    convertDictToJson $mode $service $doc $row $tmpType
+                    convertDictToJson $mode $service $doc $row $tmpType $enforceRequired
                     $doc map_close
                 }
                 $doc array_close
@@ -2229,7 +2227,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type} {
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
+proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enforceRequired 0}} {
     ::log::log debug "Entering ::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent {$dict} $type"
     # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
@@ -2237,7 +2235,6 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
     variable options
     variable standardAttributes
 
-    array set serviceData $::WS::Server::serviceArr($service)
     if {$options(valueAttrCompatiblityMode)} {
         set valueAttr {}
     } else {
@@ -2268,7 +2265,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
         }
         set typeInfoList [TypeInfo $mode $service $itemType 1]
         if {![dict exists $dict $itemName]} {
-            if {$serviceData(-enforceRequired) && ![lindex $typeInfoList 2]} {
+            if {$enforceRequired && ![lindex $typeInfoList 2]} {
                 error "Required field $itemName is missing from response"
             }
             continue
@@ -2368,7 +2365,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
                 }
-                convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $itemType
+                convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $itemType $enforceRequired
             }
             {1 1} {
                 ##
@@ -2401,7 +2398,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type} {
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
-                    convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType
+                    convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType $enforceRequired
                 }
             }
             default {
