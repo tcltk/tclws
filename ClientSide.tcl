@@ -1036,37 +1036,46 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     set targetNs [$wsdlNode getAttribute targetNamespace]
     set ::WS::Utils::targetNs $targetNs
     dict set nsDict url $targetNs tns$nsCount
-    foreach itemList [$wsdlNode attributes xmlns:*] {
-        set ns [lindex $itemList 0]
-        set url [$wsdlNode getAttribute xmlns:$ns]
-        if {[dict exists $nsDict url $url]} {
-            set tns [dict get $nsDict url $url]
-        } else {
-            ##
-            ## Check for hardcoded namespaces
-            ##
-            switch -exact -- $url {
-                http://schemas.xmlsoap.org/wsdl/ {
-                    set tns w
-                }
-                http://schemas.xmlsoap.org/wsdl/soap/ {
-                    set tns d
-                }
-                http://www.w3.org/2001/XMLSchema {
-                    set tns xs
-                }
-                default {
-                    set tns tns[incr nsCount]
-                }
-            }
-            dict set nsDict url $url $tns
-        }
-        dict set nsDict tns $ns $tns
-    }
+
     $wsdlDoc selectNodesNamespaces {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
         xs http://www.w3.org/2001/XMLSchema
+    }
+
+    set elems $wsdlNode
+    set elems [concat $elems [$wsdlDoc selectNodes {//xs:element}]]
+
+    foreach elemNode $elems {
+      set xmlnsAttributes [$elemNode attributes xmlns:*] 
+
+      foreach itemList $xmlnsAttributes {
+          set ns [lindex $itemList 0]
+          set url [$elemNode getAttribute xmlns:$ns]
+          if {[dict exists $nsDict url $url]} {
+              set tns [dict get $nsDict url $url]
+          } else {
+              ##
+              ## Check for hardcoded namespaces
+              ##
+              switch -exact -- $url {
+                  http://schemas.xmlsoap.org/wsdl/ {
+                      set tns w
+                  }
+                  http://schemas.xmlsoap.org/wsdl/soap/ {
+                      set tns d
+                  }
+                  http://www.w3.org/2001/XMLSchema {
+                      set tns xs
+                  }
+                  default {
+                      set tns tns[incr nsCount]
+                  }
+              }
+              dict set nsDict url $url $tns
+          }
+          dict set nsDict tns $ns $tns
+      }
     }
 
     if {[info exists currentBaseUrl]} {
