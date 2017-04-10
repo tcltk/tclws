@@ -569,7 +569,7 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
     set results {}
     if {[string equal $type {}]} {
         ::log::log debug "@1"
-        set results [dict get $typeInfo $mode $service]
+        catch {set results [dict get $typeInfo $mode $service]}
     } else {
         set typeInfoList [TypeInfo $mode $service $type]
         if {[string equal -nocase -length 3 $type {xs:}]} {

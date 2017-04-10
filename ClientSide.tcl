@@ -1036,9 +1036,12 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     set targetNs [$wsdlNode getAttribute targetNamespace]
     set ::WS::Utils::targetNs $targetNs
     dict set nsDict url $targetNs tns$nsCount
-    foreach itemList [$wsdlNode attributes xmlns:*] {
+    set xmlnsList ""
+    parseXMLNS wsdlNode xmlnsList
+    foreach itemList $xmlnsList {
         set ns [lindex $itemList 0]
-        set url [$wsdlNode getAttribute xmlns:$ns]
+        ;###set url [$wsdlNode getAttribute xmlns:$ns]
+        set url [getXMLNSAttribute wsdlNode "xmlns:$ns"]
         if {[dict exists $nsDict url $url]} {
             set tns [dict get $nsDict url $url]
         } else {
@@ -1109,6 +1112,38 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
 
     return $serviceInfo
 
+}
+proc ::WS::Client::parseXMLNS {wsdlNodeVar xmlnsListVar} {
+
+    upvar $xmlnsListVar xmlnsList
+    upvar $wsdlNodeVar wsdlNode
+
+    foreach itemList [$wsdlNode attributes xmlns:*] {
+        if {[lsearch $xmlnsList $itemList] < 0} {
+            lappend xmlnsList $itemList
+        }
+    }
+    if {[$wsdlNode hasChildNodes] > 0} {
+        foreach childNode [$wsdlNode childNodes] {
+            parseXMLNS childNode xmlnsList
+        }
+    }
+}
+
+proc ::WS::Client::getXMLNSAttribute {wsdlNodeVar attribute} {
+    upvar $wsdlNodeVar wsdlNode
+    set url ""
+    if {[catch {set url [$wsdlNode getAttribute $attribute]}] } {
+        if {[$wsdlNode hasChildNodes] > 0} {
+            foreach childNode [$wsdlNode childNodes] {
+                set url [getXMLNSAttribute childNode $attribute]
+                if {![string equal $url ""]} {
+                    return $url
+                }
+            }
+        }
+    }
+    return $url
 }
 
 ###########################################################################
