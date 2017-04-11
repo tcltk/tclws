@@ -112,4 +112,4 @@ proc ::WS::AOLserver::Return {} {
     }
 }
 
-package provide WS::AOLserver 2.0.0
+package provide WS::AOLserver 2.4.0

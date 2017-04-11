@@ -39,12 +39,12 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3.7 ; # provides dict
+package require WS::Utils 2.4 ; # provides dict
 package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.3.7
+package provide WS::Server 2.4.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -128,6 +128,12 @@ namespace eval ::WS::Server {
 #               -docFormat      - Format of the documentation for operations ("text" or "html").
 #                                 Defaults to "text"
 #               -stylesheet     - The CSS stylesheet URL used in the HTML documentation
+#               -errorCallback  - Callback to be invoked in the event of an error being produced
+#               -verifyUserArgs - Boolean to enable/disable validating user supplied arguments
+#                                 Defaults to "N"
+#               -enforceRequired - Throw an error if a required field is not included in the
+#                                  response.
+#                                  Defaults to "N"
 #
 #
 # Returns :     Nothing
@@ -175,6 +181,10 @@ proc ::WS::Server::Service {args} {
         -traceEnabled   {Y}
         -docFormat      {text}
         -stylesheet     {}
+        -beautifyJson   {N}
+        -errorCallback  {}
+        -verifyUserArgs {N}
+        -enforceRequired {N}
     }
     array set defaults $args
     if {[string equal $defaults(-mode) channel]} {
@@ -200,19 +210,19 @@ proc ::WS::Server::Service {args} {
     }
     # find default host
     if {![info exists defaults(-host)]} {
-	switch -exact -- $defaults(-mode) {
-	    embedded {
-		set me [socket -server garbage_word -myaddr [info hostname] 0]
-    		set defaults(-host) [lindex [fconfigure $me -sockname] 0]
-	    	close $me
-	    	if {0 !=[llength $defaults(-ports)] && 80 != [lindex $defaults(-ports) 0]} {
-        	    append defaults(-host) ":[lindex $defaults(-ports) 0]"
-	    	}
+        switch -exact -- $defaults(-mode) {
+            embedded {
+                set me [socket -server garbage_word -myaddr [info hostname] 0]
+                set defaults(-host) [lindex [fconfigure $me -sockname] 0]
+                close $me
+                if {0 !=[llength $defaults(-ports)] && 80 != [lindex $defaults(-ports) 0]} {
+                    append defaults(-host) ":[lindex $defaults(-ports) 0]"
+                }
             }
-	    default {
-	    	set defaults(-host) localhost
+            default {
+                set defaults(-host) localhost
             }
-	}
+        }
     }
 
     set defaults(-uri) $service
@@ -244,7 +254,7 @@ proc ::WS::Server::Service {args} {
             package require WS::Wub
         }
         aolserver {
-	    package require WS::AOLserver
+            package require WS::AOLserver
         }
         rivet {
             package require Rivet
@@ -730,11 +740,11 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                     404
             }
             rivet {
-                headers type text/html
+                headers type "text/html; charset=UTF-8"
                 headers numeric 404
                 puts "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>"
             }
-	    aolserver {
+            aolserver {
                 ::WS::AOLserver::ReturnData \
                     $sock \
                     text/html \
@@ -775,7 +785,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         }
         rivet {
             set xml [GetWsdl $serviceName]
-            headers type text/xml
+            headers type "text/xml; charset=UTF-8"
             headers numeric 200
             puts $xml
         }
@@ -842,6 +852,151 @@ proc ::WS::Server::GenerateScheme {mode serviceName doc parent} {
     return [::WS::Utils::GenerateScheme $mode $serviceName $doc $parent $targetNamespace]
 
 }
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Server::generateJsonInfo
+#
+# Description : Generate an json description of the service, the operations
+#               and all applicable type definitions.
+#
+# Arguments :
+#       serviceName     - The name of the service
+#       sock            - The socket to return the WSDL on
+#       args            - not used
+#
+# Returns :
+#       1 - On error
+#       0 - On success
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : James Sulak
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  05/16/2012  J.Sulak      Initial version
+#
+#
+###########################################################################
+# NOTE: This proc only works with Rivet
+# TODO: Update to handle jsonp?
+proc ::WS::Server::generateJsonInfo { service sock args } {
+    variable serviceArr
+    variable procInfo
+
+    ::log::log debug "Generating JSON Documentation for $service on $sock with {$args}"
+    set serviceInfo $serviceArr($service)
+    array set serviceData $serviceInfo
+    set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
+
+    $doc map_open
+
+    $doc string operations array_open
+    ::log::log debug "\tDisplay Operations (json)"
+        
+    foreach oper [lsort -dictionary [dict get $procInfo $service operationList]] {
+        $doc map_open
+
+        # operation name
+        $doc string name string $oper
+
+        # description
+        set description [dict get $procInfo $service op$oper docs]
+        $doc string description string $description
+
+        # parameters
+        if {[llength [dict get $procInfo $service op$oper argOrder]]} {
+            $doc string inputs array_open
+            
+            foreach arg [dict get $procInfo $service op$oper argOrder] {
+                ::log::log debug "\t\t\tDisplaying '$arg'"
+                if {[dict exists $procInfo $service op$oper argList $arg comment]} {
+                    set comment [dict get $procInfo $service op$oper argList $arg comment]
+                } else {
+                    set comment {}
+                }
+
+                set type [dict get $procInfo $service op$oper argList $arg type]
+                                
+                $doc map_open string name string $arg string type string $type string comment string $comment map_close
+            }
+
+            $doc array_close
+        } else {
+            $doc string inputs array_open array_close
+        }
+        
+        $doc string returns map_open
+
+        if {[dict exists $procInfo $service op$oper returnInfo comment]} {
+            set comment [dict get $procInfo $service op$oper returnInfo comment]
+        } else {
+            set comment {}
+        }
+
+        set type [dict get $procInfo $service op$oper returnInfo type]
+                
+        $doc string comment string $comment string type string $type
+        $doc map_close
+        
+        $doc map_close
+    }
+
+    $doc array_close
+
+    ::log::log debug "\tDisplay custom types"
+    $doc string types array_open
+    set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
+    foreach type [lsort -dictionary [dict keys $localTypeInfo]] {
+        ::log::log debug "\t\tDisplaying '$type'"
+
+        $doc map_open
+        $doc string name string $type
+        $doc string fields array_open
+        
+        set typeDetails [dict get $localTypeInfo $type definition]
+        foreach part [lsort -dictionary [dict keys $typeDetails]] {
+            ::log::log debug "\t\t\tDisplaying '$part'"
+            set subType [dict get $typeDetails $part type]
+            set comment {}
+            if {[dict exists $typeDetails $part comment]} {
+                set comment [dict get $typeDetails $part comment]
+            }
+            $doc map_open string field string $part string type string $subType string comment string $comment map_close
+        }
+
+        $doc array_close
+        $doc map_close
+    }
+
+    $doc array_close
+        
+    $doc map_close
+
+    set contentType "application/json; charset=UTF-8"
+    headers type $contentType
+    headers numeric 200
+    puts [$doc get]
+    $doc delete
+}
+
 
 ###########################################################################
 #
@@ -991,7 +1146,7 @@ proc ::WS::Server::generateInfo {service sock args} {
         }
         rivet {
             headers numeric 200
-            headers type text/html
+            headers type "text/html; charset=UTF-8"
             puts $msg
         }
         aolserver {
@@ -1046,7 +1201,7 @@ proc ::WS::Server::generateInfo {service sock args} {
 #
 ###########################################################################
 proc ::WS::Server::displayType {serviceName type} {
-    set testType [string trimright $type {()}]
+    set testType [string trimright $type {()?}]
     if {([lindex [::WS::Utils::TypeInfo Server $serviceName $testType] 0] == 0) &&
         ([info exists ::WS::Utils::simpleTypes($testType)])} {
         set result $type
@@ -1120,6 +1275,12 @@ proc ::WS::Server::callOperation {service sock args} {
         }
     }
 
+    # decide if SOAP or REST mode should be used.
+    set flavor "soap"
+    if {[lsearch -exact $args "-rest"] != -1} {
+        set flavor "rest"
+    }
+
     ::log::log debug "In ::WS::Server::callOperation {$service $sock $args}"
     array set serviceInfo $serviceArr($service)
     ::log::log debug "\tDocument is {$inXML}"
@@ -1130,46 +1291,75 @@ proc ::WS::Server::callOperation {service sock args} {
 
     set inTransform $serviceInfo(-intransform)
     set outTransform $serviceInfo(-outtransform)
-    set first [string first {<} $inXML]
-    if {$first > 0} {
-        set inXML [string range $inXML $first end]
-    }
+    # set first [string first {<} $inXML]
+    # if {$first > 0} {
+    #     set inXML [string range $inXML $first end]
+    # }
     if {![string equal $inTransform  {}]} {
         set inXML [$inTransform REQUEST $inXML]
     }
-    dom parse $inXML doc
-    $doc documentElement top
-    ::log::log debug [list $doc selectNodesNamespaces \
-        [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-              $service http://$serviceInfo(-host)$serviceInfo(-prefix)]]
-    $doc selectNodesNamespaces \
-        [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-              $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
-    $doc documentElement rootNode
 
+    # Get a reference to the error callback
+    set errorCallback $serviceInfo(-errorCallback)
 
     ##
-    ## Determine the name of the method being invoked.
+    ## Parse the input and determine the name of the method being invoked.
     ##
-    set top [$rootNode selectNodes /ENV:Envelope/ENV:Body/*]
-    catch {$top localName} requestMessage
-    set legacyRpcMode 0
-    if {$requestMessage == ""} {
-        # older RPC/Encoded clients need to try nodeName instead.
-        # Python pySoap needs this.
-        catch {$top nodeName} requestMessage
-        set legacyRpcMode 1
-    }
-    ::log::log debug "requestMessage = {$requestMessage}"
-    if {[string match {*Request} $requestMessage]} {
-        set operation [string range $requestMessage 0 end-7]
-    } else {
-        # broken clients might not have sent the correct Document Wrapped name.
-        # Python pySoap and Perl SOAP::Lite need this.
-        set operation $requestMessage
-        set legacyRpcMode 1
-    }
+    switch -exact -- $flavor {
+        rest {
+            package require yajltcl ;   # only needed for rest, not soap.
 
+            set operation [lindex $inXML 0]
+            set contentType "application/json"
+            set doc ""
+
+            array set rawargs [lindex $inXML 1]
+            if {[info exists rawargs(jsonp_callback)]} {
+                if {![regexp {^[a-zA-Z_0-9]+$} $rawargs(jsonp_callback)]} {
+                    # sanitize the JSONP callback function name for security.
+                    set rawargs(jsonp_callback) FlightXmlCallback
+                }
+                set contentType "text/javascript"
+            }
+        }
+        soap {
+            # parse the XML request
+            dom parse $inXML doc
+            $doc documentElement top
+            ::log::log debug [list $doc selectNodesNamespaces \
+                                  [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
+                                       $service http://$serviceInfo(-host)$serviceInfo(-prefix)]]
+            $doc selectNodesNamespaces \
+                [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
+                     $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
+            $doc documentElement rootNode
+            
+            # extract the name of the method
+            set top [$rootNode selectNodes /ENV:Envelope/ENV:Body/*]
+            catch {$top localName} requestMessage
+            set legacyRpcMode 0
+            if {$requestMessage == ""} {
+                # older RPC/Encoded clients need to try nodeName instead.
+                # Python pySoap needs this.
+                catch {$top nodeName} requestMessage
+                set legacyRpcMode 1
+            }
+            ::log::log debug "requestMessage = {$requestMessage}"
+            if {[string match {*Request} $requestMessage]} {
+                set operation [string range $requestMessage 0 end-7]
+            } else {
+                # broken clients might not have sent the correct Document Wrapped name.
+                # Python pySoap and Perl SOAP::Lite need this.
+                set operation $requestMessage
+                set legacyRpcMode 1
+            }
+            set contentType "text/xml"
+        }
+        default {
+            if {$errorCallback ne {}} { $errorCallback "BAD_FLAVOR No supported protocol" {} "UnknownMethod" $flavor }
+            error "bad flavor"
+        }
+    }
 
     ##
     ## Check that the method exists.
@@ -1179,30 +1369,39 @@ proc ::WS::Server::callOperation {service sock args} {
         ::log::log error $msg
         set ::errorInfo {}
         set ::errorCode [list Server UNKNOWN_METHOD $operation]
-        set xml [generateError \
+        set response [generateError \
                     $serviceInfo(-traceEnabled) \
                     CLIENT \
                     $msg \
-                    [list "errorCode" $::errorCode "stackTrace" $::errorInfo]]
+                    [list "errorCode" $::errorCode "stackTrace" $::errorInfo] \
+                    $flavor]
         catch {$doc delete}
-        ::log::log debug "Leaving @ error 1::WS::Server::callOperation $xml"
+        set httpStatus 404
+        if {$errorCallback ne {}} { $errorCallback "UNKNOWN_METHOD $msg" httpStatus $operation $flavor }
+        ::log::log debug "Leaving @ error 1::WS::Server::callOperation $response"
+
+        # wrap in JSONP
+        if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
+            set response "$rawargs(jsonp_callback)($response)"
+        }
+
         switch -exact -- $mode {
             tclhttpd {
-                ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             rivet {
-                headers type text/xml
-                headers numeric 500
-                puts $xml
+                headers type "$contentType; charset=UTF-8"
+                headers numeric $httpStatus
+                puts $response
             }
             aolserver {
-                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+                ::WS::AOLserver::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             wibble  {
-                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+                ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response $httpStatus
             }
             default {
                 ## Do nothing
@@ -1219,108 +1418,170 @@ proc ::WS::Server::callOperation {service sock args} {
     ##
     set argInfo [dict get $procInfo $ns $cmdName argList]
     if {[catch {
-        foreach pass [list 1 2 3] {
-            set tclArgList {}
-            set gotAnyArgs 0
-            set argIndex 0
-            foreach argName [dict get $procInfo $ns $cmdName argOrder] {
-                set argType [string trim [dict get $argInfo $argName type]]
-                set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
-                if {$pass == 1} {
-                    # access arguments by name using full namespace
-                    set path $service:$argName
-                    set node [$top selectNodes $path]
-                } elseif {$pass == 2} {
-                    # legacyRpcMode only, access arguments by unqualified name
-                    set path $argName
-                    set node [$top selectNodes $path]
-                } else {
-                    # legacyRpcMode only, access arguments by index
-                    set path "legacy argument index $argIndex"
-                    set node [lindex [$top childNodes] $argIndex]
-                    incr argIndex
-                }
-                if {[string equal $node {}]} {
-                    ::log::log debug "did not find argument for $argName using $path, leaving blank"
-                    lappend tclArgList {}
-                    continue
-                }
-                ::log::log debug "found argument $argName using $path, processing $node"
-                set gotAnyArgs 1
-                switch -exact -- $typeInfoList {
-                    {0 0} {
-                        ##
-                        ## Simple non-array
-                        ##
-                        lappend tclArgList [$node asText]
-                    }
-                    {0 1} {
-                        ##
-                        ## Simple array
-                        ##
-                        set tmp {}
-                        foreach row $node {
-                            lappend tmp [$row asText]
-                        }
-                        lappend tclArgList $tmp
-                    }
-                    {1 0} {
-                        ##
-                        ## Non-simple non-array
-                        ##
-                        lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
-                    }
-                    {1 1} {
-                        ##
-                        ## Non-simple array
-                        ##
-                        set tmp {}
-                        set argType [string trimright $argType {()}]
-                        foreach row $node {
-                            lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
-                        }
-                        lappend tclArgList $tmp
-                    }
-                    default {
-                        ## Do nothing
-                    }
+        # Check that all supplied arguments are valid
+        set methodArgs [dict get $procInfo $ns $cmdName argOrder]
+        if {$serviceInfo(-verifyUserArgs)} {
+            foreach {key value} [array get rawargs] {
+                if {[lsearch -exact $methodArgs $key] == -1} {
+                    error "Invalid argument '$key' supplied"
                 }
             }
-            ::log::log debug "gotAnyArgs $gotAnyArgs, legacyRpcMode $legacyRpcMode"
-            if {$gotAnyArgs || !$legacyRpcMode} break
+        }
+        switch -exact -- $flavor {
+            rest {
+                set tclArgList {}
+                foreach argName $methodArgs {
+                    set argType [string trim [dict get $argInfo $argName type]]
+                    set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+
+                    if {![info exists rawargs($argName)]} {
+                        ::log::log debug "did not find argument for $argName, leaving blank"
+                        lappend tclArgList {}
+                        continue
+                    }
+
+                    switch -exact -- $typeInfoList {
+                        {0 0} {
+                            ## Simple non-array
+                            lappend tclArgList $rawargs($argName)
+                        }
+                        {0 1} {
+                            ## Simple array
+                            lappend tclArgList $rawargs($argName)
+                        }
+                        {1 0} {
+                            ## Non-simple non-array
+                            error "TODO JSON"
+                            #lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
+                        }
+                        {1 1} {
+                            ## Non-simple array
+                            error "TODO JSON"
+                            #set tmp {}
+                            #set argType [string trimright $argType {()?}]
+                            #foreach row $node {
+                            #    lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                            #}
+                            #lappend tclArgList $tmp
+                        }
+                        default {
+                            ## Do nothing
+                        }
+                    }
+
+                }
+            }
+            soap {
+                foreach pass [list 1 2 3] {
+                    set tclArgList {}
+                    set gotAnyArgs 0
+                    set argIndex 0
+                    foreach argName $methodArgs {
+                        set argType [string trim [dict get $argInfo $argName type]]
+                        set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+                        if {$pass == 1} {
+                            # access arguments by name using full namespace
+                            set path $service:$argName
+                            set node [$top selectNodes $path]
+                        } elseif {$pass == 2} {
+                            # legacyRpcMode only, access arguments by unqualified name
+                            set path $argName
+                            set node [$top selectNodes $path]
+                        } else {
+                            # legacyRpcMode only, access arguments by index
+                            set path "legacy argument index $argIndex"
+                            set node [lindex [$top childNodes] $argIndex]
+                            incr argIndex
+                        }
+                        if {[string equal $node {}]} {
+                            ::log::log debug "did not find argument for $argName using $path, leaving blank"
+                            lappend tclArgList {}
+                            continue
+                        }
+                        ::log::log debug "found argument $argName using $path, processing $node"
+                        set gotAnyArgs 1
+                        switch -exact -- $typeInfoList {
+                            {0 0} {
+                                ## Simple non-array
+                                lappend tclArgList [$node asText]
+                            }
+                            {0 1} {
+                                ## Simple array
+                                set tmp {}
+                                foreach row $node {
+                                    lappend tmp [$row asText]
+                                }
+                                lappend tclArgList $tmp
+                            }
+                            {1 0} {
+                                ## Non-simple non-array
+                                set argType [string trimright $argType {?}]
+                                lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
+                            }
+                            {1 1} {
+                                ## Non-simple array
+                                set tmp {}
+                                set argType [string trimright $argType {()?}]
+                                foreach row $node {
+                                    lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                                }
+                                lappend tclArgList $tmp
+                            }
+                            default {
+                                ## Do nothing
+                            }
+                        }
+                    }
+                    ::log::log debug "gotAnyArgs $gotAnyArgs, legacyRpcMode $legacyRpcMode"
+                    if {$gotAnyArgs || !$legacyRpcMode} break
+                }
+            }
+            default {
+                if {$errorCallback ne {}} { $errorCallback "BAD_FLAVOR No supported protocol" {} $operation $flavor }
+                error "invalid flavor"
+            }
         }
         ::log::log debug "finalargs $tclArgList"
     } errMsg]} {
         ::log::log error $errMsg
         set localerrorCode $::errorCode
         set localerrorInfo $::errorInfo
-        set xml [generateError \
+        set response [generateError \
                     $serviceInfo(-traceEnabled) \
                     CLIENT \
                     "Error Parsing Arguments -- $errMsg" \
-                    [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo]]
+                    [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo] \
+                    $flavor]
         catch {$doc delete}
-        ::log::log debug "Leaving @ error 3::WS::Server::callOperation $xml"
+        set httpStatus 400
+        if {$errorCallback ne {}} { $errorCallback "INVALID_ARGUMENT $errMsg" httpStatus $operation $flavor }
+        ::log::log debug "Leaving @ error 3::WS::Server::callOperation $response"
+
+        # wrap in JSONP
+        if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
+            set response "$rawargs(jsonp_callback)($response)"
+        }
+
         switch -exact -- $mode {
             tclhttpd {
-                ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             channel {
-                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             rivet {
-                headers type text/xml
-                headers numeric 500
-                puts $xml
+                headers type "$contentType; charset=UTF-8"
+                headers numeric $httpStatus
+                puts $response
             }
             aolserver {
-                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+                ::WS::AOLserver::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             wibble  {
-                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+                ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response $httpStatus
             }
             default {
                 ## Do nothing
@@ -1375,12 +1636,22 @@ proc ::WS::Server::callOperation {service sock args} {
         eval $cmd
         set results [eval \$methodName $tclArgList]
         # generate a reply packet
-        set xml [generateReply $ns $baseName $results]
-        # regsub "<!DOCTYPE\[^>\]+>\n" $xml {} xml
+        set response [generateReply $ns $baseName $results $flavor]
+
+        # wrap in JSONP
+        if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
+            set response "$rawargs(jsonp_callback)($response)"
+        }
+
+        # mangle the XML declaration
+        if {$flavor == "soap"} {
+            # regsub "<!DOCTYPE\[^>\]+>\n" $response {} response
+            set response [string map {{<?xml version="1.0"?>} {<?xml version="1.0"  encoding="utf-8"?>}} $response]
+        }
+
         catch {$doc delete}
-        set xml [string map {{<?xml version="1.0"?>} {<?xml version="1.0"  encoding="utf-8"?>}} $xml]
         if {![string equal $outTransform  {}]} {
-            set xml [$outTransform REPLY $xml $operation $results]
+            set response [$outTransform REPLY $response $operation $results]
         }
         if {[info exists serviceInfo(-postmonitor)] &&
             [string length $serviceInfo(-postmonitor)]} {
@@ -1388,27 +1659,27 @@ proc ::WS::Server::callOperation {service sock args} {
             lappend precmd POST $service $operation OK $results
             catch $precmd
         }
-        ::log::log debug "Leaving ::WS::Server::callOperation $xml"
+        ::log::log debug "Leaving ::WS::Server::callOperation $response"
         switch -exact -- $mode {
             tclhttpd {
-                ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
+                ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response 200
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
+                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response 200
             }
             channel {
-                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
+                ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response 200
             }
             rivet {
-                headers type text/xml
+                headers type "$contentType; charset=UTF-8"
                 headers numeric 200
-                puts $xml
+                puts $response
             }
             aolserver {
-                ::WS::AOLserver::ReturnData $sock text/xml $xml 200
+                ::WS::AOLserver::ReturnData $sock "$contentType; charset=UTF-8" $response 200
             }
             wibble  {
-                ::WS::Wibble::ReturnData responseDict text/xml $xml 200
+                ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response 200
             }
             default {
                 ## Do nothing
@@ -1426,33 +1697,46 @@ proc ::WS::Server::callOperation {service sock args} {
             lappend precmd POST $service $operation ERROR $msg
             catch $precmd
         }
-        set xml [generateError \
+        set response [generateError \
                     $serviceInfo(-traceEnabled) \
                     CLIENT \
                     $msg \
-                    [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo]]
+                    [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo] \
+                    $flavor]
         catch {$doc delete}
-        ::log::log debug "Leaving @ error 2::WS::Server::callOperation $xml"
+        set httpStatus 500
+        if {$errorCallback ne {}} { $errorCallback $msg httpStatus $operation $flavor }
+        ::log::log debug "Leaving @ error 2::WS::Server::callOperation $response"
+
+        # wrap in JSONP
+        if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
+            set response "$rawargs(jsonp_callback)($response)"
+        }
+
         switch -exact -- $mode {
             tclhttpd {
-                ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             channel {
-                ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 500
+                ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             rivet {
-                headers type text/xml
-                headers numeric 500
-                puts $xml
+                if {[lindex $localerrorCode 0] == "RIVET" && [lindex $localerrorCode 1] == "ABORTPAGE"} {
+                    # if we caught an abort_page, then re-trigger it.
+                    abort_page
+                }
+                headers type "$contentType; charset=UTF-8"
+                headers numeric $httpStatus
+                puts $response
             }
             aolserver {
-                ::WS::AOLserver::ReturnData $sock text/xml $xml 500
+                ::WS::AOLserver::ReturnData $sock $contentType $response $httpStatus
             }
             wibble  {
-                ::WS::Wibble::ReturnData responseDict text/xml $xml 500
+                ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response $httpStatus
             }
             default {
                 ## Do nothing
@@ -1479,6 +1763,7 @@ proc ::WS::Server::callOperation {service sock args} {
 #    faultcode          - The code describing the error
 #    faultstring        - The string describing the error.
 #    detail             - Optional details of error.
+#    flavor             - Output mode: "soap" or "rest"
 #
 # Returns : XML formatted standard error packet
 #
@@ -1502,7 +1787,7 @@ proc ::WS::Server::callOperation {service sock args} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
+proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flavor} {
     ::log::log debug "Entering ::WS::Server::generateError $faultcode $faultstring {$detail}"
     set code [lindex $detail 1]
     switch -exact -- $code {
@@ -1522,42 +1807,56 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
             ## Do nothing
         }
     }
-    dom createDocument "SOAP-ENV:Envelope" doc
-    $doc documentElement env
-    $env setAttribute  \
-        "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
-        "xmlns:xsi"      "http://www.w3.org/1999/XMLSchema-instance" \
-        "xmlns:xsd"      "http://www.w3.org/1999/XMLSchema" \
-        "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/"
-    $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
-    $bod appendChild [$doc createElement "SOAP-ENV:Fault" flt]
-    $flt appendChild [$doc createElement "faultcode" fcd]
-    $fcd appendChild [$doc createTextNode $faultcode]
-    $flt appendChild [$doc createElement "faultstring" fst]
-    $fst appendChild [$doc createTextNode $faultstring]
 
-    if { $detail != {} } {
-        $flt appendChild [$doc createElement "SOAP-ENV:detail" dtl0]
-        $dtl0 appendChild [$doc createElement "e:errorInfo" dtl]
-        $dtl setAttribute "xmlns:e" "urn:TclErrorInfo"
-
-        foreach {detailName detailInfo} $detail {
-            if {!$includeTrace && $detailName == "stackTrace"} {
-                continue
+    switch -exact -- $flavor {
+        rest {
+            set doc [yajl create #auto]
+            $doc map_open string "error" string $faultstring map_close
+            set response [$doc get]
+            $doc delete
+        }
+        soap {
+            dom createDocument "SOAP-ENV:Envelope" doc
+            $doc documentElement env
+            $env setAttribute  \
+                "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
+                "xmlns:xsi"      "http://www.w3.org/1999/XMLSchema-instance" \
+                "xmlns:xsd"      "http://www.w3.org/1999/XMLSchema" \
+                "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/"
+            $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
+            $bod appendChild [$doc createElement "SOAP-ENV:Fault" flt]
+            $flt appendChild [$doc createElement "faultcode" fcd]
+            $fcd appendChild [$doc createTextNode $faultcode]
+            $flt appendChild [$doc createElement "faultstring" fst]
+            $fst appendChild [$doc createTextNode $faultstring]
+            
+            if { $detail != {} } {
+                $flt appendChild [$doc createElement "SOAP-ENV:detail" dtl0]
+                $dtl0 appendChild [$doc createElement "e:errorInfo" dtl]
+                $dtl setAttribute "xmlns:e" "urn:TclErrorInfo"
+                
+                foreach {detailName detailInfo} $detail {
+                    if {!$includeTrace && $detailName == "stackTrace"} {
+                        continue
+                    }
+                    $dtl appendChild [$doc createElement $detailName err]
+                    $err appendChild [$doc createTextNode $detailInfo]
+                }
             }
-            $dtl appendChild [$doc createElement $detailName err]
-            $err appendChild [$doc createTextNode $detailInfo]
+            
+            # serialize the DOM document and return the XML text
+            append response  \
+                {<?xml version="1.0"  encoding="utf-8"?>} \
+                "\n" \
+                [$doc asXML -indent none -doctypeDeclaration 0]
+            $doc delete
+        }
+        default {
+            error "unsupported flavor"
         }
     }
-
-    # serialize the DOM document and return the XML text
-    append xml  \
-        {<?xml version="1.0"  encoding="utf-8"?>} \
-        "\n" \
-        [$doc asXML -indent none -doctypeDeclaration 0]
-    $doc delete
-    ::log::log debug "Leaving (error) ::WS::Server::generateError $xml"
-    return $xml
+    ::log::log debug "Leaving (error) ::WS::Server::generateError $response"
+    return $response
 }
 
 ###########################################################################
@@ -1575,6 +1874,7 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
 #    serviceName         - The name of the service
 #    operation           - The name of the operation
 #    results             - The results as a dictionary object
+#    flavor              - Output mode: "soap" or "rest"
 #
 #
 # Returns : The results as an XML formatted packet.
@@ -1599,53 +1899,71 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateReply {serviceName operation results} {
+proc ::WS::Server::generateReply {serviceName operation results flavor} {
     ::log::log debug "Entering ::WS::Server::generateReply $serviceName $operation {$results}"
 
     variable serviceArr
 
     array set serviceData $serviceArr($serviceName)
 
-    if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
-        set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
-                                $serviceData(-host) \
-                                $serviceName \
-                                $operation]
-        append replaceText "\n"
-    } else {
-        set replaceText {}
-    }
 
-    dom createDocument "SOAP-ENV:Envelope" doc
-    $doc documentElement env
-    $env setAttribute  \
-        "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
-        "xmlns:xsi"      "http://www.w3.org/1999/XMLSchema-instance" \
-        "xmlns:xsd"      "http://www.w3.org/1999/XMLSchema" \
-        "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
-         xmlns:$serviceName "http://$serviceData(-host)$serviceData(-prefix)"
-    if {[llength $serviceData(-outheaders)]} {
-        $env appendChild [$doc createElement "SOAP-ENV:Header" header]
-        foreach headerType $serviceData(-outheaders) {
-            #$header appendChild [$doc createElement ${serviceName}:${headerType} part]
-            #::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
-            ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType
+    switch -exact -- $flavor {
+        rest {
+            set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
+
+            $doc map_open
+            ::WS::Utils::convertDictToJson Server $serviceName $doc $results ${serviceName}:${operation}Results $serviceData(-enforceRequired)
+            $doc map_close
+
+            set output [$doc get]
+            $doc delete
+        }
+        soap {
+            if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
+                set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
+                                     $serviceData(-host) \
+                                     $serviceName \
+                                     $operation]
+                append replaceText "\n"
+            } else {
+                set replaceText {}
+            }
+            
+            dom createDocument "SOAP-ENV:Envelope" doc
+            $doc documentElement env
+            $env setAttribute  \
+                "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
+                "xmlns:xsi"      "http://www.w3.org/1999/XMLSchema-instance" \
+                "xmlns:xsd"      "http://www.w3.org/1999/XMLSchema" \
+                "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
+                xmlns:$serviceName "http://$serviceData(-host)$serviceData(-prefix)"
+            if {[llength $serviceData(-outheaders)]} {
+                $env appendChild [$doc createElement "SOAP-ENV:Header" header]
+                foreach headerType $serviceData(-outheaders) {
+                    #$header appendChild [$doc createElement ${serviceName}:${headerType} part]
+                    #::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
+                    ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType 0 $serviceData(-enforceRequired)
+                }
+            }
+            $env appendChild [$doc createElement "SOAP-ENV:Body" body]
+            $body appendChild [$doc createElement ${serviceName}:${operation}Results reply]
+
+            ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results 0 $serviceData(-enforceRequired)
+
+            append output  \
+                {<?xml version="1.0"  encoding="utf-8"?>} \
+                "\n" \
+                [$doc asXML -indent none -doctypeDeclaration 0]
+            #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] $replaceText xml
+            $doc delete
+        }
+        default {
+            error "Unsupported flavor"
         }
     }
-    $env appendChild [$doc createElement "SOAP-ENV:Body" body]
-    $body appendChild [$doc createElement ${serviceName}:${operation}Results reply]
 
-    ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results
-
-    append xml  \
-        {<?xml version="1.0"  encoding="utf-8"?>} \
-        "\n" \
-        [$doc asXML -indent none -doctypeDeclaration 0]
-    #regsub "<!DOCTYPE\[^>\]*>\n" [::dom::DOMImplementation serialize $doc] $replaceText xml
-    $doc delete
-
-    ::log::log debug "Leaving ::WS::Server::generateReply $xml"
-    return $xml
+    ::log::log debug "Leaving ::WS::Server::generateReply $output"
+    return $output
 
 }
 
@@ -1917,22 +2235,27 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
         append msg [::html::h4 {Inputs}] "\n"
 
         append msg [::html::openTag div {style="margin-left: 40px;"}]
-        append msg [::html::openTag {table} {border="2"}]
-        append msg [::html::hdrRow Name Type Description]
-        foreach arg [dict get $procInfo $service op$oper argOrder] {
-            ::log::log debug "\t\t\tDisplaying '$arg'"
-            if {[dict exists $procInfo $service op$oper argList $arg comment]} {
-                set comment [dict get $procInfo $service op$oper argList $arg comment]
-            } else {
-                set comment {}
+
+        if {[llength [dict get $procInfo $service op$oper argOrder]]} {
+            append msg [::html::openTag {table} {border="2"}]
+            append msg [::html::hdrRow Name Type Description]
+            foreach arg [dict get $procInfo $service op$oper argOrder] {
+                ::log::log debug "\t\t\tDisplaying '$arg'"
+                if {[dict exists $procInfo $service op$oper argList $arg comment]} {
+                    set comment [dict get $procInfo $service op$oper argList $arg comment]
+                } else {
+                    set comment {}
+                }
+                append msg [::html::row \
+                                $arg \
+                                [displayType $service [dict get $procInfo $service op$oper argList $arg type]] \
+                                $comment \
+                               ]
             }
-            append msg [::html::row \
-                            $arg \
-                            [displayType $service [dict get $procInfo $service op$oper argList $arg type]] \
-                            $comment \
-                       ]
+            append msg [::html::closeTag]
+        } else {
+            append msg "No inputs."
         }
-        append msg [::html::closeTag]
         append msg [::html::closeTag]
 
         ::log::log debug "\t\tReturns"
@@ -2020,16 +2343,23 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
     set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
     foreach type [lsort -dictionary [dict keys $localTypeInfo]] {
         ::log::log debug "\t\tDisplaying '$type'"
+        set href_type [lindex [split $type :] end]
         set typeOverloadArray($type) 1
-        append msg [::html::h3 "<a id='type_$type'>$type</a>"]
+        append msg [::html::h3 "<a id='type_${href_type}'>$type</a>"]
         set typeDetails [dict get $localTypeInfo $type definition]
         append msg [::html::openTag {table} {border="2"}]
-        append msg [::html::hdrRow Field Type]
+        append msg [::html::hdrRow Field Type Comment]
         foreach part [lsort -dictionary [dict keys $typeDetails]] {
             ::log::log debug "\t\t\tDisplaying '$part'"
+            if {[dict exists $typeDetails $part comment]} {
+                set comment [dict get $typeDetails $part comment]
+            } else {
+                set comment {}
+            }
             append msg [::html::row \
                             $part \
-                            [displayType $service [dict get $typeDetails $part type]]
+                            [displayType $service [dict get $typeDetails $part type]] \
+                            $comment
                        ]
         }
         append msg [::html::closeTag]

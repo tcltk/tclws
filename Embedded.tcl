@@ -44,7 +44,7 @@ package require base64
 package require html
 package require log
 
-package provide WS::Embeded 2.3.0
+package provide WS::Embeded 2.4.0
 
 namespace eval ::WS::Embeded {
 
