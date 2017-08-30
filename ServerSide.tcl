@@ -1227,6 +1227,7 @@ proc ::WS::Server::displayType {serviceName type} {
 # Arguments :
 #       serviceName     - The name of the service
 #       sock            - The socket to return the WSDL on
+#       -rest           - Use Rest flavor call instead of SOAP
 #       args            - not used
 #
 # Returns :
@@ -1291,11 +1292,7 @@ proc ::WS::Server::callOperation {service sock args} {
 
     set inTransform $serviceInfo(-intransform)
     set outTransform $serviceInfo(-outtransform)
-    # set first [string first {<} $inXML]
-    # if {$first > 0} {
-    #     set inXML [string range $inXML $first end]
-    # }
-    if {![string equal $inTransform  {}]} {
+    if {$inTransform ne {}} {
         set inXML [$inTransform REQUEST $inXML]
     }
 
@@ -1323,6 +1320,11 @@ proc ::WS::Server::callOperation {service sock args} {
             }
         }
         soap {
+            # skip any XML header
+            set first [string first {<} $inXML]
+            if {$first > 0} {
+                set inXML [string range $inXML $first end]
+            }
             # parse the XML request
             dom parse $inXML doc
             $doc documentElement top
