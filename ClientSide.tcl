@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.1
+package provide WS::Client 2.4.2
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -1921,6 +1921,9 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.2    2017-08-31  H.Oehlmann   The response node name may also be the
+#                                   output name and not only the output type.
+#                                   (ticket [21f41e22bc]).
 #
 #
 ###########################################################################
@@ -2012,13 +2015,15 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
 
     ##
     ## Validated that it is the expected packet type
+    ## The outputsname is also verified (see ticket [21f41e22bc])
     ##
-    if {$rootName ne $expectedMsgTypeBase} {
+    if {$rootName ne $expectedMsgTypeBase
+            && $rootName ne [dict get $serviceInfo operation $operationName outputsname]} {
         $doc delete
         return \
             -code error \
             -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
-            "Bad reply type, received '$rootName; but expected '$expectedMsgTypeBase'."
+            "Bad reply type, received '$rootName'; but expected '$expectedMsgTypeBase'."
     }
 
     ##
@@ -2666,6 +2671,8 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+# 2.4.2    2017-08-31  H.Oehlmann   Also set serviceArr operation members
+#                                   inputsName and outputsName.
 #
 #
 ###########################################################################
@@ -2756,14 +2763,15 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     dict lappend serviceInfo operList $newName
                     dict set serviceInfo operation $newName [dict get $serviceInfo operation $operName]
                 }
-                set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
-                set operName ${operName}_[lindex [split [lindex $typeList 0] {:}] end]
+                # typNameList contains inType inName outType outName
+                set typeNameList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
+                set operName ${operName}_[lindex [split [lindex $typeNameList 0] {:}] end]
                 set cloneList [dict get $serviceInfo operation $baseName cloneList]
                 lappend cloneList $operName
                 dict set serviceInfo operation $baseName cloneList $cloneList
                 dict set serviceInfo operation $operName isClone 1
             } else {
-                set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
+                set typeNameList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
                 dict set serviceInfo operation $operName isClone 0
             }
 
@@ -2852,10 +2860,11 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                         "Mixed usageage not supported!'"
                 }
             }
-            #set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
-            ::log:::log debug "\t Messages are {$typeList}"
-            foreach type $typeList mode {inputs outputs} {
+            ::log:::log debug "\t Input/Output types and names are {$typeNameList}"
+            foreach {type name} $typeNameList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
+                # also set outputsname which is used to match it as alternate response node name
+                dict set serviceInfo operation $operName ${mode}name $name
             }
             set inMessage [dict get $serviceInfo operation $operName inputs]
             if {[dict exists $serviceInfo inputMessages $inMessage] } {
@@ -2923,6 +2932,8 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Extend return by names to verify this
+#                                   as return output node name.
 #
 #
 ###########################################################################
@@ -2950,26 +2961,30 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
         ::log:::log debug "\t operNode query is {$operQuery}"
         set operNode [$wsdlNode selectNodes $operQuery]
     }
-
-    set inputMsgNode [$operNode selectNodes {w:input}]
-    if {$inputMsgNode ne {}} {
-        set inputMsgPath [$inputMsgNode getAttribute message]
-        set inputMsg [lindex [split $inputMsgPath {:}] end]
-        set inType [messageToType $wsdlNode $serviceName $operName $inputMsg serviceInfo $style]
-    }
-
-    set outputMsgNode [$operNode selectNodes {w:output}]
-    if {$outputMsgNode ne {}} {
-        set outputMsgPath [$outputMsgNode getAttribute message]
-        set outputMsg [lindex [split $outputMsgPath {:}] end]
-        set outType [messageToType $wsdlNode $serviceName $operName $outputMsg serviceInfo $style]
+    
+    set resList {}
+    foreach sel {w:input w:output} {
+        set nodeList [$operNode selectNodes $sel]
+        if {1 == [llength $nodeList]} {
+            set nodeCur [lindex $nodeList 0]
+            set msgPath [$nodeCur getAttribute message]
+            set msgCur [lindex [split $msgPath {:}] end]
+            # Append type
+            lappend resList [messageToType $wsdlNode $serviceName $operName $msgCur serviceInfo $style]
+            # Append name
+            if {[$nodeCur hasAttribute name]} {
+                lappend resList [$nodeCur getAttribute name]
+            } else {
+                lappend resList {}
+            }
+        }
     }
 
     ##
     ## Return the types
     ##
-    ::log:::log debug "Leaving [lindex [info level 0] 0] with [list $inType $outType]"
-    return [list $inType $outType]
+    ::log:::log debug "Leaving [lindex [info level 0] 0] with $resList"
+    return $resList
 }
 
 ###########################################################################
