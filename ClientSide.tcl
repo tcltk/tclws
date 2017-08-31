@@ -2932,7 +2932,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
-# 2.4.1    2017-08-31  H.Oehlmann   Extend return by names to verify this
+# 2.4.2    2017-08-31  H.Oehlmann   Extend return by names to verify this
 #                                   as return output node name.
 #
 #
