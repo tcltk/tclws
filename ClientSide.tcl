@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.0
+package provide WS::Client 2.4.1
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -525,6 +525,9 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  01/30/2009  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -539,17 +542,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
         }
         http -
         https {
-            set token [::http::geturl $url]
-            ::http::wait $token
-            set ncode [::http::ncode $token]
-            set xml [::http::data $token]
-            ::http::cleanup $token
-            if {$ncode != 200} {
-                return \
-                    -code error \
-                    -errorcode [list WS CLIENT HTTPFAIL $url] \
-                    "HTTP get of import file failed '$url'"
-            }
+            set xml [::WS::Utils::geturl_fetchbody $url]
         }
         default {
             return \
@@ -912,7 +905,8 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
 #
 ###########################################################################
 proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
@@ -928,23 +922,11 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
         http -
         https {
             if {[llength $headers]} {
-                set token [::WS::Utils::geturl_followRedirects $url -headers $headers]
+                set body [::WS::Utils::geturl_fetchbody $url -headers $headers]
             } else {
-                set token [::WS::Utils::geturl_followRedirects $url]
+                set body [::WS::Utils::geturl_fetchbody $url]
             }
-            ::http::wait $token
-            if {[::http::status $token] ne {ok} ||
-                [::http::ncode $token] != 200} {
-                set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-                set errorInfo [FormatHTTPError $token]
-                ::http::cleanup $token
-                return \
-                    -code error \
-                    -errorcode $errorCode \
-                    $errorInfo
-            }
-            set wsdlInfo [ParseWsdl [::http::data $token] -headers $headers -serviceAlias $serviceAlias]
-            ::http::cleanup $token
+            set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias]
         }
         default {
             return \
@@ -1266,6 +1248,9 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -1311,41 +1296,13 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     ##
     
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    ::log::log info "\nReceived: $body"
-    if {[::http::status $token] ne {ok} ||
-        ( [::http::ncode $token] != 200 && $body eq {} )} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawCall with {$results}"
-        return $results
-    }
+    ::log::log debug "Leaving ::WS::Client::DoRawCall with {$body}"
+    return $body
 
 }
 
@@ -1395,6 +1352,9 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-30  H.Oehlmann   Use ::WS::Utils::geturl_fetchbody to do
+#                                   http call. This automates a lot and follows
+#                                   redirects.
 #
 #
 ###########################################################################
@@ -1438,23 +1398,20 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ##
     ## Do the http request
     ##
+    # This will directly return with correct error
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] ]
+        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] ]
     }
-    ::http::wait $token
+    # numerical http code was saved in variable httpCode
 
     ##
-    ## Check for errors
+    ## Process body
     ##
-    set httpStatus [::http::status $token]
-    if {$httpStatus eq {ok} && [::http::ncode $token] == 500} {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
+    set outTransform [dict get $serviceInfo outTransform]
+    if {$httpCode == 500} {
+        ## Code 500 treatment
         if {$outTransform ne {}} {
             SaveAndSetOptions $serviceName
             catch {set body [$outTransform $serviceName $operationName REPLY $body]}
@@ -1463,35 +1420,25 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set hadError [catch {parseResults $serviceName $operationName $body} results]
         if {$hadError} {
             lassign $::errorCode mainError subError
-            if {$mainError eq WSCLIENT && $subError eq NOSOAP} {
+            if {$mainError eq {WSCLIENT} && $subError eq {NOSOAP}} {
                 ::log::log debug "\tHTTP error $body"
                 set results $body
                 set errorCode [list WSCLIENT HTTPERROR $body]
                 set errorInfo {}
-                set hadError 1
             } else {
                 ::log::log debug "Reply was $body"
                 set errorCode $::errorCode
                 set errorInfo $::errorInfo
             }
         }
-    } elseif {$httpStatus ne {ok} || [::http::ncode $token] != 200} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
     } else {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
         if {$outTransform ne {}} {
             SaveAndSetOptions $serviceName
             catch {set body [$outTransform $serviceName $operationName REPLY $body]}
             RestoreSavedOptions $serviceName
         }
         SaveAndSetOptions $serviceName
-        catch {set hadError [catch {parseResults $serviceName $operationName $body} results]}
+        set hadError [catch {parseResults $serviceName $operationName $body} results]
         RestoreSavedOptions $serviceName
         if {$hadError} {
             ::log::log debug "Reply was $body"
@@ -1499,7 +1446,6 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             set errorInfo $::errorInfo
         }
     }
-    ::http::cleanup $token
     if {$hadError} {
         ::log::log debug "Leaving (error) ::WS::Client::DoCall"
         return \
@@ -3197,6 +3143,9 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -3249,40 +3198,13 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     ##
     
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    if {[::http::status $token] ne {ok} ||
-        ( [::http::ncode $token] != 200 && $body eq {} )} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$results}"
-        return $results
-    }
+    ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$body}"
+    return $body
 
 }
 
@@ -3332,6 +3254,9 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -3383,55 +3308,26 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [list::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
     ##
-    ## Check for errors
+    ## Parse results
     ##
-    set body [::http::data $token]
-    ::log::log info "\tReceived: $body"
-    set httpStatus [::http::status $token]
-    set hadError 0
-    set results {}
-    if {$httpStatus ne {ok} ||
-        ( [::http::ncode $token] != 200 && $body eq {} )} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
-    } else {
-        SaveAndSetOptions $serviceName
-        if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
-            RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-        } else {
-            RestoreSavedOptions $serviceName
-        }
-        if {$hadError} {
-            ::log::log debug "Reply was [::http::data $token]"
-            set errorCode $::errorCode
-            set errorInfo $::errorInfo
-        }
-    }
-    ::http::cleanup $token
-    if {$hadError} {
+    
+    SaveAndSetOptions $serviceName
+    if {[catch {
+        parseRestResults $serviceName $objectName $operationName $body
+    } results]} {
+        RestoreSavedOptions $serviceName
         ::log::log debug "Leaving (error) ::WS::Client::DoRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
-        return $results
+        return -code error $results
     }
+    RestoreSavedOptions $serviceName
+    ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
+    return $results
 
 }
 
