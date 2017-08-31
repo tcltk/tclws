@@ -2913,7 +2913,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #                     parsed service.
 #   style           - style of call
 #
-# Returns : A list containing the input and output types
+# Returns : A list containing the input and output types and names
 #
 # Side-Effects : Defines Client mode types for the service as specified by the WSDL
 #
