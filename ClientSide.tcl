@@ -41,7 +41,7 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3.7 ; # dict, lassign
+package require WS::Utils 2.4 ; # dict, lassign
 package require tdom 0.8
 package require http 2
 package require log
@@ -680,7 +680,7 @@ proc ::WS::Client::AddInputHeader {serviceName operationName headerType {attrLis
 #
 # Procedure Name : ::WS::Client::AddOutputHeader
 #
-# Description : Import and additional namespace into the service
+# Description : Import any additional namespace into the service
 #
 # Arguments :
 #       serviceName - Service name to of the oepration
@@ -715,11 +715,11 @@ proc ::WS::Client::AddOutputHeader {serviceName operation headerType} {
     variable serviceArr
 
     set serviceInfo $serviceArr($serviceName)
-    set soapReplyHeader [dict get $serviceInfo operation $operationName soapReplyHeader]
+    set soapReplyHeader [dict get $serviceInfo operation $operation soapReplyHeader]
     lappend soapReplyHeader $headerType
-    dict set serviceInfo operation $operationName soapReplyHeader $soapReplyHeader
+    dict set serviceInfo operation $operation soapReplyHeader $soapReplyHeader
     set serviceArr($serviceName) $serviceInfo
-    return ;
+    return
 
 }
 
@@ -1028,9 +1028,12 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     }
     ::log::log debug "Parsing WSDL {$wsdlXML}"
 
+    # save parsed document node to tmpdoc
     dom parse $wsdlXML tmpdoc
+    # save transformed document handle in variable wsdlDoc
     $tmpdoc xslt $::WS::Utils::xsltSchemaDom wsdlDoc
     $tmpdoc delete
+    # save top node in variable wsdlNode
     $wsdlDoc documentElement wsdlNode
     set nsCount 1
     set targetNs [$wsdlNode getAttribute targetNamespace]
@@ -1283,6 +1286,11 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $operationName]] \
             "Unknown operation '$operationName' for service '$serviceName'"
     }
+    
+    ##
+    ## build query
+    ##
+    
     set url [dict get $serviceInfo location]
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
@@ -1297,6 +1305,11 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
+    
+    ##
+    ## do http call
+    ##
+    
     if {[llength $headers]} {
         ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
@@ -1422,6 +1435,9 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
+    ##
+    ## Do the http request
+    ##
     if {[llength $headers]} {
         ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
@@ -1976,7 +1992,9 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {$first > 0} {
         set inXML [string range $inXML $first end]
     }
+    # parse xml and save handle in variable doc
     dom parse $inXML doc
+    # save top node handle in variable top
     $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
@@ -2002,8 +2020,8 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             #puts "\t Got {[$tmp localName]} looking for {$expectedMsgTypeBase}"
             if {[$tmp localName] eq $expectedMsgTypeBase ||
                 [$tmp nodeName] eq $expectedMsgTypeBase ||
-                [$tmp localName] eq Fault ||
-                [$tmp nodeName] eq Fault} {
+                [$tmp localName] eq {Fault} ||
+                [$tmp nodeName] eq {Fault}} {
                 set rootNode $tmp
                 break
             }
@@ -2267,6 +2285,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
             set xns $tnsArray($xns)
         }
         if {$firstHeader} {
+            # side effect: save new node handle in variable header
             $env appendChild [$doc createElement "SOAP-ENV:Header" header]
             set firstHeader 0
         }
@@ -2287,6 +2306,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         ::WS::Utils::convertDictToType Client $serviceName $doc $headerData $argList $inputHeaderType
     }
 
+    # side effect: save new element handle in variable bod
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
     #puts "set xns \[dict get \[::WS::Utils::GetServiceTypeDef Client $serviceName $msgType\] xns\]"
     #puts "\t [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType]"
@@ -2399,6 +2419,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     set baseName [dict get $serviceInfo operation $operationName name]
 
     set callXns [dict get $serviceInfo operation $operationName xns]
+    # side effect: node handle is saved in variable reply
     if {![string is space $callXns]} {
         $bod appendChild [$doc createElement $callXns:$baseName reply]
     } else {
@@ -2777,7 +2798,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                             -errorcode [list WS CLIENT NOOVERLOAD $operName]
                 }
                 ##
-                ## See if the existing operation needs to be cloned"
+                ## See if the existing operation needs to be cloned
                 ##
                 set origType [lindex [split [dict get $serviceInfo operation $operName inputs] {:}] end]
                 set newName ${operName}_${origType}
@@ -2870,7 +2891,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             dict set serviceInfo operation $operName soapReplyHeader $soapReplyHeaderList
 
             ##
-            ## Validate that the input and output uses
+            ## Validate that the input and output uses are the same
             ##
             set inUse $use
             set outUse $use
@@ -3202,6 +3223,11 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $objectName $operationName]] \
             "Unknown operation '$operationName' for object '$objectName' of service '$serviceName'"
     }
+    
+    ##
+    ## build call query
+    ##
+    
     if {$location ne {}} {
         set url $location
     } else {
@@ -3217,6 +3243,11 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
+    
+    ##
+    ## do http call
+    ##
+    
     if {[llength $headers]} {
         ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
         set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
@@ -3332,13 +3363,22 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     } else {
         set url [dict get $serviceInfo object $objectName location]
     }
+    
+    ##
+    ## build call query
+    ##
+    
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
         return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-    } else {
-        RestoreSavedOptions $serviceName
     }
+    RestoreSavedOptions $serviceName
+    
+    ##
+    ## Do http call
+    ##
+    
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -3658,7 +3698,9 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
         set inXML [$outTransform $serviceName $operationName REPLY $inXML]
     }
     set expectedMsgType [dict get $serviceInfo object $objectName operation $operationName outputs]
+    # save parsed xml handle in variable doc
     dom parse $inXML doc
+    # save top node handle in variable top
     $doc documentElement top
     set xns {}
     foreach tmp [dict get $serviceInfo targetNamespace] {

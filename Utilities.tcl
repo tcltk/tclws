@@ -4746,7 +4746,7 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
 #       url        - target document url
 #       args       - additional argument list to http::geturl call
 #
-# Returns :     nothing
+# Returns :     http package token of received data
 #
 # Side-Effects :        Save final url in redirectArray to forward info to
 #                       procedure "processImport".
@@ -4882,14 +4882,14 @@ proc ::WS::Utils::geturl_fetchbody {args} {
     
     set token [eval ::WS::Utils::geturl_followRedirects $args]
     ::http::wait $token
-    if {[string equal [::http::status $token] ok]} {
+    if {[::http::status $token] eq {ok}} {
         if {[::http::size $token] == 0} {
             ::log::log debug "\tHTTP error: no data"
             ::http::cleanup $token
             return -errorcode [list WS CLIENT NODATA [lindex $args 0]]\
                     -code error "HTTP failure socket closed"
         }
-        if {![string equal $codeVar ""]} {
+        if {$codeVar ne ""} {
             upvar 1 $codeVar ncode
         }
         set ncode [::http::ncode $token]
