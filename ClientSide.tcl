@@ -1020,7 +1020,30 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     set nsCount 1
     set targetNs [$wsdlNode getAttribute targetNamespace]
     set ::WS::Utils::targetNs $targetNs
+    ##
+    ## Build the namespace prefix dict
+    ##
+    # nsDict contains two tables:
+    # 1) Lookup URI, get internal prefix
+    #   url <URI> <tns>
+    # 2) Lookup wsdl namespace prefix, get internal namespace prefix
+    #   tns <ns> <tns>
+    # <URI>: unique ID, mostly URL
+    # <ns>: namespace prefix used in wsdl
+    # <tns> internal namespace prefix which allows to use predefined prefixes
+    #   not to clash with the wsdl prefix in <ns>
+    #   Predefined:
+    #   - tns1 : targetNamespace
+    #   - w: http://schemas.xmlsoap.org/wsdl/
+    #   - d: http://schemas.xmlsoap.org/wsdl/soap/
+    #   - xs: http://www.w3.org/2001/XMLSchema
+    #
+    # The top node <wsdl:definitions
+    #   targetNamespace="http://www.webserviceX.NET/">
+    #   xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/ ...>
+    # contains the target namespace and all namespace definitions
     dict set nsDict url $targetNs tns$nsCount
+    # returns {wsdl wsdl {}} ....} for the upper example.
     foreach itemList [$wsdlNode attributes xmlns:*] {
         set ns [lindex $itemList 0]
         set url [$wsdlNode getAttribute xmlns:$ns]
