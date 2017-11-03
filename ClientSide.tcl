@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2016, Harald Oehlmann                                      ##
+##  Copyright (c) 2016-2017, Harald Oehlmann                                 ##
 ##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.2
+package provide WS::Client 2.4.3
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -1399,6 +1399,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ## Do the http request
     ##
     # This will directly return with correct error
+    # side effect: sets the variable httpCode
     if {[llength $headers]} {
         set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
@@ -1924,6 +1925,8 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 # 2.4.2    2017-08-31  H.Oehlmann   The response node name may also be the
 #                                   output name and not only the output type.
 #                                   (ticket [21f41e22bc]).
+# 2.4.3    2017-11-03  H.Oehlmann   Extended upper commit also to search
+#                                   for multiple child nodes.
 #
 #
 ###########################################################################
@@ -1941,9 +1944,9 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {$first > 0} {
         set inXML [string range $inXML $first end]
     }
-    # parse xml and save handle in variable doc
+    # parse xml and save handle in variable doc and free it when out of scope
     dom parse $inXML doc
-    # save top node handle in variable top
+    # save top node handle in variable top and free it if out of scope
     $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
@@ -1962,29 +1965,78 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             -errorcode [list WS CLIENT BADREPLY $inXML] \
             "Bad reply type, no SOAP envelope received in: \n$inXML"
     }
-    set rootNode [$body childNodes]
-    ::log::log debug "Have [llength $rootNode] node under Body"
-    if {[llength $rootNode] > 1} {
-        foreach tmp $rootNode {
-            #puts "\t Got {[$tmp localName]} looking for {$expectedMsgTypeBase}"
-            if {[$tmp localName] eq $expectedMsgTypeBase ||
-                [$tmp nodeName] eq $expectedMsgTypeBase ||
-                [$tmp localName] eq {Fault} ||
-                [$tmp nodeName] eq {Fault}} {
-                set rootNode $tmp
-                break
-            }
-        }
+    ##
+    ## Find the reply root node with the response.
+    ##
+    # <SOAP-ENV:Envelope...>
+    #   <SOAP-ENV:Body>
+    #     <i2:TestResponse id="ref-1" xmlns:i2=...> <-- this one
+    #
+    # WSDL 1.0: http://xml.coverpages.org/wsdl20000929.html
+    # Chapter 2.4.2 (name optional) and 2.4.5 (default name)
+    # The node name could be:
+    # 1) an error node "Fault"
+    # 2) equal to the WSDL name property of the output node
+    # 3) if no name tag, equal to <Operation>Response
+    # 4) the local output type name
+    #
+    # Possibility (2) "OutName" WSDL example:
+    # <wsdl:portType...><wsdl:operation...>
+    #   <wsdl:output name="{OutName}" message="tns:{OutMsgName}" />
+    # This possibility is requested by ticket [21f41e22bc]
+    #
+    # Possibility (3) default name "{OperationName}Result" WSDL example:
+    # <wsdl:portType...><wsdl:operation name="{OperationName}">
+    #   <wsdl:output message="tns:{OutMsgName}" /> *** no name tag ***
+    #
+    # Possibility (4) was not found in wsdl 1.0 standard but was used as only
+    # solution by TCLWS prior to 2.4.2.
+    # The following sketch shows the location of the local output type name
+    # "OutTypeName" in a WSDL file:
+    # -> In WSDL portType output message name
+    # <wsdl:portType...><wsdl:operation...>
+    #   <wsdl:output message="tns:{OutMsgName}" />
+    # -> then in message, use the element:
+    # <wsdl:message name="{OutMsgName}">
+    #   <wsdl:part name="..." element="tns:<{OutTypeName}>" />
+    # -> The element "OutTypeName" is also find in a type definition:
+    # <wsdl:types>
+    #   <s:element name="{OutMsgName}">
+    #     <s:complexType>...
+    #
+    # Build a list of possible names
+    set nodeNameCandidateList [list Fault $expectedMsgTypeBase]
+    # We check if the preparsed wsdl contains the name flag.
+    # This is not the case, if it was parsed with tclws prior 2.4.2
+    # *** ToDo *** This security may be removed on a major release
+    if {[dict exists $serviceInfo operation $operationName outputsname]} {
+        lappend nodeNameCandidateList [dict get $serviceInfo operation $operationName outputsname]
     }
-    if {([llength $rootNode] == 1) && $rootNode ne {}} {
-        set rootName [$rootNode localName]
-        if {$rootName eq {}} {
-            set rootName [$rootNode nodeName]
+    
+    set rootNodeList [$body childNodes]
+    ::log::log debug "Have [llength $rootNodeList] node under Body"
+    foreach rootNodeCur $rootNodeList {
+        set rootNameCur [$rootNodeCur localName]
+        if {$rootNameCur eq {}} {
+            set rootNameCur [$rootNodeCur nodeName]
         }
-    } else {
-        set rootName {}
+        if {$rootNameCur in $nodeNameCandidateList} {
+            set rootNode $rootNodeCur
+            set rootName $rootNameCur
+            ::log::log debug "Result root name is '$rootName'"
+            break
+        }
+        ::log::log debug "Result root name '$rootNameCur' not in candidates '$nodeNameCandidateList'"
     }
-    ::log::log debug "root name is {$rootName}"
+    ##
+    ## Exit if there is no such node
+    ##
+    if {![info exists rootName]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
+            "Bad reply type, received '$rootName'; but expected '$expectedMsgTypeBase'."
+    }
 
     ##
     ## See if it is a standard error packet
@@ -2011,19 +2063,6 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             -errorcode [list WS CLIENT REMERR $faultcode] \
             -errorinfo $detail \
             $faultstring
-    }
-
-    ##
-    ## Validated that it is the expected packet type
-    ## The outputsname is also verified (see ticket [21f41e22bc])
-    ##
-    if {$rootName ne $expectedMsgTypeBase
-            && $rootName ne [dict get $serviceInfo operation $operationName outputsname]} {
-        $doc delete
-        return \
-            -code error \
-            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
-            "Bad reply type, received '$rootName'; but expected '$expectedMsgTypeBase'."
     }
 
     ##
@@ -2199,6 +2238,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     set url [dict get $serviceInfo location]
     set xnsList [dict get $serviceInfo targetNamespace]
 
+    # save the document in variable doc and free it if out of scope
     dom createDocument "SOAP-ENV:Envelope" doc
     $doc documentElement env
     $env setAttribute \
@@ -2934,6 +2974,9 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #       1  08/06/2006  G.Lester     Initial version
 # 2.4.2    2017-08-31  H.Oehlmann   Extend return by names to verify this
 #                                   as return output node name.
+# 2.4.3    2017-11-03  H.Oehlmann   If name is not given, set the default
+#                                   name of <OP>Request/Response given by the
+#                                   WSDL 1.0 standard.
 #
 #
 ###########################################################################
@@ -2963,7 +3006,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
     }
     
     set resList {}
-    foreach sel {w:input w:output} {
+    foreach sel {w:input w:output} defaultNameSuffix {Request Response} {
         set nodeList [$operNode selectNodes $sel]
         if {1 == [llength $nodeList]} {
             set nodeCur [lindex $nodeList 0]
@@ -2975,7 +3018,9 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
             if {[$nodeCur hasAttribute name]} {
                 lappend resList [$nodeCur getAttribute name]
             } else {
-                lappend resList {}
+                # Build the default name according WSDL 1.0 as
+                # <Operation>Request/Response
+                lappend resList ${operName}$defaultNameSuffix
             }
         }
     }
