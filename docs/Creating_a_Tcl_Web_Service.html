@@ -169,6 +169,12 @@ they are: </p><pre>             -host           - The host name for this service
                               Defaults to "text"
             -stylesheet     - The CSS stylesheet URL used in the HTML documentation
 
+            -errorCallback  - Callback to be invoked in the event of an error being produced
+            -verifyUserArgs - Boolean to enable/disable validating user supplied arguments
+                              Defaults to "N"
+            -enforceRequired - Throw an error if a required field is not included in the
+                               response.
+                               Defaults to "N"
 </PRE>
 <p><b>Returns</b>&nbsp;: Nothing </p>
 <p><b>Side-Effects</b>&nbsp;: None </p>
@@ -199,6 +205,17 @@ procedure to handle the operations. </p>
                             code should return a dictionary with &lt;OperationName&gt;Result as a
                             key and the operation's result as the value.
 </PRE>
+
+Available simple types are:
+<UL><LI>anyType, string, boolean, decimal, float, double, duration, dateTime, time, date, gYearMonth, gYear, gMonthDay, gDay, gMonth, hexBinary, base64Binary, anyURI, QName, NOTATION, normalizedString, token, language, NMTOKEN, NMTOKENS, Name, NCName, ID, IDREF, IDREFS, ENTITY, ENTITIES, integer, nonPositiveInteger, negativeInteger, long, int, short, byte, nonNegativeInteger, unsignedLong, unsignedInt, unsignedShort, unsignedByte, positiveInteger</LI></UL>
+
+
+The <em>typeName</em> may contain the following suffixes:
+<UL>
+<LI><em>()</em> : type is an array</LI>
+<LI><em>?</em> : type is an optional parameter</LI>
+</UL>
+
 <p><b>Returns</b>&nbsp;: Nothing </p>
 <p><i>Side-Effects</i>&nbsp;: </p><PRE>   A procedure named "&lt;ServiceName&gt;::&lt;OperationName&gt;" defined
    A type name with the name &lt;OperationName&gt;Result is defined.

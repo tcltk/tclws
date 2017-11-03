@@ -23,13 +23,15 @@ be found here.
 </p>
 
 <UL>
-    <LI> <A HREF="Calling_a_Web_Service.html">Calling a Web Service from Tcl</A>
-    <LI> <A HREF="Creating_a_Tcl_Web_Service.html">Creating a Tcl Web Service</A>
-    <LI> <A HREF="Creating_a_Web_Service_Type.html">Creating a Web Service Type</A>
+    <LI> <A HREF="Calling_a_Web_Service.html">Calling a Web Service from Tcl</A></LI>
+    <LI> <A HREF="Creating_a_Tcl_Web_Service.html">Creating a Tcl Web Service</A></LI>
+    <LI> <A HREF="Creating_a_Web_Service_Type.html">Creating a Web Service Type</A></LI>
+	<LI> <A HREF="Rest_flavor_service_response.html">REST flavor service response</A></LI>
     <LI> <A HREF="Dictionary_Representation_of_XML_Arrays.html">Dictionary Representation of XML Arrays</A></LI>
-    <LI> <A HREF="Using_Options.html">Using Web Service Options</A>
-    <LI> <A HREF="Embedded_Web_Service.html">Embeding a Web Service into an application</A>
-    <LI> <A HREF="Tcl_Web_Service_Example.html">Tcl Web Service Example</A>
+    <LI> <A HREF="Using_Options.html">Using Web Service Options</A></LI>
+    <LI> <A HREF="Embedded_Web_Service.html">Embeding a Web Service into an application</A></LI>
+    <LI> <A HREF="Tcl_Web_Service_Example.html">Tcl Web Service Example</A></LI>
+    <LI> <A HREF="Tcl_Web_Service_Math_Example.html">Tcl Web Service Math Example</A></LI>
 </UL>
 
 <p>
@@ -70,15 +72,16 @@ The following packages are used:
  </li><li> uri from <a href="http://tcllib.sf.net/">TclLib</a>
  </li><li> struct::set from <a href="http://tcllib.sf.net/">TclLib</a>
  </li><li> http from <a href="http://tcl.sf.net/">Tcl</a> itself 
+ </li><li> yajl-tcl from <a href="https://github.com/flightaware/yajl-tcl">flightaware github</a> (only for rest-flavour requests)
 </li></ul>
 
 
 <p>
-Additionally, if you are running the TclHttpd on Windows, it is highly recommended that you use the iocpsock extension.
+If you are running the TclHttpd on Windows, it is highly recommended that you use the iocpsock extension.
 </p>
 
 <p>
-Lastly following packages are additionally used in Embedded Server mode:
+The following packages are additionally used in Embedded Server mode:
 </p><ul>
  <li> base64 from <a href="http://tcllib.sf.net/">TclLib</a> (also channel server)
  </li><li> html from <a href="http://tcllib.sf.net/">TclLib</a> (also channel server)

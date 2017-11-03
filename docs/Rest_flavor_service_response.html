@@ -1,0 +1,58 @@
+<HTML lang=en dir=ltr xml:lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<HEAD>
+<TITLE>Rest-flavor service reply</TITLE>
+<link rel="stylesheet" href="style.css" type="text/css" media="screen">
+</HEAD>
+
+<BODY>
+<H1 class=firstHeading>Rest-flavor service reply</H1>
+
+<HR>
+
+<TABLE class=toc id=toc>
+  <TR>
+    <TD>
+      <H2>Contents</H2></DIV>
+      <UL>
+        <LI class=toclevel-1><A href="#Overview"><SPAN class=tocnumber>1</SPAN> <SPAN class=toctext>Overview</SPAN></A>
+        <LI class=toclevel-1><A href="#Rivet_Example"><SPAN
+        class=tocnumber>2</SPAN> <SPAN class=toctext>Rivet example</SPAN></A>
+      </UL></TD></TR></TBODY></TABLE>
+<P>
+
+</P>
+<A name=Overview></A>
+<H2>Overview </H2>
+<P>Since TCLWS 2.4, it is possible to return a response in <em>REST style</em>.
+This means, that a JSON reply is returned instead of an XML document.</P>
+<P>Our use case has only required us to accept FORM arguments and return JSON responses for everything, so we haven't implemented logic to parse any input arguments that are passed in as JSON serialized data, but this might be an area of future exploration for someone.</P>
+
+<A name=Rivet_Example></A>
+<H2>Rivet Example</H2>
+<P>Here's a bit of code showing how we initially start up this mode in Apache Rivet, which is actually pretty similar to how you'd use tclws in SOAP mode from Apache Rivet:</P>
+<PRE>
+        # Capture the info from the request into an array.
+        load_headers hdrArray
+        set sock [pid];         # an arbitrary value
+        array unset ::Httpd$sock
+
+        # Prepare the CGI style arguments into a list
+        load_response formArray
+        set opname $formArray(call)
+        unset formArray(call)
+        set queryarg [list $opname [array get formArray]]
+
+        # Invoke the the method
+        array set ::Httpd$sock [list query $queryarg ipaddr [env REMOTE_ADDR] headerlist [array get hdrArray]]
+
+        # Invoke the method in REST mode.
+        set result [catch {::WS::Server::callOperation $svcname $sock -rest} error]
+        array unset ::Httpd$sock
+        if {$result} {
+                headers numeric 500
+                puts "Operation failed: $error"
+                abort_page
+        }
+</PRE>
+</BODY>
+</HTML>

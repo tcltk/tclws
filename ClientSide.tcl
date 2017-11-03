@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2016, Harald Oehlmann                                      ##
+##  Copyright (c) 2016-2017, Harald Oehlmann                                 ##
 ##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
@@ -41,16 +41,16 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.3.7 ; # dict, lassign
+package require WS::Utils 2.4 ; # dict, lassign
 package require tdom 0.8
 package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.3.9
+package provide WS::Client 2.4.3
 
 namespace eval ::WS::Client {
-    # register https only if not jet registered
+    # register https only if not yet registered
     if {[catch { http::unregister https } lPortCmd]} {
         # not registered -> register on my own
         if {[catch {
@@ -313,7 +313,7 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
         return -code error "Uknown option '$item' -- must be one of: [join $validOptionList {, }]"
     }
 
-    if {![string equal $value {}]} {
+    if {$value ne {}} {
         dict set serviceInfo $item $value
         set serviceArr($serviceName) $serviceInfo
     }
@@ -472,13 +472,13 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
         set location [dict get $serviceArr($serviceName) location]
     }
 
-    if {![string equal $inputArgs {}]} {
+    if {$inputArgs ne {}} {
         set inType $objectName.$operationName.Request
         ::WS::Utils::ServiceTypeDef Client $serviceName $inType $inputArgs
     } else {
         set inType {}
     }
-    if {![string equal $returnType {}]} {
+    if {$returnType ne {}} {
         set outType $objectName.$operationName.Results
         ::WS::Utils::ServiceTypeDef Client $serviceName $outType $returnType
     } else {
@@ -525,6 +525,9 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  01/30/2009  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -539,17 +542,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
         }
         http -
         https {
-            set token [::http::geturl $url]
-            ::http::wait $token
-            set ncode [::http::ncode $token]
-            set xml [::http::data $token]
-            ::http::cleanup $token
-            if {$ncode != 200} {
-                return \
-                    -code error \
-                    -errorcode [list WS CLIENT HTTPFAIL $url] \
-                    "HTTP get of import file failed '$url'"
-            }
+            set xml [::WS::Utils::geturl_fetchbody $url]
         }
         default {
             return \
@@ -565,7 +558,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
     set serviceArr($serviceName) $serviceInfo
     set result {}
     foreach {result target} [dict get $serviceArr($serviceName) targetNamespace] {
-        if {[string equal $target $url]} {
+        if {$target eq $url} {
             break
         }
     }
@@ -611,7 +604,7 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
 proc ::WS::Client::GetOperationList {serviceName {object {}}} {
     variable serviceArr
 
-    if {[string equal $object {}]} {
+    if {$object eq {}} {
         return [dict get $serviceArr($serviceName) operList]
     } else {
         return [list $object [dict get $serviceArr($serviceName) operation $object inputs] [dict get $serviceArr($serviceName) operation $object outputs]]
@@ -680,7 +673,7 @@ proc ::WS::Client::AddInputHeader {serviceName operationName headerType {attrLis
 #
 # Procedure Name : ::WS::Client::AddOutputHeader
 #
-# Description : Import and additional namespace into the service
+# Description : Import any additional namespace into the service
 #
 # Arguments :
 #       serviceName - Service name to of the oepration
@@ -715,11 +708,11 @@ proc ::WS::Client::AddOutputHeader {serviceName operation headerType} {
     variable serviceArr
 
     set serviceInfo $serviceArr($serviceName)
-    set soapReplyHeader [dict get $serviceInfo operation $operationName soapReplyHeader]
+    set soapReplyHeader [dict get $serviceInfo operation $operation soapReplyHeader]
     lappend soapReplyHeader $headerType
-    dict set serviceInfo operation $operationName soapReplyHeader $soapReplyHeader
+    dict set serviceInfo operation $operation soapReplyHeader $soapReplyHeader
     set serviceArr($serviceName) $serviceInfo
-    return ;
+    return
 
 }
 
@@ -844,7 +837,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
             set definition [dict get $partList definition]
             set xns [dict get $partList xns]
             set isAbstarct [dict get $partList abstract]
-            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
+            if {[lindex [split $typeName {:}] 1] eq {}} {
                 ::WS::Utils::ServiceTypeDef Client $serviceName $typeName $definition tns1 $isAbstarct
             } else {
                 #set typeName [lindex [split $typeName {:}] 1]
@@ -856,7 +849,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     if {[dict exists $serviceInfo simpletypes]} {
         foreach partList [dict get $serviceInfo simpletypes] {
             lassign $partList typeName definition
-            if {[string equal [lindex [split $typeName {:}] 1] {}]} {
+            if {[lindex [split $typeName {:}] 1] eq {}} {
                 ::WS::Utils::ServiceSimpleTypeDef Client $serviceName $typeName $definition tns1
             } else {
                 set xns [lindex [split $typeName {:}] 0]
@@ -912,7 +905,8 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
 #
 ###########################################################################
 proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
@@ -928,23 +922,11 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
         http -
         https {
             if {[llength $headers]} {
-                set token [::WS::Utils::geturl_followRedirects $url -headers $headers]
+                set body [::WS::Utils::geturl_fetchbody $url -headers $headers]
             } else {
-                set token [::WS::Utils::geturl_followRedirects $url]
+                set body [::WS::Utils::geturl_fetchbody $url]
             }
-            ::http::wait $token
-            if {![string equal [::http::status $token] ok] ||
-                [::http::ncode $token] != 200} {
-                set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-                set errorInfo [FormatHTTPError $token]
-                ::http::cleanup $token
-                return \
-                    -code error \
-                    -errorcode $errorCode \
-                    $errorInfo
-            }
-            set wsdlInfo [ParseWsdl [::http::data $token] -headers $headers -serviceAlias $serviceAlias]
-            ::http::cleanup $token
+            set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias]
         }
         default {
             return \
@@ -1028,13 +1010,38 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     }
     ::log::log debug "Parsing WSDL {$wsdlXML}"
 
+    # save parsed document node to tmpdoc
     dom parse $wsdlXML tmpdoc
+    # save transformed document handle in variable wsdlDoc
     $tmpdoc xslt $::WS::Utils::xsltSchemaDom wsdlDoc
     $tmpdoc delete
+    # save top node in variable wsdlNode
     $wsdlDoc documentElement wsdlNode
     set nsCount 1
     set targetNs [$wsdlNode getAttribute targetNamespace]
     set ::WS::Utils::targetNs $targetNs
+    ##
+    ## Build the namespace prefix dict
+    ##
+    # nsDict contains two tables:
+    # 1) Lookup URI, get internal prefix
+    #   url <URI> <tns>
+    # 2) Lookup wsdl namespace prefix, get internal namespace prefix
+    #   tns <ns> <tns>
+    # <URI>: unique ID, mostly URL
+    # <ns>: namespace prefix used in wsdl
+    # <tns> internal namespace prefix which allows to use predefined prefixes
+    #   not to clash with the wsdl prefix in <ns>
+    #   Predefined:
+    #   - tns1 : targetNamespace
+    #   - w: http://schemas.xmlsoap.org/wsdl/
+    #   - d: http://schemas.xmlsoap.org/wsdl/soap/
+    #   - xs: http://www.w3.org/2001/XMLSchema
+    #
+    # The top node <wsdl:definitions
+    #   targetNamespace="http://www.webserviceX.NET/">
+    #   xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/ ...>
+    # contains the target namespace and all namespace definitions
     dict set nsDict url $targetNs tns$nsCount
 
     $wsdlDoc selectNodesNamespaces {
@@ -1186,12 +1193,12 @@ proc ::WS::Client::CreateStubs {serviceName} {
         set argList {}
         foreach inputHeaderTypeItem [dict get $serviceInfo operation $operationName soapRequestHeader] {
             set  inputHeaderType [lindex $inputHeaderTypeItem 0]
-            if {[string equal $inputHeaderType {}]} {
+            if {$inputHeaderType eq {}} {
                 continue
             }
             set headerTypeInfo [::WS::Utils::GetServiceTypeDef Client $serviceName $inputHeaderType]
             set headerFields [dict keys [dict get $headerTypeInfo definition]]
-            if {![string equal $headerFields {}]} {
+            if {$headerFields ne {}} {
                 lappend argList [lsort -dictionary $headerFields]
             }
         }
@@ -1205,7 +1212,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
           ::log::log debug "no definition found for inputMsgType $inputMsgType"
           set inputFields {}
         }
-        if {![string equal $inputFields {}]} {
+        if {$inputFields ne {}} {
             lappend argList [lsort -dictionary $inputFields]
         }
         set argList [join $argList]
@@ -1272,6 +1279,9 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -1292,6 +1302,11 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $operationName]] \
             "Unknown operation '$operationName' for service '$serviceName'"
     }
+    
+    ##
+    ## build query
+    ##
+    
     set url [dict get $serviceInfo location]
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
@@ -1306,42 +1321,19 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
+    
+    ##
+    ## do http call
+    ##
+    
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    ::log::log info "\nReceived: $body"
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawCall with {$results}"
-        return $results
-    }
+    ::log::log debug "Leaving ::WS::Client::DoRawCall with {$body}"
+    return $body
 
 }
 
@@ -1391,6 +1383,9 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-30  H.Oehlmann   Use ::WS::Utils::geturl_fetchbody to do
+#                                   http call. This automates a lot and follows
+#                                   redirects.
 #
 #
 ###########################################################################
@@ -1431,24 +1426,25 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
+    ##
+    ## Do the http request
+    ##
+    # This will directly return with correct error
+    # side effect: sets the variable httpCode
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info  [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]  ]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] ]
+        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] ]
     }
-    ::http::wait $token
+    # numerical http code was saved in variable httpCode
 
     ##
-    ## Check for errors
+    ## Process body
     ##
-    set httpStatus [::http::status $token]
-    if {[string equal $httpStatus ok] && [::http::ncode $token] == 500} {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
-        if {![string equal $outTransform {}]} {
+    set outTransform [dict get $serviceInfo outTransform]
+    if {$httpCode == 500} {
+        ## Code 500 treatment
+        if {$outTransform ne {}} {
             SaveAndSetOptions $serviceName
             catch {set body [$outTransform $serviceName $operationName REPLY $body]}
             RestoreSavedOptions $serviceName
@@ -1456,35 +1452,25 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set hadError [catch {parseResults $serviceName $operationName $body} results]
         if {$hadError} {
             lassign $::errorCode mainError subError
-            if {[string equal $mainError WSCLIENT] && [string equal $subError NOSOAP]} {
+            if {$mainError eq {WSCLIENT} && $subError eq {NOSOAP}} {
                 ::log::log debug "\tHTTP error $body"
                 set results $body
                 set errorCode [list WSCLIENT HTTPERROR $body]
                 set errorInfo {}
-                set hadError 1
             } else {
                 ::log::log debug "Reply was $body"
                 set errorCode $::errorCode
                 set errorInfo $::errorInfo
             }
         }
-    } elseif {![string equal $httpStatus ok] || [::http::ncode $token] != 200} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WSCLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
     } else {
-        set body [::http::data $token]
-        ::log::log debug "\tReceived: $body"
-        set outTransform [dict get $serviceInfo outTransform]
-        if {![string equal $outTransform {}]} {
+        if {$outTransform ne {}} {
             SaveAndSetOptions $serviceName
             catch {set body [$outTransform $serviceName $operationName REPLY $body]}
             RestoreSavedOptions $serviceName
         }
         SaveAndSetOptions $serviceName
-        catch {set hadError [catch {parseResults $serviceName $operationName $body} results]}
+        set hadError [catch {parseResults $serviceName $operationName $body} results]
         RestoreSavedOptions $serviceName
         if {$hadError} {
             ::log::log debug "Reply was $body"
@@ -1492,7 +1478,6 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             set errorInfo $::errorInfo
         }
     }
-    ::http::cleanup $token
     if {$hadError} {
         ::log::log debug "Leaving (error) ::WS::Client::DoCall"
         return \
@@ -1546,7 +1531,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
 #
 ###########################################################################
 proc ::WS::Client::FormatHTTPError {token} {
-    if {[string equal [::http::status $token] ok]} {
+    if {[::http::status $token] eq {ok}} {
         if {[::http::size $token] == 0} {
             return "HTTP failure socket closed"
         }
@@ -1729,21 +1714,21 @@ proc ::WS::Client::List {serviceName} {
         set argList {}
         foreach inputHeaderTypeItem [dict get $serviceInfo operation $operationName soapRequestHeader] {
             set inputHeaderType [lindex $inputHeaderTypeItem 0]
-            if {[string equal $inputHeaderType {}]} {
+            if {$inputHeaderType eq {}} {
                 continue
             }
             set headerTypeInfo [::WS::Utils::GetServiceTypeDef Client $serviceName $inputHeaderType]
             set headerFields [dict keys [dict get $headerTypeInfo definition]]
-            if {![string equal $headerFields {}]} {
+            if {$headerFields ne {}} {
                 lappend argList [lsort -dictionary $headerFields]
             }
         }
         set inputMsgType [dict get $serviceInfo operation $operationName inputs]
-        if {![string equal $inputMsgType {}]} {
+        if {$inputMsgType ne {}} {
             set inTypeDef [::WS::Utils::GetServiceTypeDef Client $serviceName $inputMsgType]
             if {[dict exists $inTypeDef definition]} {
                 set inputFields [dict keys [dict get $inTypeDef definition]]
-                if {![string equal $inputFields {}]} {
+                if {$inputFields ne {}} {
                     lappend argList [lsort -dictionary $inputFields]
                 }
             }
@@ -1814,18 +1799,18 @@ proc ::WS::Client::ListRest {serviceName} {
             set argList {}
             foreach inputHeaderTypeItem [dict get $serviceInfo operation $operationName soapRequestHeader] {
                 set inputHeaderType [lindex $inputHeaderTypeItem 0]
-                if {[string equal $inputHeaderType {}]} {
+                if {$inputHeaderType eq {}} {
                     continue
                 }
                 set headerTypeInfo [::WS::Utils::GetServiceTypeDef Client $serviceName $inputHeaderType]
                 set headerFields [dict keys [dict get $headerTypeInfo definition]]
-                if {![string equal $headerFields {}]} {
+                if {$headerFields ne {}} {
                     lappend argList [lsort -dictionary $headerFields]
                 }
             }
             set inputMsgType [dict get $serviceInfo operation $operationName inputs]
             set inputFields [dict keys [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $inputMsgType] definition]]
-            if {![string equal $inputFields {}]} {
+            if {$inputFields ne {}} {
                 lappend argList [lsort -dictionary $inputFields]
             }
             set argList [join $argList]
@@ -1889,8 +1874,8 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
     set results {}
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
+    if {[::http::status $token] ne {ok} ||
+        ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
         set errorInfo [FormatHTTPError $token]
@@ -1968,6 +1953,11 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.2    2017-08-31  H.Oehlmann   The response node name may also be the
+#                                   output name and not only the output type.
+#                                   (ticket [21f41e22bc]).
+# 2.4.3    2017-11-03  H.Oehlmann   Extended upper commit also to search
+#                                   for multiple child nodes.
 #
 #
 ###########################################################################
@@ -1985,7 +1975,9 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {$first > 0} {
         set inXML [string range $inXML $first end]
     }
+    # parse xml and save handle in variable doc and free it when out of scope
     dom parse $inXML doc
+    # save top node handle in variable top and free it if out of scope
     $doc documentElement top
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
@@ -2004,43 +1996,92 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             -errorcode [list WS CLIENT BADREPLY $inXML] \
             "Bad reply type, no SOAP envelope received in: \n$inXML"
     }
-    set rootNode [$body childNodes]
-    ::log::log debug "Have [llength $rootNode] node under Body"
-    if {[llength $rootNode] > 1} {
-        foreach tmp $rootNode {
-            #puts "\t Got {[$tmp localName]} looking for {$expectedMsgTypeBase}"
-            if {[string equal [$tmp localName] $expectedMsgTypeBase] ||
-                [string equal [$tmp nodeName] $expectedMsgTypeBase] ||
-                [string equal [$tmp localName] Fault] ||
-                [string equal [$tmp nodeName] Fault]} {
-                set rootNode $tmp
-                break
-            }
-        }
+    ##
+    ## Find the reply root node with the response.
+    ##
+    # <SOAP-ENV:Envelope...>
+    #   <SOAP-ENV:Body>
+    #     <i2:TestResponse id="ref-1" xmlns:i2=...> <-- this one
+    #
+    # WSDL 1.0: http://xml.coverpages.org/wsdl20000929.html
+    # Chapter 2.4.2 (name optional) and 2.4.5 (default name)
+    # The node name could be:
+    # 1) an error node "Fault"
+    # 2) equal to the WSDL name property of the output node
+    # 3) if no name tag, equal to <Operation>Response
+    # 4) the local output type name
+    #
+    # Possibility (2) "OutName" WSDL example:
+    # <wsdl:portType...><wsdl:operation...>
+    #   <wsdl:output name="{OutName}" message="tns:{OutMsgName}" />
+    # This possibility is requested by ticket [21f41e22bc]
+    #
+    # Possibility (3) default name "{OperationName}Result" WSDL example:
+    # <wsdl:portType...><wsdl:operation name="{OperationName}">
+    #   <wsdl:output message="tns:{OutMsgName}" /> *** no name tag ***
+    #
+    # Possibility (4) was not found in wsdl 1.0 standard but was used as only
+    # solution by TCLWS prior to 2.4.2.
+    # The following sketch shows the location of the local output type name
+    # "OutTypeName" in a WSDL file:
+    # -> In WSDL portType output message name
+    # <wsdl:portType...><wsdl:operation...>
+    #   <wsdl:output message="tns:{OutMsgName}" />
+    # -> then in message, use the element:
+    # <wsdl:message name="{OutMsgName}">
+    #   <wsdl:part name="..." element="tns:<{OutTypeName}>" />
+    # -> The element "OutTypeName" is also find in a type definition:
+    # <wsdl:types>
+    #   <s:element name="{OutMsgName}">
+    #     <s:complexType>...
+    #
+    # Build a list of possible names
+    set nodeNameCandidateList [list Fault $expectedMsgTypeBase]
+    # We check if the preparsed wsdl contains the name flag.
+    # This is not the case, if it was parsed with tclws prior 2.4.2
+    # *** ToDo *** This security may be removed on a major release
+    if {[dict exists $serviceInfo operation $operationName outputsname]} {
+        lappend nodeNameCandidateList [dict get $serviceInfo operation $operationName outputsname]
     }
-    if {([llength $rootNode] == 1) && ![string equal $rootNode {}]} {
-        set rootName [$rootNode localName]
-        if {[string equal $rootName {}]} {
-            set rootName [$rootNode nodeName]
+    
+    set rootNodeList [$body childNodes]
+    ::log::log debug "Have [llength $rootNodeList] node under Body"
+    foreach rootNodeCur $rootNodeList {
+        set rootNameCur [$rootNodeCur localName]
+        if {$rootNameCur eq {}} {
+            set rootNameCur [$rootNodeCur nodeName]
         }
-    } else {
-        set rootName {}
+        if {$rootNameCur in $nodeNameCandidateList} {
+            set rootNode $rootNodeCur
+            set rootName $rootNameCur
+            ::log::log debug "Result root name is '$rootName'"
+            break
+        }
+        ::log::log debug "Result root name '$rootNameCur' not in candidates '$nodeNameCandidateList'"
     }
-    ::log::log debug "root name is {$rootName}"
+    ##
+    ## Exit if there is no such node
+    ##
+    if {![info exists rootName]} {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
+            "Bad reply type, received '$rootName'; but expected '$expectedMsgTypeBase'."
+    }
 
     ##
     ## See if it is a standard error packet
     ##
-    if {[string equal $rootName {Fault}]} {
+    if {$rootName eq {Fault}} {
         set faultcode {}
         set faultstring {}
         set detail {}
         foreach item {faultcode faultstring detail} {
             set tmpNode [$rootNode selectNodes ENV:$item]
-            if {[string equal $tmpNode {}]} {
+            if {$tmpNode eq {}} {
                 set tmpNode [$rootNode selectNodes $item]
             }
-            if {![string equal $tmpNode {}]} {
+            if {$tmpNode ne {}} {
                 if {[$tmpNode hasAttribute href]} {
                     set tmpNode [GetReferenceNode $top [$tmpNode getAttribute href]]
                 }
@@ -2056,24 +2097,13 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     }
 
     ##
-    ## Validated that it is the expected packet type
-    ##
-    if {![string equal $rootName $expectedMsgTypeBase]} {
-        $doc delete
-        return \
-            -code error \
-            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
-            "Bad reply type, received '$rootName; but expected '$expectedMsgTypeBase'."
-    }
-
-    ##
     ## Convert the packet to a dictionary
     ##
     set results {}
     set headerRootNode [$top selectNodes ENV:Header]
     if {[llength $headerRootNode]} {
         foreach outHeaderType [dict get $serviceInfo operation $operationName soapReplyHeader] {
-            if {[string equal $outHeaderType {}]} {
+            if {$outHeaderType eq {}} {
                 continue
             }
             set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $outHeaderType] xns]
@@ -2093,7 +2123,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         }
     }
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
-    if {![string equal $rootName {}]} {
+    if {$rootName ne {}} {
         set bodyData [::WS::Utils::convertTypeToDict \
                          Client $serviceName $rootNode $expectedMsgType $body]
         if {![llength $bodyData] && ([dict get $serviceInfo skipLevelWhenActionPresent] || [dict get $serviceInfo skipLevelOnReply])} {
@@ -2181,7 +2211,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
 
     ::WS::Utils::SetOption suppressNS $inSuppressNs
     set inTransform [dict get $serviceInfo inTransform]
-    if {![string equal $inTransform {}]} {
+    if {$inTransform ne {}} {
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
@@ -2239,6 +2269,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     set url [dict get $serviceInfo location]
     set xnsList [dict get $serviceInfo targetNamespace]
 
+    # save the document in variable doc and free it if out of scope
     dom createDocument "SOAP-ENV:Envelope" doc
     $doc documentElement env
     $env setAttribute \
@@ -2268,7 +2299,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     set firstHeader 1
     foreach inputHeaderTypeItem [dict get $serviceInfo operation $operationName soapRequestHeader] {
         lassign $inputHeaderTypeItem inputHeaderType attrList
-        if {[string equal $inputHeaderType {}]} {
+        if {$inputHeaderType eq {}} {
             continue
         }
         set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $inputHeaderType] xns]
@@ -2276,6 +2307,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
             set xns $tnsArray($xns)
         }
         if {$firstHeader} {
+            # side effect: save new node handle in variable header
             $env appendChild [$doc createElement "SOAP-ENV:Header" header]
             set firstHeader 0
         }
@@ -2296,6 +2328,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         ::WS::Utils::convertDictToType Client $serviceName $doc $headerData $argList $inputHeaderType
     }
 
+    # side effect: save new element handle in variable bod
     $env appendChild [$doc createElement "SOAP-ENV:Body" bod]
     #puts "set xns \[dict get \[::WS::Utils::GetServiceTypeDef Client $serviceName $msgType\] xns\]"
     #puts "\t [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType]"
@@ -2392,7 +2425,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 
     set firstHeader 1
     foreach inputHeaderType [dict get $serviceInfo operation $operationName soapRequestHeader] {
-        if {[string equal $inputHeaderType {}]} {
+        if {$inputHeaderType eq {}} {
             continue
         }
         set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $inputHeaderType] xns]
@@ -2408,6 +2441,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     set baseName [dict get $serviceInfo operation $operationName name]
 
     set callXns [dict get $serviceInfo operation $operationName xns]
+    # side effect: node handle is saved in variable reply
     if {![string is space $callXns]} {
         $bod appendChild [$doc createElement $callXns:$baseName reply]
     } else {
@@ -2708,6 +2742,8 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+# 2.4.2    2017-08-31  H.Oehlmann   Also set serviceArr operation members
+#                                   inputsName and outputsName.
 #
 #
 ###########################################################################
@@ -2727,7 +2763,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
         if {![info exists style]} {
             if {[catch {$styleNode getAttribute style} tmpStyle]} {
                 set styleNode [$binding selectNodes {w:operation[1]/d:operation}]
-                if {[string equal $styleNode {}]} {
+                if {$styleNode eq {}} {
                     ##
                     ## This binding is for a SOAP level other than 1.1
                     ##
@@ -2740,7 +2776,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 set style $tmpStyle
                 #puts "Using style for first binding {$style}"
             }
-            if {!([string equal $style document] || [string equal $style rpc])} {
+            if {!($style eq {document} || $style eq {rpc} )} {
                 ::log:::log debug "Leaving [lindex [info level 0] 0] with error @1"
                 return \
                     -code error \
@@ -2750,8 +2786,8 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 
             if {![info exists use]} {
                 set use [[$binding selectNodes {w:operation[1]/w:input/d:body}] getAttribute use]
-                if {!([string equal $style document] && [string equal $use literal]) &&
-                    !([string equal $style rpc] && [string equal $use encoded])} {
+                if {!($style eq {document} && $use eq {literal} ) &&
+                    !($style eq {rpc} && $use eq {encoded} )} {
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @2"
                     return \
                         -code error \
@@ -2786,7 +2822,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                             -errorcode [list WS CLIENT NOOVERLOAD $operName]
                 }
                 ##
-                ## See if the existing operation needs to be cloned"
+                ## See if the existing operation needs to be cloned
                 ##
                 set origType [lindex [split [dict get $serviceInfo operation $operName inputs] {:}] end]
                 set newName ${operName}_${origType}
@@ -2798,20 +2834,21 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     dict lappend serviceInfo operList $newName
                     dict set serviceInfo operation $newName [dict get $serviceInfo operation $operName]
                 }
-                set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
-                set operName ${operName}_[lindex [split [lindex $typeList 0] {:}] end]
+                # typNameList contains inType inName outType outName
+                set typeNameList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
+                set operName ${operName}_[lindex [split [lindex $typeNameList 0] {:}] end]
                 set cloneList [dict get $serviceInfo operation $baseName cloneList]
                 lappend cloneList $operName
                 dict set serviceInfo operation $baseName cloneList $cloneList
                 dict set serviceInfo operation $operName isClone 1
             } else {
-                set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
+                set typeNameList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
                 dict set serviceInfo operation $operName isClone 0
             }
 
             #puts "Processing operation $operName"
             set actionNode [$oper selectNodes d:operation]
-            if {[string equal $actionNode {}]} {
+            if {$actionNode eq {}} {
                 ::log:::log debug "Skiping operation with no action [$oper asXML]"
                 continue
             }
@@ -2839,7 +2876,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             foreach inHeader [$oper selectNodes w:input/d:header] {
                 ##set part [$inHeader getAttribute part]
                 set tmp [$inHeader getAttribute use]
-                if {![string equal $tmp $use]} {
+                if {$tmp ne $use} {
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @3"
                     return \
                         -code error \
@@ -2863,7 +2900,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             foreach outHeader [$oper selectNodes w:output/d:header] {
                 ##set part [$outHeader getAttribute part]
                 set tmp [$outHeader getAttribute use]
-                if {![string equal $tmp $use]} {
+                if {$tmp ne $use} {
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @4"
                     return \
                         -code error \
@@ -2879,14 +2916,14 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             dict set serviceInfo operation $operName soapReplyHeader $soapReplyHeaderList
 
             ##
-            ## Validate that the input and output uses
+            ## Validate that the input and output uses are the same
             ##
             set inUse $use
             set outUse $use
             catch {set inUse [[$oper selectNodes w:input/d:body] getAttribute use]}
             catch {set outUse [[$oper selectNodes w:output/d:body] getAttribute use]}
             foreach tmp [list $inUse $outUse] {
-                if {![string equal $tmp $use]} {
+                if {$tmp ne $use} {
                     ::log:::log debug "Leaving [lindex [info level 0] 0] with error @5"
                     return \
                         -code error \
@@ -2894,10 +2931,11 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                         "Mixed usageage not supported!'"
                 }
             }
-            #set typeList [getTypesForPort $wsdlNode $serviceName $baseName $portName $inName serviceInfo $style]
-            ::log:::log debug "\t Messages are {$typeList}"
-            foreach type $typeList mode {inputs outputs} {
+            ::log:::log debug "\t Input/Output types and names are {$typeNameList}"
+            foreach {type name} $typeNameList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
+                # also set outputsname which is used to match it as alternate response node name
+                dict set serviceInfo operation $operName ${mode}name $name
             }
             set inMessage [dict get $serviceInfo operation $operName inputs]
             if {[dict exists $serviceInfo inputMessages $inMessage] } {
@@ -2905,7 +2943,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             } else {
                 set operList {}
             }
-	    lappend operList $operName
+            lappend operList $operName
             dict set serviceInfo inputMessages $inMessage $operList
 
             ##
@@ -2946,7 +2984,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #                     parsed service.
 #   style           - style of call
 #
-# Returns : A list containing the input and output types
+# Returns : A list containing the input and output types and names
 #
 # Side-Effects : Defines Client mode types for the service as specified by the WSDL
 #
@@ -2965,6 +3003,11 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+# 2.4.2    2017-08-31  H.Oehlmann   Extend return by names to verify this
+#                                   as return output node name.
+# 2.4.3    2017-11-03  H.Oehlmann   If name is not given, set the default
+#                                   name of <OP>Request/Response given by the
+#                                   WSDL 1.0 standard.
 #
 #
 ###########################################################################
@@ -2977,7 +3020,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
 
     #set portQuery [format {w:portType[attribute::name='%s']} $portName]
     #set portNode [lindex [$wsdlNode selectNodes $portQuery] 0]
-    if {[string equal $inName {}]} {
+    if {$inName eq {}} {
         set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']} \
                         $portName $operName]
     } else {
@@ -2986,32 +3029,38 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
     }
     ::log:::log debug "\t operNode query is {$operQuery}"
     set operNode [$wsdlNode selectNodes $operQuery]
-    if {[string equal $operNode {}] && ![string equal $inName {}]} {
+    if {$operNode eq {} && $inName ne {}} {
         set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']} \
                         $portName $operName]
         ::log:::log debug "\t operNode query is {$operQuery}"
         set operNode [$wsdlNode selectNodes $operQuery]
     }
-
-    set inputMsgNode [$operNode selectNodes {w:input}]
-    if {![string equal $inputMsgNode {}]} {
-        set inputMsgPath [$inputMsgNode getAttribute message]
-        set inputMsg [lindex [split $inputMsgPath {:}] end]
-        set inType [messageToType $wsdlNode $serviceName $operName $inputMsg serviceInfo $style]
-    }
-
-    set outputMsgNode [$operNode selectNodes {w:output}]
-    if {![string equal $outputMsgNode {}]} {
-        set outputMsgPath [$outputMsgNode getAttribute message]
-        set outputMsg [lindex [split $outputMsgPath {:}] end]
-        set outType [messageToType $wsdlNode $serviceName $operName $outputMsg serviceInfo $style]
+    
+    set resList {}
+    foreach sel {w:input w:output} defaultNameSuffix {Request Response} {
+        set nodeList [$operNode selectNodes $sel]
+        if {1 == [llength $nodeList]} {
+            set nodeCur [lindex $nodeList 0]
+            set msgPath [$nodeCur getAttribute message]
+            set msgCur [lindex [split $msgPath {:}] end]
+            # Append type
+            lappend resList [messageToType $wsdlNode $serviceName $operName $msgCur serviceInfo $style]
+            # Append name
+            if {[$nodeCur hasAttribute name]} {
+                lappend resList [$nodeCur getAttribute name]
+            } else {
+                # Build the default name according WSDL 1.0 as
+                # <Operation>Request/Response
+                lappend resList ${operName}$defaultNameSuffix
+            }
+        }
     }
 
     ##
     ## Return the types
     ##
-    ::log:::log debug "Leaving [lindex [info level 0] 0] with [list $inType $outType]"
-    return [list $inType $outType]
+    ::log:::log debug "Leaving [lindex [info level 0] 0] with $resList"
+    return $resList
 }
 
 ###########################################################################
@@ -3064,13 +3113,13 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 
     set msgQuery [format {w:message[attribute::name='%s']} $msgName]
     set msg [$wsdlNode selectNodes $msgQuery]
-    if {[string equal $msg {}] &&
+    if {$msg eq {} &&
         [llength [set msgNameList [split $msgName {:}]]] > 1} {
         set tmpMsgName [join [lrange $msgNameList 1 end] {:}]
         set msgQuery [format {w:message[attribute::name='%s']} $tmpMsgName]
         set msg [$wsdlNode selectNodes $msgQuery]
     }
-    if {[string equal $msg {}]} {
+    if {$msg eq {}} {
         return \
             -code error \
             -errorcode [list WS CLIENT BADMSGSEC $msgName] \
@@ -3185,6 +3234,9 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -3211,7 +3263,12 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $objectName $operationName]] \
             "Unknown operation '$operationName' for object '$objectName' of service '$serviceName'"
     }
-    if {![string equal $location {}]} {
+    
+    ##
+    ## build call query
+    ##
+    
+    if {$location ne {}} {
         set url $location
     } else {
         set url [dict get $serviceInfo object $objectName location]
@@ -3226,41 +3283,19 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
+    
+    ##
+    ## do http call
+    ##
+    
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
-    ##
-    ## Check for errors
-    ##
-    set body [::http::data $token]
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set results [FormatHTTPError $token]
-        set hadError 1
-    } else {
-        set hadError 0
-        set results [::http::data $token]
-    }
-    ::http::cleanup $token
-    if {$hadError} {
-        ::log::log debug "Leaving (error) ::WS::Client::DoRawRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$results}"
-        return $results
-    }
+    ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$body}"
+    return $body
 
 }
 
@@ -3310,6 +3345,9 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#                                   ::WS::Utils::geturl_fetchbody for http call
+#                                   which also follows redirects.
 #
 #
 ###########################################################################
@@ -3336,71 +3374,51 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $objectName $operationName]] \
             "Unknown operation '$operationName' for object '$objectName' of service '$serviceName'"
     }
-    if {![string equal $location {}]} {
+    if {$location ne {}} {
         set url $location
     } else {
         set url [dict get $serviceInfo object $objectName location]
     }
+    
+    ##
+    ## build call query
+    ##
+    
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
         return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-    } else {
-        RestoreSavedOptions $serviceName
     }
+    RestoreSavedOptions $serviceName
+    
+    ##
+    ## Do http call
+    ##
+    
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[llength $headers]} {
-        ::log::log info [list ::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
-        ::log::log info [list::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
-        set token [::http::geturl $url -query $query -type [dict get $serviceInfo contentType]]
+        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
-    ::http::wait $token
 
     ##
-    ## Check for errors
+    ## Parse results
     ##
-    set body [::http::data $token]
-    ::log::log info "\tReceived: $body"
-    set httpStatus [::http::status $token]
-    set hadError 0
-    set results {}
-    if {![string equal $httpStatus ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
-        ::log::log debug "\tHTTP error [array get $token]"
-        set results [FormatHTTPError $token]
-        set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
-        set errorInfo {}
-        set hadError 1
-    } else {
-        SaveAndSetOptions $serviceName
-        if {[catch {set hadError [catch {parseRestResults $serviceName $objectName $operationName $body} results]} err]} {
-            RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-        } else {
-            RestoreSavedOptions $serviceName
-        }
-        if {$hadError} {
-            ::log::log debug "Reply was [::http::data $token]"
-            set errorCode $::errorCode
-            set errorInfo $::errorInfo
-        }
-    }
-    ::http::cleanup $token
-    if {$hadError} {
+    
+    SaveAndSetOptions $serviceName
+    if {[catch {
+        parseRestResults $serviceName $objectName $operationName $body
+    } results]} {
+        RestoreSavedOptions $serviceName
         ::log::log debug "Leaving (error) ::WS::Client::DoRestCall"
-        return \
-            -code error \
-            -errorcode $errorCode \
-            -errorinfo $errorInfo \
-            $results
-    } else {
-        ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
-        return $results
+        return -code error $results
     }
+    RestoreSavedOptions $serviceName
+    ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
+    return $results
 
 }
 
@@ -3599,7 +3617,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
     set xml [encoding convertto $encoding $xml]
 
     set inTransform [dict get $serviceInfo inTransform]
-    if {![string equal $inTransform {}]} {
+    if {$inTransform ne {}} {
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
@@ -3663,11 +3681,13 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     }
     set serviceInfo $serviceArr($serviceName)
     set outTransform [dict get $serviceInfo outTransform]
-    if {![string equal $outTransform {}]} {
+    if {$outTransform ne {}} {
         set inXML [$outTransform $serviceName $operationName REPLY $inXML]
     }
     set expectedMsgType [dict get $serviceInfo object $objectName operation $operationName outputs]
+    # save parsed xml handle in variable doc
     dom parse $inXML doc
+    # save top node handle in variable top
     $doc documentElement top
     set xns {}
     foreach tmp [dict get $serviceInfo targetNamespace] {
@@ -3680,7 +3700,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     ##
     ## See if it is a standard error packet
     ##
-    if {![string equal $status {ok}]} {
+    if {$status ne {ok}} {
         set faultstring {}
         if {[catch {set faultstring [[$body selectNodes error] asText]}]} {
             catch {set faultstring [[$body selectNodes error] asText]}
@@ -3701,10 +3721,10 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     ::WS::Utils::SetOption UseNS 0
     ::WS::Utils::SetOption parseInAttr 1
     ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $body $expectedMsgType $body]"
-    if {![string equal $expectedMsgType {}]} {
+    if {$expectedMsgType ne {}} {
         set node [$body childNodes]
         set nodeName [$node nodeName]
-        if {![string equal $objectName $nodeName]} {
+        if {$objectName ne $nodeName} {
             return \
                 -code error \
                 -errorcode [list WS CLIENT BADRESPONSE [list $objectName $nodeName]] \
@@ -3774,8 +3794,8 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     ##
     set body [::http::data $token]
     ::log::log info "\nReceived: $body"
-    if {![string equal [::http::status $token] ok] ||
-        ([::http::ncode $token] != 200 && [string equal $body {}])} {
+    if {[::http::status $token] ne {ok} ||
+        ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
         set errorInfo [FormatHTTPError $token]
