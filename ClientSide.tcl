@@ -1043,7 +1043,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     #   xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/ ...>
     # contains the target namespace and all namespace definitions
     dict set nsDict url $targetNs tns$nsCount
-    # returns {wsdl wsdl {}} ....} for the upper example.
+    # returns {{wsdl wsdl {}} ....} for the upper example.
     foreach itemList [$wsdlNode attributes xmlns:*] {
         set ns [lindex $itemList 0]
         set url [$wsdlNode getAttribute xmlns:$ns]
@@ -1071,6 +1071,8 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
         }
         dict set nsDict tns $ns $tns
     }
+    
+    set ::d $nsDict
     $wsdlDoc selectNodesNamespaces {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
