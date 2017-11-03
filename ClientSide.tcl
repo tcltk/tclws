@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.3
+package provide WS::Client 2.4.4
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -989,6 +989,11 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 2.4.4    2017-11-03  H. Oehlmann  Included ticket [dcce437d7a] with
+#                                   solution by Wolfgang Winkler:
+#                                   Search namespace prfix also in element
+#                                   nodes and not only in definition node
+#                                   of wsdl file.
 #
 #
 ###########################################################################
@@ -1043,40 +1048,51 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     #   xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/ ...>
     # contains the target namespace and all namespace definitions
     dict set nsDict url $targetNs tns$nsCount
-    # returns {{wsdl wsdl {}} ....} for the upper example.
-    foreach itemList [$wsdlNode attributes xmlns:*] {
-        set ns [lindex $itemList 0]
-        set url [$wsdlNode getAttribute xmlns:$ns]
-        if {[dict exists $nsDict url $url]} {
-            set tns [dict get $nsDict url $url]
-        } else {
-            ##
-            ## Check for hardcoded namespaces
-            ##
-            switch -exact -- $url {
-                http://schemas.xmlsoap.org/wsdl/ {
-                    set tns w
-                }
-                http://schemas.xmlsoap.org/wsdl/soap/ {
-                    set tns d
-                }
-                http://www.w3.org/2001/XMLSchema {
-                    set tns xs
-                }
-                default {
-                    set tns tns[incr nsCount]
-                }
-            }
-            dict set nsDict url $url $tns
-        }
-        dict set nsDict tns $ns $tns
-    }
-    
-    set ::d $nsDict
+
     $wsdlDoc selectNodesNamespaces {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
         xs http://www.w3.org/2001/XMLSchema
+    }
+
+    ##
+    ## loop over the top definitions node and all elements nodes
+    ##
+    # Element nodes may declare namespaces inline like:
+    # <xs:element xmlns:q1="myNS" type="q1:MessageQ1"/>
+    # ticket [dcce437d7a]
+    foreach elemNode [linsert [$wsdlDoc selectNodes {//xs:element}] 0 $wsdlNode] {
+        # Get list of xmlns attributes
+        # This list looks for the example like: {{q1 q1 {}} ... }
+        set xmlnsAttributes [$elemNode attributes xmlns:*] 
+        # Loop over found namespaces
+        foreach itemList $xmlnsAttributes {
+            set ns [lindex $itemList 0]
+            set url [$elemNode getAttribute xmlns:$ns]
+            if {[dict exists $nsDict url $url]} {
+                set tns [dict get $nsDict url $url]
+            } else {
+                ##
+                ## Check for hardcoded namespaces
+                ##
+                switch -exact -- $url {
+                    http://schemas.xmlsoap.org/wsdl/ {
+                        set tns w
+                    }
+                    http://schemas.xmlsoap.org/wsdl/soap/ {
+                        set tns d
+                    }
+                    http://www.w3.org/2001/XMLSchema {
+                        set tns xs
+                    }
+                    default {
+                        set tns tns[incr nsCount]
+                    }
+                }
+                dict set nsDict url $url $tns
+            }
+            dict set nsDict tns $ns $tns
+        }
     }
 
     if {[info exists currentBaseUrl]} {
