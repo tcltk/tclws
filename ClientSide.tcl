@@ -989,11 +989,14 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-# 2.4.4    2017-11-03  H. Oehlmann  Included ticket [dcce437d7a] with
+# 2.4.4    2017-11-03  H.Oehlmann  Included ticket [dcce437d7a] with
 #                                   solution by Wolfgang Winkler:
 #                                   Search namespace prfix also in element
 #                                   nodes and not only in definition node
 #                                   of wsdl file.
+# 2.4.4    2017-11-06  H.Oehlmann   Added check (for nested namespace prefix
+#                                   case), that a namespace prefix is not
+#                                   reused for another URI.
 #
 #
 ###########################################################################
@@ -1043,7 +1046,8 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     #   - d: http://schemas.xmlsoap.org/wsdl/soap/
     #   - xs: http://www.w3.org/2001/XMLSchema
     #
-    # The top node <wsdl:definitions
+    # The top node
+    # <wsdl:definitions
     #   targetNamespace="http://www.webserviceX.NET/">
     #   xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/ ...>
     # contains the target namespace and all namespace definitions
@@ -1059,7 +1063,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     ## loop over the top definitions node and all elements nodes
     ##
     # Element nodes may declare namespaces inline like:
-    # <xs:element xmlns:q1="myNS" type="q1:MessageQ1"/>
+    # <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
     # ticket [dcce437d7a]
     foreach elemNode [linsert [$wsdlDoc selectNodes {//xs:element}] 0 $wsdlNode] {
         # Get list of xmlns attributes
@@ -1069,6 +1073,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
         foreach itemList $xmlnsAttributes {
             set ns [lindex $itemList 0]
             set url [$elemNode getAttribute xmlns:$ns]
+
             if {[dict exists $nsDict url $url]} {
                 set tns [dict get $nsDict url $url]
             } else {
@@ -1090,6 +1095,22 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
                     }
                 }
                 dict set nsDict url $url $tns
+            }
+            ##
+            ## Check if same namespace prefix was already assigned to a
+            ## different URL
+            ##
+            # This may happen, if the element namespace prefix overwrites
+            # a global one, like
+            # <wsdl:definitions xmlns:q1="URI1" ...>
+            #   <xs:element xmlns:q1="URI2" type="q1:MessageQ1"/>
+            if { [dict exists $nsDict tns $ns] && $tns ne [dict get $nsDict tns $ns] } {
+                ::log::log debug "Namespace prefix '$ns' with different URI '$url': $nsDict"
+                return \
+                    -code error \
+                    -errorcode [list WS CLIENT AMBIGNSPREFIX] \
+                    "element namespace prefix '$ns' used again for different URI '$url'.\
+                    Sorry, this is a current implementation limitation of TCLWS."
             }
             dict set nsDict tns $ns $tns
         }
@@ -2028,7 +2049,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     #
     # Possibility (3) default name "{OperationName}Result" WSDL example:
     # <wsdl:portType...><wsdl:operation name="{OperationName}">
-    #   <wsdl:output message="tns:{OutMsgName}" /> *** no name tag ***
+    #   <wsdl:output message="tns:{OutMsgName}" -> *** no name tag ***
     #
     # Possibility (4) was not found in wsdl 1.0 standard but was used as only
     # solution by TCLWS prior to 2.4.2.
