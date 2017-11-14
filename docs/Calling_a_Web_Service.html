@@ -352,21 +352,91 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 <pre>
      <i>serviceName</i>     - The name of the Webservice
      <i>item</i>   - The item to configure.  Must be one of
+</pre>
 <ul>
-<li>contentType -- default is "text/xml;charset=utf-8"</li>
-<li>location -- The URL of the service, derived from the WSDL.</li>
-<li>skipHeaderLevel -- boolean indicating the first level of the XML in a request header <i><b>shall be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
-<li>skipLevelOnReply -- boolean indicating the first level of the XML in a reply <i><b>may be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
-<li>skipLevelWhenActionPresent -- boolean indicating if the first level of the XML is to be skipped.  Derived from options.  Default is 0 (do not skip).</li>
-<li>suppressTargetNS -- boolean indicating if target namespace is not to be added to XML.  Derived from options.  Default is 0 (do not suppress). </li>
-<li>targetNamespace -- the target namespace of the service, derived from the WSDL.</li>
-<li>parseInAttr - parse attributes on inbound tags, see <A HREF="Using_Options.html#parseInAttr">here</A> for details</li>
-<li>genOutAttr - generate attributes on outbound tags, see <A HREF="Using_Options.html#genOutAttr">here</A> for details</li>
-<li>valueAttrCompatiblityMode - If this and genOutAttr/parseInAttr are set, then values are specified in the dictionary as {}.  Otherwise if genOutAttr/parseInAttr is set this is not set, then the values are specified in the dictionary as ::value.</li>
-<li>useTypeNs - use type's namespace prefix as prefix of elements</li>
-<li>nsOnChangeOnly - only put namespace prefix when namespaces change</li>
-<li>suppressNS - do not put a particular namespace prefix</li>
+<li><pre>allowOperOverloading</pre>
+	<p>An overloaded operation is an operation with the same name but different  may exist with different input parameter sets.</p>
+	<p>This option throws an error, if a WSDL is parsed with an overloaded operation.</p>
+	Default: 1</li>
+<li><pre>contentType</pre>
+	The http content type of the http request sent to call the web service.<br />
+	Default: "text/xml;charset=utf-8"</li>
+<li><pre>errorOnRedefine</pre>
+	Throw an error, if a service is created (CreateService etc) for an already existing service.<br />
+	Default value: 0</li>
+<li><pre>genOutAttr</pre>
+	generate attributes on outbound tags, see <A HREF="Using_Options.html#genOutAttr">here</A> for details</li>
+<li><pre>location</pre>
+	The URL of the service. This is initialized on the value in the WSDL file, when the WSDL file is parsed. The value may be overwritten setting this option.</li>
+<li><pre>noTargetNs</pre>
+	The target namespace URI is normally included twice in the envelope of the webservice call:<br />
+	<pre>
+&lt;SOAP-ENV:Envelope
+	...
+	xmlns="http://targeturi.org/"
+	xmlns:tns1="http://targeturi.org/"
+	...&gt;
+	</pre>
+	Setting this option to 1 suppresses the line with "xmlns=".
+	<br />This option was set to call a service published by SAP.
+	<br />Default value: 0</li>
+<li><pre>nsOnChangeOnly</pre>
+	only put namespace prefix when namespaces change</li>
+<li><pre>parseInAttr</pre>
+	parse attributes on inbound tags, see <A HREF="Using_Options.html#parseInAttr">here</A> for details</li>
+<li><pre>skipHeaderLevel</pre>
+	boolean indicating the first level of the XML in a request header <i><b>shall be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
+<li><pre>skipLevelOnReply</pre>
+	boolean indicating the first level of the XML in a reply <i><b>may be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
+<li><pre>skipLevelWhenActionPresent</pre>
+	boolean indicating if the first level of the XML is to be skipped.  Derived from options.  Default is 0 (do not skip).</li>
+<li><pre>suppressNS (default: empty string)</pre>
+	do not put a particular namespace prefix</li>
+<li><pre>suppressTargetNS</pre>
+	<p>Do not add the Target Namespace URI prefix "tns1" to all parameters in the webservice call XML.</p>
+	<p>As an example, the XML is modified from (option not set):
+	<pre>
+&lt;SOAP-ENV:Envelope ...
+    xmlns:tns1="http://targeturi.org/"
+    ... &gt;
+  &lt;SOAP-ENV:Body&gt;
+    &lt;tns1:CalledMethod&gt;
+      &lt;tns1:Parameter1&gt;Value;/tns1:Parameter1&gt;
+    &lt;/tns1:CalledMethod&gt;
+  &lt;/SOAP-ENV:Body&gt;
+&lt;/SOAP-ENV:Envelope&gt;
+	</pre>
+	to (option set)
+	<pre>
+&lt;SOAP-ENV:Envelope ...
+    xmlns:tns1="http://targeturi.org/"
+    ... &gt;
+&lt;SOAP-ENV:Envelope ...
+  &lt;SOAP-ENV:Body&gt;
+    &lt;tns1:CalledMethod&gt;
+      &lt;Parameter1&gt;Value;/Parameter1&gt;
+    &lt;/tns1:CalledMethod&gt;
+  &lt;/SOAP-ENV:Body&gt;
+&lt;/SOAP-ENV:Envelope&gt;
+	</pre>
+	</p>
+	Derived from options.
+	<br />Internally, this option sets the option "suppressNS" to "tns1".
+	<br />This option was set to call a service published by SAP.
+	<br />This option made a call to a certain MS Web Service fail with the error message: "Input parameter 'Parameter1' can not be NULL or Empty.". 
+	<br />Default is 0 (do not suppress).
+	</li>
+<li><pre>targetNamespace (default: empty string)</pre>
+	the target namespace of the service, derived from the WSDL.</li>
+<li><pre>UseNS (default: empty string)</pre>
+	See <A HREF="Using_Options.html#UseNS">here</A>
+	</li>
+<li><pre>useTypeNS (default: empty string)</pre>
+	use type's namespace prefix as prefix of elements</li>
+<li><pre>valueAttrCompatiblityMode (default: 1)</pre>
+	If this and genOutAttr/parseInAttr are set, then values are specified in the dictionary as {}.  Otherwise if genOutAttr/parseInAttr is set this is not set, then the values are specified in the dictionary as ::value.</li>
 </ul>
+<pre>
      <i>value</i>         - Optional, the new value.
 </pre>
 <p><b>Returns&nbsp;:</b> </p><pre>     The value of the item.
