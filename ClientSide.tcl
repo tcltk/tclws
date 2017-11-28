@@ -1016,7 +1016,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     if {$first > 0} {
         set wsdlXML [string range $wsdlXML $first end]
     }
-    ::log::log debug "Parsing WSDL {$wsdlXML}"
+    ::log::log debug [list "Parsing WSDL" $wsdlXML]
 
     # save parsed document node to tmpdoc
     dom parse $wsdlXML tmpdoc
@@ -2561,7 +2561,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceA
         lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias $tnsDict]
     }
 
-    ::log::log debug "Leaving ::WS::Client::buildServiceInfo with {$serviceInfo}"
+    ::log::log debug [list "Leaving ::WS::Client::buildServiceInfo with" $serviceInfo]
     return $serviceInfo
 }
 
