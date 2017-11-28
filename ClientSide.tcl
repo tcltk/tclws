@@ -117,6 +117,7 @@ namespace eval ::WS::Client {
         nsOnChangeOnly {}
         noTargetNs 0
         errorOnRedefine 0
+        inlineElementNS 1
     }
     set ::WS::Client::utilsOptionsList {
         UseNS
@@ -322,6 +323,61 @@ proc ::WS::Client::Config {serviceName item {value {}}} {
 
 }
 
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Client::DefaultConfig
+#
+# Description : Gets or sets a default config value
+#               Does not work for options common with the service part.
+#
+# Arguments :
+#       item        - The item to configure
+#       value       - Optional, the new value
+#
+# Returns :     The value of the option
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Gerald W. Lester
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 2.4.4    2017-11-24  H.Oehlmann   Initial version.
+#   
+###########################################################################
+proc ::WS::Client::DefaultConfig {operation item {value {}}} {
+    variable serviceArr
+    variable options
+
+    if {$operation eq "listoptions"} {
+        return [array names options]
+    }
+    if {![info exists options($item)]} {
+        return -code error "Uknown option '$item' -- must be one of: [join [array names options] {, }]"
+    }
+    if {$operation eq "set"} {
+        set options($item) $value
+    }
+    if {$operation ne "get"} {
+        return -code error "Unknown operation '$operation' -- must be one of listoptions, get, set"
+    }
+    return $options($item)
+}
 ###########################################################################
 #
 # Public Procedure Header - as this procedure is modified, please be sure
@@ -997,12 +1053,14 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 # 2.4.4    2017-11-06  H.Oehlmann   Added check (for nested namespace prefix
 #                                   case), that a namespace prefix is not
 #                                   reused for another URI.
-#
+# 2.4.4    2017-11-24  H.Oehlmann   Added option "inlineElementNS" to activate
+#                                   namespace definition search in element nodes
 #
 ###########################################################################
 proc ::WS::Client::ParseWsdl {wsdlXML args} {
     variable currentBaseUrl
     variable serviceArr
+    variable options
 
     array set defaults {
         -createStubs    0
@@ -1060,12 +1118,32 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     }
 
     ##
-    ## loop over the top definitions node and all elements nodes
+    ## build list of namespace definition nodes
     ##
-    # Element nodes may declare namespaces inline like:
-    # <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
-    # ticket [dcce437d7a]
-    foreach elemNode [linsert [$wsdlDoc selectNodes {//xs:element}] 0 $wsdlNode] {
+    ## the top node is always used
+    set NSDefinitionNodeList [list $wsdlNode]
+    
+    ##
+    ## get namespace definitions in element nodes
+    ##
+    ## Element nodes may declare namespaces inline like:
+    ## <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
+    ## ticket [dcce437d7a]
+    
+    # This is only done, if option inlineElementNS is set.
+    # To get the option is not so easy at this stage, as the service name
+    # is not known jet. So, only take it, if a service alias is given.
+    if {    [info exists serviceArr($defaults(-serviceAlias))]
+            && [dict exists $serviceArr($defaults(-serviceAlias)) inlineElementNS]
+    } {
+        set inlineElementNS [dict get $serviceArr($defaults(-serviceAlias)) inlineElementNS]
+    } else {
+        set inlineElementNS $options(inlineElementNS)
+    }
+    if {$inlineElementNS} {
+        lappend NSDefinitionNodeList {*}[$wsdlDoc selectNodes {//xs:element}]
+    }
+    foreach elemNode $NSDefinitionNodeList {
         # Get list of xmlns attributes
         # This list looks for the example like: {{q1 q1 {}} ... }
         set xmlnsAttributes [$elemNode attributes xmlns:*] 
