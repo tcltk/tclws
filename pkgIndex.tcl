@@ -10,10 +10,10 @@
 
 package ifneeded WS::AOLserver 2.4.0 [list source [file join $dir AOLserver.tcl]]
 package ifneeded WS::Channel 2.4.0 [list source [file join $dir ChannelServer.tcl]]
-package ifneeded WS::Client 2.4.4 [list source [file join $dir ClientSide.tcl]]
+package ifneeded WS::Client 2.4.5 [list source [file join $dir ClientSide.tcl]]
 package ifneeded WS::Embeded 2.4.0 [list source [file join $dir Embedded.tcl]]
 package ifneeded WS::Server 2.4.0 [list source [file join $dir ServerSide.tcl]]
 package ifneeded WS::Utils 2.4.0 [list source [file join $dir Utilities.tcl]]
 package ifneeded WS::Wub 2.4.0 [list source [file join $dir WubServer.tcl]]
 package ifneeded Wsdl 2.4.0 [list source [file join $dir WubServer.tcl]]
-
+package ifneeded http 2.8.12 [list source [file join $dir http-2.8.12.tcl]]
