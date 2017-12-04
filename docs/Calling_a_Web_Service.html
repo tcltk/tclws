@@ -300,7 +300,7 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 <P><B>Side-Effects&nbsp;: Existing namespace is deleted.</B> </P>
 <P><B>Exception Conditions&nbsp;: None</B> </P>
 <P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
-<HR>
+<HR />
 
 <A name=Synchronous_Call_returning_the_raw_XML></A>
 <H2>Synchronous Call returning the raw XML </H2>
@@ -325,6 +325,7 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 </PRE>
 <P><B>Pre-requisite Conditions&nbsp;: Service must have been defined.</B> </P>
 
+<HR />
 
 <p><a name="Template"></a>
 </p><h2>Generating a Template Dictionary</h2>
@@ -343,31 +344,99 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 <p><b>Exception Conditions&nbsp;&nbsp;: None</b> </p>
 <p><b>Pre-requisite Conditions&nbsp;: Service must have been defined.</b> </p></pre><p></p>
 
+<HR />
 
 <p><a name="Config"></a>
 </p><h2>Configuring a Service </h2>
-<p><b>Procedure Name&nbsp;: <i>::WS::Client::Config</i></b> </p>
-<p><b>Description&nbsp;: Configure a service's information</b> </p>
+
+There are two procedures to configure a service:
+<ul>
+	<li>::WS::Client::SetOption</li>
+	<li>::WS::Client::Config</li>
+</ul>
+
+<p>The first procedure contains the default options of the package.
+The default options are used on service creation and are then copied to the service.</p>
+
+<p>The second procedure contains the options of each service.
+They are copied on service creation from the default options.</p>
+
+<p>Most option items may be accessed by both functions.
+Some options are only used on service creation phase, which do not exist as service option.
+Other options do not exist as default option, as they are initialized from the WSDL file.</p>
+
+<p>In the following, first the two access routines are described.
+Then, a list of options for both functions are given, with remarks, if they are only valid for one of the two procedures.</p>
+
+<p><b>Procedure Name&nbsp;: <i>::WS::Client::SetOption</i></b> </p>
+<p><b>Description&nbsp;: Get or set the default options of the package</b> </p>
 <p><b>Arguments&nbsp;:</b> </p>
 <pre>
-     <i>serviceName</i>     - The name of the Webservice
-     <i>item</i>   - The item to configure.  Must be one of
+     <i>-globalonly</i>   - Return a list of global-only options and their values.
+     <i></i>                Global-only options are not copied to the service.
+     <i>-defaultonly</i>  - Return a list of default-only options and their values.
+     <i></i>                default-only options are copied to the service.
+     <i>--</i>            - End of options
+     <i>item</i>          - The option item to get or configure.
+     <i></i>                Return a list of all item/value pairs if ommitted. 
+     <i>value</i>         - The value to set the option item to.
+     <i></i>                Return current value if omitted.
 </pre>
+
+<p><b>Procedure Name&nbsp;: <i>::WS::Client::Config</i></b> </p>
+<p><b>Description&nbsp;: Get or set the options local to a service definition</b> </p>
+<p><b>Arguments&nbsp;:</b> </p>
+<pre>
+     <i>serviceName</i> - The name of the Webservice.
+     <i></i>              Return a list of default items/values paires if not given.
+     <i>item</i>        - The option item to get or configure.
+     <i></i>              Return a list of all item/value pairs, if not given. 
+     <i>value</i>       - The value to set the option item to.
+     <i></i>              Return current value if omitted.
+</pre>
+
+<p><b>Option List:</b> </p>
+
 <ul>
 <li><pre>allowOperOverloading</pre>
 	<p>An overloaded operation is an operation with the same name but different  may exist with different input parameter sets.</p>
 	<p>This option throws an error, if a WSDL is parsed with an overloaded operation.</p>
 	Default: 1</li>
+
 <li><pre>contentType</pre>
 	The http content type of the http request sent to call the web service.<br />
 	Default: "text/xml;charset=utf-8"</li>
+
 <li><pre>errorOnRedefine</pre>
-	Throw an error, if a service is created (CreateService etc) for an already existing service.<br />
-	Default value: 0</li>
+	<p>Throw an error, if a service is created (CreateService etc) for an already existing service.</p>
+	<p>Default value: 0</p>
+	<p>This item may not be used with <i>::WS::Client::Config</i>.</p>
+	</li>
+
 <li><pre>genOutAttr</pre>
 	generate attributes on outbound tags, see <A HREF="Using_Options.html#genOutAttr">here</A> for details</li>
+
+<li><pre>inlineElementNS</pre>
+	<p>Namespace prefixes for types may be defined within the WSDL root element.</p>
+	<p>This item may not be used with <i>::WS::Client::Config</i>.</p>
+	<p>Activate this option, to also search namespace prefixes in the type definition.
+	As those are seen as global prefixes, there might be a double-used prefix which will cause a processing error, if different URI's are assigned.</p>
+
+	<p>The error would be caused by a WSDL as follows</p>
+	<pre>
+	&lt;wsdl:definitions targetNamespace="http://www.webserviceX.NET/"
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/
+		xmlns:q1="myURI1"
+		...&gt;
+	    ...
+	    &lt;xs:element xmlns:q1="myURI2" type="q1:MessageQ1"/&gt;
+	</pre>
+	</li>
 <li><pre>location</pre>
-	The URL of the service. This is initialized on the value in the WSDL file, when the WSDL file is parsed. The value may be overwritten setting this option.</li>
+	<p>The URL of the service. This is initialized on the value in the WSDL file, when the WSDL file is parsed. The value may be overwritten setting this option.</p>
+	<p>This item may not be used with <i>::WS::Client::SetOption</i>.</p>
+	</li>
+
 <li><pre>noTargetNs</pre>
 	The target namespace URI is normally included twice in the envelope of the webservice call:<br />
 	<pre>
@@ -427,7 +496,9 @@ Operations.</B> </P><PRE>             All routines will be create in a namespace
 	<br />Default is 0 (do not suppress).
 	</li>
 <li><pre>targetNamespace (default: empty string)</pre>
-	the target namespace of the service, derived from the WSDL.</li>
+	<p>the target namespace of the service, derived from the WSDL.</p>
+	<p>This item may not be used with <i>::WS::Client::SetOption</i>.</p>
+	</li>
 <li><pre>UseNS (default: empty string)</pre>
 	See <A HREF="Using_Options.html#UseNS">here</A>
 	</li>

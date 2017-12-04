@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.4
+package provide WS::Client 2.4.5
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -117,7 +117,28 @@ namespace eval ::WS::Client {
         nsOnChangeOnly {}
         noTargetNs 0
         errorOnRedefine 0
+        inlineElementNS 1
     }
+    ##
+    ## List of options which are copied to the service array
+    ##
+    set ::WS::Client::serviceLocalOptionsList {
+        skipLevelWhenActionPresent
+        skipLevelOnReply
+        skipHeaderLevel
+        suppressTargetNS
+        allowOperOverloading
+        contentType
+        UseNS
+        parseInAttr
+        genOutAttr
+        valueAttrCompatiblityMode
+        suppressNS
+        useTypeNs
+        nsOnChangeOnly
+        noTargetNs
+    }
+
     set ::WS::Client::utilsOptionsList {
         UseNS
         parseInAttr
@@ -139,11 +160,20 @@ namespace eval ::WS::Client {
 #
 # Procedure Name : ::WS::Client::SetOption
 #
-# Description : Set or get an option
+# Description : Set or get file global or default option.
+#               Global option control the service creation process.
+#               Default options are takren as defaults to new created services.
 #
 # Arguments :
+#       -globalonly
+#               - Return list of global options/values
+#       -defaultonly
+#               - Return list of default options/values
+#       --
 #       option  - Option to be set/retrieved
+#                 Return all option/values if omitted
 #       args    - Value to set the option to
+#                 Return the value if not given
 #
 # Returns : The value of the option
 #
@@ -164,24 +194,77 @@ namespace eval ::WS::Client {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  04/272009   G.Lester     Initial version
+#   2.4.5  2017-12-04  H.Oehlmann   Return all current options if no argument
+#                                   given. Options -globalonly or -defaultonly
+#                                   limit this to options which are (not)
+#                                   copied to the service.
+#                                   
 ###########################################################################
-proc ::WS::Client::SetOption {option args} {
+proc ::WS::Client::SetOption {args} {
     variable options
-
-    if {[info exists options($option)]} {
-        if {[llength $args] == 0} {
-            return $options($option)
-        } elseif {[llength $args] == 1} {
-            set options($option) [lindex $args 0]
-        } else {
-            return  -code error \
-                    -errorcode [list WS CLIENT INVALDCNT $args] \
-                    "Invalid number of values: '$args'"
+    variable serviceLocalOptionsList
+    if {0 == [llength $args]} {
+        return [array get options]
+    }
+    set args [lassign $args option]
+    
+    switch -exact -- $option {
+        -globalonly {
+            ##
+            ## Return list of global options
+            ##
+            set res {}
+            foreach option [array names options] {
+                if {$option ni $serviceLocalOptionsList} {
+                    lappend res $option $options($option)
+                }
+            }
+            return $res
         }
-    } else {
+        -defaultonly {
+            ##
+            ## Return list of default options
+            ##
+            set res {}
+            foreach option [array names options] {
+                if {$option in $serviceLocalOptionsList} {
+                    lappend res $option $options($option)
+                }
+            }
+            return $res
+        }
+        -- {
+            ##
+            ## End of options
+            ##
+            set args [lassign $args option]
+        }
+    }
+    ##
+    ## Check if given option exists
+    ##
+    if {![info exists options($option)]} {
         return  -code error \
                 -errorcode [list WS CLIENT UNKOPT $option] \
-                "Uknown option: '$option'"
+                "Unknown option: '$option'"
+    }
+    ##
+    ## Check if value is given
+    ##
+    switch -exact -- [llength $args] {
+        0 {
+            return $options($option)
+        }
+        1 {
+            set value [lindex $args 0]
+            set options($option) $value
+            return $value
+        }
+        default {
+            return  -code error \
+                    -errorcode [list WS CLIENT INVALDCNT $args] \
+                    "To many parameters: '$args'"
+        }
     }
 }
 
@@ -222,12 +305,15 @@ proc ::WS::Client::SetOption {option args} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  04/14/2009  G.Lester     Initial version
-#
+# 2.4.5    2017-12-04  H.Oehlmann   Use distinct list of option items, which are
+#                                   copied to the service array. Not all options
+#                                   are used in the service array.
 #
 ###########################################################################
 proc ::WS::Client::CreateService {serviceName type url target args} {
     variable serviceArr
     variable options
+    variable serviceLocalOptionsList
 
     if {$options(errorOnRedefine) && [info exists serviceArr($serviceName)]} {
         return -code error "Service '$serviceName' already exists"
@@ -246,7 +332,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
     dict set serviceArr($serviceName) imports {}
     dict set serviceArr($serviceName) inTransform {}
     dict set serviceArr($serviceName) outTransform {}
-    foreach item [array names options] {
+    foreach item $serviceLocalOptionsList {
         dict set serviceArr($serviceName) $item $options($item)
     }
     foreach {name value} $args {
@@ -276,11 +362,14 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
 # Description : Configure a service information
 #
 # Arguments :
-#       serviceName - Service name to add namespace to
-#       item        - The item to configure
-#       value       - Optional, the new value
+#       serviceName - Service name to add namespace to.
+#                     Return a list of items/values of default options if not
+#                     given.
+#       item        - The item to configure. Return a list of all items/values
+#                     if not given.
+#       value       - Optional, the new value. Return the value, if not given.
 #
-# Returns :     The value of the option
+# Returns :     The value of the option or a list of item/value pairs.
 #
 # Side-Effects :        None
 #
@@ -299,27 +388,63 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  04/14/2009  G.Lester     Initial version
-#
+#   2.4.5  2017-12-04  H.Oehlmann   Allow to set an option to the empty string.
+#                                   Return all option/values, if called without
+#                                   item. Return default items/values if no
+#                                   service given.
 #
 ###########################################################################
-proc ::WS::Client::Config {serviceName item {value {}}} {
+proc ::WS::Client::Config {args} {
     variable serviceArr
     variable options
+    variable serviceLocalOptionsList
 
-    set serviceInfo $serviceArr($serviceName)
-    set validOptionList [array names options]
+    set validOptionList $serviceLocalOptionsList
     lappend validOptionList location targetNamespace
-    if {[lsearch -exact $validOptionList $item] == -1} {
+    
+    if {0 == [llength $args]} {
+        set res {}
+        foreach item $validOptionList {
+            lappend res $item
+            if {[info exists options($item)]} {
+                lappend res $options($item)
+            } else {
+                lappend res {}
+            }
+        }
+        return $res
+    }    
+    set args [lassign $args serviceName]
+    if {0 == [llength $args]} {
+        set res {}
+        foreach item $validOptionList {
+            lappend res $item [dict get $serviceArr($serviceName) $item]
+        }
+        return $res
+    }
+    
+    set args [lassign $args item]
+    if { $item ni $validOptionList } {
         return -code error "Uknown option '$item' -- must be one of: [join $validOptionList {, }]"
     }
 
-    if {$value ne {}} {
-        dict set serviceInfo $item $value
-        set serviceArr($serviceName) $serviceInfo
+    switch -exact -- [llength $args] {
+        0 {
+            return [dict get $serviceArr($serviceName) $item]
+        }
+        1 {
+            set value [lindex $args 0]
+            dict set serviceArr($serviceName) $item  $value
+            return $value
+        }
+        default {
+            ::log::log debug "To many arguments arguments {$args}"
+            return \
+                -code error \
+                -errorcode [list WS CLIENT INVARGCNT $args] \
+                "To many arguments '$args'"
+        }
     }
-
-    return [dict get $serviceInfo $item]
-
 }
 
 ###########################################################################
@@ -997,12 +1122,14 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 # 2.4.4    2017-11-06  H.Oehlmann   Added check (for nested namespace prefix
 #                                   case), that a namespace prefix is not
 #                                   reused for another URI.
-#
+# 2.4.5    2017-11-24  H.Oehlmann   Added option "inlineElementNS" to activate
+#                                   namespace definition search in element nodes
 #
 ###########################################################################
 proc ::WS::Client::ParseWsdl {wsdlXML args} {
     variable currentBaseUrl
     variable serviceArr
+    variable options
 
     array set defaults {
         -createStubs    0
@@ -1060,12 +1187,26 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     }
 
     ##
-    ## loop over the top definitions node and all elements nodes
+    ## build list of namespace definition nodes
     ##
-    # Element nodes may declare namespaces inline like:
-    # <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
-    # ticket [dcce437d7a]
-    foreach elemNode [linsert [$wsdlDoc selectNodes {//xs:element}] 0 $wsdlNode] {
+    ## the top node is always used
+    set NSDefinitionNodeList [list $wsdlNode]
+    
+    ##
+    ## get namespace definitions in element nodes
+    ##
+    ## Element nodes may declare namespaces inline like:
+    ## <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
+    ## ticket [dcce437d7a]
+    
+    # This is only done, if option inlineElementNS is set in the default
+    # options. Service dependent options may not be used at this stage,
+    # as serviceArr is not created jet (Client::Config will fail) and the
+    # service name is not known jet.
+    if {$options(inlineElementNS)} {
+        lappend NSDefinitionNodeList {*}[$wsdlDoc selectNodes {//xs:element}]
+    }
+    foreach elemNode $NSDefinitionNodeList {
         # Get list of xmlns attributes
         # This list looks for the example like: {{q1 q1 {}} ... }
         set xmlnsAttributes [$elemNode attributes xmlns:*] 
