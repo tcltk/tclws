@@ -213,6 +213,9 @@ proc ::WS::Client::SetOption {args} {
             ##
             ## Return list of global options
             ##
+            # A list convertible to a dict is build for performance reasons:
+            # - lappend does not test existence for each element
+            # - if a list is needed, dict build burden is avoided
             set res {}
             foreach option [array names options] {
                 if {$option ni $serviceLocalOptionsList} {
@@ -403,6 +406,9 @@ proc ::WS::Client::Config {args} {
     lappend validOptionList location targetNamespace
     
     if {0 == [llength $args]} {
+        # A list convertible to a dict is build for performance reasons:
+        # - lappend does not test existence for each element
+        # - if a list is needed, dict build burden is avoided
         set res {}
         foreach item $validOptionList {
             lappend res $item
