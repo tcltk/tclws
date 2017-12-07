@@ -92,19 +92,38 @@ causes no ill effects to put this in each file using the utilties. </P>
 <A name=Quering_a_remote_Web_Services_Server_for_its_WSDL_and_parsing_it></A>
 <H2>Quering a remote Web Services Server for its WSDL and parsing it </H2>
 <P><B>Procedure Name&nbsp;: <I>::WS::Client::GetAndParseWsdl</I></B> </P>
-<P><B>Description&nbsp;:</B> </P>
-<P><B>Arguments&nbsp;:</B> </P><PRE>     <I>url</I>     - The url of the WSDL
+<P><B>Description&nbsp;: Fetch the WSDL file from the given URL, aprse it and create the service.</B> </P>
+<P><B>Arguments&nbsp;:</B> </P><PRE>
+     <I>url</I>     - The url of the WSDL
      <I>headers</I> - Extra headers to add to the HTTP request. This
-                 is a key value list argument. It must be a list with
-                 an even number of elements that alternate between
-                 keys and values. The keys become header field names.
-                 Newlines are stripped from the values so the header
-                 cannot be corrupted.
-                 This is an optional argument and defaults to {}.
+     <I></I>          is a key value list argument. It must be a list with
+     <I></I>          an even number of elements that alternate between
+     <I></I>          keys and values. The keys become header field names.
+     <I></I>          Newlines are stripped from the values so the header
+     <I></I>          cannot be corrupted.
+     <I></I>          This is an optional argument and defaults to {}.
      <I>serviceAlias</I> - Alias (unique) name for service.
-                     This is an optional argument and defaults to the name of the
-                     service in serviceInfo.
+     <I></I>               This is an optional argument and defaults to the name of the
+     <I></I>               service in serviceInfo.
+     <I>serviceNumber</I> - Number of service within the WSDL to assign the
+     <I></I>                serviceAlias to. Only recognized with a serviceAlias.
+     <I></I>                First service (default) is addressed by value "1".
 </PRE>
+<p>The following example WSDL snipped defines two services:</p>
+<pre>
+  &gt;definitions ...&lt;
+    &gt;service name="service1"&lt;
+      ...
+    &gt;/service&lt;
+    &gt;service name="service1"&lt;
+      ...
+    &gt;/service&lt;
+  &gt;/definitions&lt;
+</pre>
+
+<p>Using an empty or no <I>serviceAlias</I> would result in the creation of the services "service1" and "service2".</p>
+<p>Using <i>serviceAlias</i>="SE" and <i>serviceNumber</i>=2 would result in the creation of the service "SE" containing the "service2" of the WSDL.</p>
+
 <P><B>Returns&nbsp;: The parsed service definition</B> </P>
 <P><B>Side-Effects&nbsp;: None</B> </P>
 <P><B>Exception Conditions&nbsp;: None</B> </P>
@@ -114,24 +133,29 @@ causes no ill effects to put this in each file using the utilties. </P>
 <A name=Parsing_a_saved_WSDL></A>
 <H2>Parsing a saved WSDL </H2>
 <P><B>Procedure Name&nbsp;: <I>::WS::Client::ParseWsdl</I></B> </P>
-<P><B>Description&nbsp;: Parse a WSDL</B> </P>
+<P><B>Description&nbsp;: Parse a WSDL and create the service. Create also the stubs if specified.</B> </P>
 <P><B>Arguments&nbsp;:</B> </P><PRE>     <I>wsdlXML</I> - XML of the WSDL
 </PRE>
-<P><B>Optional Arguments:</B> </P><PRE>     -createStubs 0|1 - create stub routines for the service
-                             <B>NOTE</B> -- Webservice arguments are position
-                                     independent, thus the proc arguments
-                                     will be defined in alphabetical order.
-     -headers         - Extra headers to add to the HTTP request. This
-                        is a key value list argument. It must be a list with
-                        an even number of elements that alternate between
-                        keys and values. The keys become header field names.
-                        Newlines are stripped from the values so the header
-                        cannot be corrupted.
-                        This is an optional argument and defaults to {}.
-     -serviceAlias - Alias (unique) name for service.
-                      This is an optional argument and defaults to the name of the
-                      service in serviceInfo.
+<P><B>Optional Arguments:</B> </P>
+<PRE>
+     <i>-createStubs</i> 0|1 - create stub routines for the service
+     <i>-headers</i>         - Extra headers to add to the HTTP request. This
+     <i></i>                   is a key value list argument. It must be a list with
+     <i></i>                   an even number of elements that alternate between
+     <i></i>                   keys and values. The keys become header field names.
+     <i></i>                   Newlines are stripped from the values so the header
+     <i></i>                   cannot be corrupted.
+     <i></i>                   This is an optional argument and defaults to {}.
+     <i>-serviceAlias</i>    - Alias (unique) name for service.
+     <i></i>                   This is an optional argument and defaults to the name of the
+     <i></i>                   service in serviceInfo.
+     <I>serviceNumber</I> - Number of service within the WSDL to assign the
+     <I></I>                serviceAlias to. Only recognized with a serviceAlias.
+     <I></I>                First service (default) is addressed by value "1".
 </PRE>
+
+<p>The arguments are position independent.</p>
+<p>For an example use of <i>serviceAlias</i> and <i>serviceNumber</i>, see <a href="#Quering_a_remote_Web_Services_Server_for_its_WSDL_and_parsing_it">the chapter above</a>.</p>
 <P><B>Returns&nbsp;: The parsed service definition</B> </P>
 <P><B>Side-Effects&nbsp;: None</B> </P>
 <P><B>Exception Conditions&nbsp;:None</B> </P>

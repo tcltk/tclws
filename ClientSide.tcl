@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.4.5
+package provide WS::Client 2.4.6
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -1005,17 +1005,20 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 # Description :
 #
 # Arguments :
-#       url     - The url of the WSDL
-#       headers     - Extra headers to add to the HTTP request. This
+#       url           - The url of the WSDL
+#       headers       - Extra headers to add to the HTTP request. This
 #                       is a key value list argument. It must be a list with
 #                       an even number of elements that alternate between
 #                       keys and values. The keys become header field names.
 #                       Newlines are stripped from the values so the header
 #                       cannot be corrupted.
 #                       This is an optional argument and defaults to {}.
-#       serviceAlias - Alias (unique) name for service.
-#                       This is an optional argument and defaults to the name of the
-#                       service in serviceInfo.
+#       serviceAlias  - Alias (unique) name for service.
+#                       This is an optional argument and defaults to the name 
+#                       of the service in serviceInfo.
+#       serviceNumber - Number of service within the WSDL to assign the
+#                       serviceAlias to. Only usable with a serviceAlias.
+#                       First service (default) is addressed by value "1".
 #
 # Returns : The parsed service definition
 #
@@ -1036,18 +1039,19 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#   2.4.1  2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
+#   2.4.6  2017-12-07  H.Oehlmann   Added argument "serviceNumber".
 #
 ###########################################################################
-proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
+proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}} {serviceNumber 1}} {
     variable currentBaseUrl
 
     set currentBaseUrl $url
     switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
-            set wsdlInfo [ParseWsdl $token(data) -headers $headers -serviceAlias $serviceAlias]
+            set wsdlInfo [ParseWsdl $token(data) -headers $headers -serviceAlias $serviceAlias -serviceNumber $serviceNumber]
             unset token
         }
         http -
@@ -1057,7 +1061,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
             } else {
                 set body [::WS::Utils::geturl_fetchbody $url]
             }
-            set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias]
+            set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias -serviceNumber $serviceNumber]
         }
         default {
             return \
@@ -1080,16 +1084,13 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 #
 # Procedure Name : ::WS::Client::ParseWsdl
 #
-# Description : Parse a WSDL
+# Description : Parse a WSDL and create the service. Create stubs if specified.
 #
 # Arguments :
 #       wsdlXML - XML of the WSDL
 #
 # Optional Arguments:
 #       -createStubs 0|1 - create stub routines for the service
-#                               NOTE -- Webservice arguments are position
-#                                       independent, thus the proc arguments
-#                                       will be defined in alphabetical order.
 #       -headers         - Extra headers to add to the HTTP request. This
 #                          is a key value list argument. It must be a list with
 #                          an even number of elements that alternate between
@@ -1097,9 +1098,14 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 #                          Newlines are stripped from the values so the header
 #                          cannot be corrupted.
 #                          This is an optional argument and defaults to {}.
-#       -serviceAlias - Alias (unique) name for service.
-#                       This is an optional argument and defaults to the name of the
-#                       service in serviceInfo.
+#       -serviceAlias    - Alias (unique) name for service.
+#                          This is an optional argument and defaults to the
+#                          name of the service in serviceInfo.
+#       -serviceNumber   - Number of service within the WSDL to assign the
+#                          serviceAlias to. Only usable with a serviceAlias.
+#                          First service (default) is addressed by value "1".
+#
+# NOTE -- Arguments are position independent.
 #
 # Returns : The parsed service definition
 #
@@ -1130,6 +1136,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}}} {
 #                                   reused for another URI.
 # 2.4.5    2017-11-24  H.Oehlmann   Added option "inlineElementNS" to activate
 #                                   namespace definition search in element nodes
+# 2.4.6    2017-12-07  H.Oehlmann   Added argument "-serviceNumber".
 #
 ###########################################################################
 proc ::WS::Client::ParseWsdl {wsdlXML args} {
@@ -1137,13 +1144,14 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     variable serviceArr
     variable options
 
-    array set defaults {
+    # Build the argument array with the following defaults
+    array set argument {
         -createStubs    0
         -headers        {}
         -serviceAlias   {}
+        -serviceNumber  1
     }
-
-    array set defaults $args
+    array set argument $args
 
     set first [string first {<} $wsdlXML]
     if {$first > 0} {
@@ -1272,26 +1280,20 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     array unset ::WS::Utils::includeArr
     ::WS::Utils::ProcessIncludes $wsdlNode $url
 
-    if {[string length $defaults(-serviceAlias)]} {
-        set serviceAlias $defaults(-serviceAlias)
-    } else {
-        set serviceAlias {}
-    }
-
     set serviceInfo {}
 
-    foreach serviceInfo [buildServiceInfo $wsdlNode $nsDict $serviceInfo $serviceAlias] {
+    foreach serviceInfo [buildServiceInfo $wsdlNode $nsDict $serviceInfo $argument(-serviceAlias) $argument(-serviceNumber)] {
         set serviceName [dict get $serviceInfo name]
 
-        if {[llength $defaults(-headers)]} {
-            dict set serviceInfo headers $defaults(-headers)
+        if {[llength $argument(-headers)]} {
+            dict set serviceInfo headers $argument(-headers)
         }
         dict set serviceInfo types [::WS::Utils::GetServiceTypeDef Client $serviceName]
         dict set serviceInfo simpletypes [::WS::Utils::GetServiceSimpleTypeDef Client $serviceName]
 
         set serviceArr($serviceName) $serviceInfo
 
-        if {$defaults(-createStubs)} {
+        if {$argument(-createStubs)} {
             catch {namespace delete $serviceName}
             namespace eval $serviceName {}
             CreateStubs $serviceName
@@ -2655,8 +2657,11 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 #    wsdlNode   - The top node of the WSDL
 #    results    - Initial definition. This is optional and defaults to no definition.
 #    serviceAlias - Alias (unique) name for service.
-#                       This is an optional argument and defaults to the name of the
-#                       service in serviceInfo.
+#                   This is an optional argument and defaults to the name of the
+#                   service in serviceInfo.
+#    serviceNumber - Number of service within the WSDL to assign the
+#                    serviceAlias to. Only usable with a serviceAlias.
+#                    First service (default) is addressed by value "1".
 #
 # Returns : The parsed WSDL
 #
@@ -2677,32 +2682,50 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#   2.4.6  2017-12-07  H.Oehlmann   Added argument "serviceNumber"
 #
 #
 ###########################################################################
-proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceAlias {}}} {
+proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceAlias {}} {serviceNumber 1}} {
     ##
     ## Need to refactor to foreach service parseService
     ##  Service drills down to ports, which drills down to bindings and messages
     ##
-    ::log::log debug "Entering ::WS::Client::buildServiceInfo with doc $wsdlNode"
+    ::log::log debug [list "Entering ::WS::Client::buildServiceInfo with doc" $wsdlNode]
 
     ##
     ## Parse Service information
     ##
+    # WSDL snippet:
+    #  <definitions ...>
+    #    <service name="service1">
+    #      ...
+    #    </service>
+    #    <service name="service2">
+    #      ...
+    #    </service>
+    #  </definitions>
+    # Without serviceAlias and serviceNumber, two services "service1" and
+    # "service2" are created.
+    # With serviceAlias = "SE" and serviceNumber=2, "service2" is created as
+    # "SE".
     set serviceNameList [$wsdlNode selectNodes w:service]
-    if {[string length $serviceAlias] & ([llength $serviceNameList] > 1)} {
-        return \
-            -code error \
-            -errorcode [list WS CLIENT MULTISVC] \
-            "Can not specify alias when WSDL defines multiple services"
-    } elseif {[llength $serviceNameList] == 0} {
+    # Check for no service node
+    if {[llength $serviceNameList] == 0} {
         return \
             -code error \
             -errorcode [list WS CLIENT NOSVC] \
             "WSDL does not define any services"
     }
-
+    if {"" ne $serviceAlias} {
+        if {$serviceNumber < 1 || $serviceNumber > [llength $serviceNameList]} {
+            return \
+                -code error \
+                -errorcode [list WS CLIENT INVALDCNT] \
+                "WSDL does not define service number $serviceNumber"
+        }
+        set serviceNameList [lrange $serviceNameList $serviceNumber-1 $serviceNumber-1]
+    }
 
     foreach serviceNode $serviceNameList {
         lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias $tnsDict]
