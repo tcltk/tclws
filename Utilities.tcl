@@ -3390,6 +3390,27 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
             simpleContent -
             complexContent {
+                ##
+                ## Save simple or complex content for abstract types, which
+                ## may have content type with no fields. [Bug 584bfb77]
+                ## Example xml type snippet:
+                ##  <xs:complexType name="Envelope" abstract="true">
+                ##    <xs:annotation><xs:documentation /></xs:annotation>
+                ##    <xs:complexContent mixed="false">
+                ##      <xs:extension base="Geometry" />
+                ##    </xs:complexContent>
+                ##  </xs:complexType>
+                ##  ...
+                ##  <xs:complexType name="Geometry">
+                ##    <xs:annotation><xs:documentation /></xs:annotation>
+                ##  </xs:complexType>
+                
+                set isComplexContent [expr {$middle eq "complexContent"}]
+                ::log::logsubst debug {isComplexContent = $isComplexContent}
+                
+                ##
+                ## Loop over the components of the type
+                ##
                 foreach child [$middleNode childNodes] {
                     set parent [$child parent]
                     set contentType [$child localName]
@@ -3461,8 +3482,18 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     if {[llength $partList] || $isAbstractType} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
-        ::log:::log debug  "Defining $typeName"
-        if {[llength $partList]  && ![string equal [lindex $partList 0] {}]} {
+        ::log:::logsubst debug  {Defining $typeName as '$partList'}
+        ##
+        ## Add complex type definition, if:
+        ##   *  there is a part list
+        ##   *  or it is an abstract type announced as complex
+        ##      (see xml snipped above about [Bug 584bfb77])
+        ##      -> will set dict typeInfo client $service tns1:envelope {
+        ##          definition {} xns tns1 abstract true}
+        ##
+        if {    ([llength $partList]  && ![string equal [lindex $partList 0] {}])
+                || ($isAbstractType && [info exists isComplexContent] && $isComplexContent)
+        } {
             ::WS::Utils::ServiceTypeDef $mode $serviceName $typeName $partList $tns $isAbstractType
         } else {
             ::WS::Utils::ServiceSimpleTypeDef $mode $serviceName $typeName [list base $defaultType comment {}] $tns
