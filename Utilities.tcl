@@ -56,10 +56,30 @@ if {![llength [info command lassign]]} {
 }
 
 package require log
+
+# Emulate the log::logsubst command introduced in log 1.4
+if {![llength [info command ::log::logsubst]]} {
+    if {![llength [info command ::tailcall]]} {
+        proc ::log::logsubst {level text} {
+            if {[::log::lvIsSuppressed $level]} {
+                return
+            }
+            ::log::log $level [uplevel 1 [list subst $text]]
+        }
+    } else {
+        proc ::log::logsubst {level text} {
+            if {[::log::lvIsSuppressed $level]} {
+                return
+            }
+            tailcall ::log::log $level [uplevel 1 [list subst $text]]
+        }
+    }
+}
+
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.4.0
+package provide WS::Utils 2.4.1
 
 namespace eval ::WS {}
 
@@ -299,11 +319,11 @@ proc ::WS::Utils::SetOption {args} {
         return [array get options]
     } elseif {[llength $args] == 1} {
         set opt [lindex $args 0]
-        ::log::log debug "One Option {$opt}"
+        ::log::logsubst debug {One Option {$opt}}
         if {[info exists options($opt)]} {
             return $options($opt)
         } else {
-            ::log::log debug "Unkown option {$opt}"
+            ::log::logsubst debug {Unkown option {$opt}}
             return \
                 -code error \
                 -errorcode [list WS CLIENT UNKOPTION $opt] \
@@ -313,10 +333,10 @@ proc ::WS::Utils::SetOption {args} {
         ::log::log debug {Multiple option pairs}
         foreach {opt value} $args {
             if {[info exists options($opt)]} {
-                ::log::log debug "Setting Option {$opt} to {$value}"
+                ::log::logsubst debug {Setting Option {$opt} to {$value}}
                 set options($opt) $value
             } else {
-                ::log::log debug "Unkown option {$opt}"
+                ::log::logsubst debug {Unkown option {$opt}}
                 return \
                     -code error \
                     -errorcode [list WS CLIENT UNKOPTION $opt] \
@@ -324,7 +344,7 @@ proc ::WS::Utils::SetOption {args} {
             }
         }
     } else {
-        ::log::log debug "Bad number of arguments {$args}"
+        ::log::logsubst debug {Bad number of arguments {$args}}
         return \
             -code error \
             -errorcode [list WS CLIENT INVARGCNT $args] \
@@ -380,7 +400,7 @@ proc ::WS::Utils::SetOption {args} {
 #
 ###########################################################################
 proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}} {abstract {false}}} {
-    ::log::log debug [info level 0]
+    ::log::logsubst debug {Entering [info level 0]}
     variable typeInfo
 
     if {![string length $xns]} {
@@ -511,15 +531,15 @@ proc ::WS::Utils::ServiceSimpleTypeDef {mode service type definition {xns {tns1}
     variable simpleTypes
     variable typeInfo
 
-    ::log::log debug [info level 0]
+    ::log::logsubst debug {Entering [info level 0]}
     if {![dict exists $definition xns]} {
         set simpleTypes($mode,$service,$type) [concat $definition xns $xns]
     } else {
         set simpleTypes($mode,$service,$type) $definition
     }
     if {[dict exists $typeInfo $mode $service $type]} {
-        ::log::log debug "\t Unsetting typeInfo $mode $service $type"
-        ::log::log debug "\t Was [dict get $typeInfo $mode $service $type]"
+        ::log::logsubst debug {\t Unsetting typeInfo $mode $service $type}
+        ::log::logsubst debug {\t Was [dict get $typeInfo $mode $service $type]}
         dict unset typeInfo $mode $service $type
     }
     return;
@@ -597,7 +617,7 @@ proc ::WS::Utils::GetServiceTypeDef {mode service {type {}}} {
         if {[string equal -nocase -length 3 $type {xs:}]} {
             set type [string range $type 3 end]
         }
-        ::log::log debug "Type = {$type} typeInfoList = {$typeInfoList}"
+        ::log::logsubst debug {Type = {$type} typeInfoList = {$typeInfoList}}
         if {[info exists simpleTypes($mode,$service,$type)]} {
             ::log::log debug "@2"
             set results $simpleTypes($mode,$service,$type)
@@ -747,7 +767,7 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 #
 ###########################################################################
 proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar tnsCountVar} {
-    ::log::log debug "Entering ProcessImportXml $mode $baseUrl xml $serviceName $serviceInfoVar $tnsCountVar"
+    ::log::logsubst debug {Entering [info level 0]}
     upvar 1 $serviceInfoVar serviceInfo
     upvar 1 $tnsCountVar tnsCount
     variable currentSchema
@@ -833,7 +853,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
     variable options
     variable includeArr
 
-    ::log::log debug "ProcessIncludes base: {$baseUrl} inculde: {$includePath}"
+    ::log::logsubst debug {Entering [info level 0]}
 
     set includeNodeList [concat \
                             [$rootNode selectNodes -namespaces $nsList descendant::xs:include] \
@@ -842,7 +862,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
     set inXml [$rootNode asXML]
     set included 0
     foreach includeNode $includeNodeList {
-        ::log::log debug "\t Processing Include [$includeNode asXML]"
+        ::log::logsubst debug {\t Processing Include [$includeNode asXML]}
         if {[$includeNode hasAttribute schemaLocation]} {
             set urlTail [$includeNode getAttribute schemaLocation]
             set url [::uri::resolve $baseUrl  $urlTail]
@@ -853,7 +873,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             continue
         }
         if {[lsearch -exact $includePath $url] != -1} {
-            log::log warning "Include loop detected: [join $includePath { -> }]"
+            log::logsubst warning {Include loop detected: [join $includePath { -> }]}
             continue
         } elseif {[info exists includeArr($url)]} {
             continue
@@ -861,7 +881,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             set includeArr($url) 1
         }
         incr included
-        ::log::log info "\t Including {$url} from base {$baseUrl}"
+        ::log::logsubst info {\t Including {$url} from base {$baseUrl}}
         switch -exact -- [dict get [::uri::split $url] scheme] {
             file {
                 upvar #0 [::uri::geturl $url] token
@@ -872,12 +892,12 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             http {
                 set ncode -1
                 catch {
-                    ::log::log info [list ::http::geturl $url]
+                    ::log::logsubst info {[list ::http::geturl $url]}
                     set token [::http::geturl $url]
                     ::http::wait $token
                     set ncode [::http::ncode $token]
                     set xml [::http::data $token]
-                    ::log::log info "Received Ncode = ($ncode), $xml"
+                    ::log::logsubst info {Received Ncode = ($ncode), $xml}
                     ::http::cleanup $token
                 }
                 if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
@@ -1240,7 +1260,7 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
         targetNamespace $targetNamespace
 
     foreach baseType [lsort -dictionary [array names typeArr]] {
-        ::log::log debug "Outputing $baseType"
+        ::log::logsubst debug {Outputing $baseType}
         $schema appendChild [$doc createElement xs:element elem]
         set name [lindex [split $baseType {:}] end]
         $elem setAttribute name $name
@@ -1249,11 +1269,11 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
         $comp setAttribute name $name
         $comp appendChild [$doc createElement xs:sequence seq]
         set baseTypeInfo [dict get $localTypeInfo $baseType definition]
-        ::log::log debug "\t parts {$baseTypeInfo}"
+        ::log::logsubst debug {\t parts {$baseTypeInfo}}
         foreach {field tmpTypeInfo} $baseTypeInfo {
             $seq appendChild  [$doc createElement xs:element tmp]
             set tmpType [dict get $tmpTypeInfo type]
-            ::log::log debug "Field $field of $tmpType"
+            ::log::logsubst debug {Field $field of $tmpType}
             foreach {name value} [getTypeWSDLInfo $mode $serviceName $field $tmpType] {
                 $tmp setAttribute $name $value
             }
@@ -1375,7 +1395,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
         set valueAttr {::value}
     }
     set xsiNsUrl {http://www.w3.org/2001/XMLSchema-instance}
-    ::log::log debug [list ::WS::Utils::convertTypeToDict $mode $serviceName $node $type $root $isArray]
+    ::log::logsubst debug {Entering [info level 0]}
     if {[dict exists $typeInfo $mode $serviceName $type]} {
         set typeName $type
     } elseif {[dict exists $typeInfo $mode $serviceName $serviceName:$type]} {
@@ -1393,16 +1413,16 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
         return $results
     }
     set typeDefInfo [dict get $typeInfo $mode $serviceName $typeName]
-    ::log::log debug "\t type def = {$typeDefInfo}"
+    ::log::logsubst debug {\t type def = {$typeDefInfo}}
     set xns [dict get $typeDefInfo xns]
     if {[$node hasAttribute href]} {
         set node [GetReferenceNode $root [$node getAttribute href]]
     }
-    ::log::log debug "\t XML of node is [$node asXML]"
+    ::log::logsubst debug {\t XML of node is [$node asXML]}
     if {[info exists mutableTypeInfo([list $mode $serviceName $typeName])]} {
         set type [(*)[lindex mutableTypeInfo([list $mode $serviceName $type]) 0] $mode $serviceName $typeName $xns $node]
         set typeDefInfo [dict get $typeInfo $mode $serviceName $typeName]
-        ::log::log debug "\t type def replaced with = {$typeDefInfo}"
+        ::log::logsubst debug {\t type def replaced with = {$typeDefInfo}}
     }
     set results {}
     #if {$options(parseInAttr)} {
@@ -1413,7 +1433,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
     #    }
     #}
     set partsList [dict keys [dict get $typeDefInfo definition]]
-    ::log::log debug "\t partsList is {$partsList}"
+    ::log::logsubst debug {\t partsList is {$partsList}}
     set arrayOverride [expr {$isArray && ([llength $partsList] == 1)}]
     foreach partName $partsList {
         set partType [dict get $typeDefInfo definition $partName type]
@@ -1440,32 +1460,32 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
         catch {set partXns  [dict get $typeInfo $mode $serviceName $partType xns]}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
         set tmpTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
-        ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
+        ::log::logsubst debug {\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList}
         ##
         ## Try for fully qualified name
         ##
-        ::log::log debug "Trying #1 [list $node selectNodes $partXns:$partName]"
+        ::log::logsubst debug {Trying #1 [list $node selectNodes $partXns:$partName]}
         if {[catch {llength [set item [$node selectNodes $partXns:$partName]]} len] || ($len == 0)} {
-            ::log::log debug "Trying #2 [list $node selectNodes $xns:$partName]"
+            ::log::logsubst debug {Trying #2 [list $node selectNodes $xns:$partName]}
             if {[catch {llength [set item [$node selectNodes $xns:$partName]]} len] || ($len == 0)} {
                 ##
                 ## Try for unqualified name
                 ##
-                ::log::log debug "Trying #3 [list $node selectNodes $partName]"
+                ::log::logsubst debug {Trying #3 [list $node selectNodes $partName]}
                 if {[catch {llength [set item [$node selectNodes $partName]]} len] || ($len == 0)} {
                     ::log::log debug "Trying #4 -- search of children"
                     set item {}
                     set matchList [list $partXns:$partName  $xns:$partName $partName]
                     foreach childNode [$node childNodes] {
                         set nodeType [$childNode nodeType]
-                        ::log::log debug "\t\t Looking at {[$childNode localName],[$childNode nodeName]} ($allowAny,$isArray,$nodeType,$partName)"
+                        ::log::logsubst debug {\t\t Looking at {[$childNode localName],[$childNode nodeName]} ($allowAny,$isArray,$nodeType,$partName)}
                         # From SOAP1.1 Spec:
                         #    Within an array value, element names are not significant
                         # for distinguishing accessors. Elements may have any name.
                         # Here we don't need check the element name, just simple check
                         # it's a element node
                         if {$allowAny  || ($arrayOverride && [string equal $nodeType "ELEMENT_NODE"])} {
-                            ::log::log debug "\t\t Found $partName [$childNode asXML]"
+                            ::log::logsubst debug {\t\t Found $partName [$childNode asXML]}
                             lappend item $childNode
                         }
                     }
@@ -1474,22 +1494,22 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                         continue
                     }
                 } else {
-                    ::log::log debug "\t\t Found [llength $item] $partName"
+                    ::log::logsubst debug {\t\t Found [llength $item] $partName}
                 }
             } else {
-                ::log::log debug "\t\t Found [llength $item] $partName"
+                ::log::logsubst debug {\t\t Found [llength $item] $partName}
             }
         } else {
-            ::log::log debug "\t\t Found [llength $item] $partName"
+            ::log::logsubst debug {\t\t Found [llength $item] $partName}
         }
         set origItemList $item
         set newItemList {}
         foreach item $origItemList {
             if {[$item hasAttribute href]} {
                 set oldXML [$item asXML]
-                ::log::log debug "\t\t Replacing: $oldXML"
+                ::log::logsubst debug {\t\t Replacing: $oldXML}
                 set item [GetReferenceNode $root [$item getAttribute href]]
-                ::log::log debug "\t\t With: [$item asXML]"
+                ::log::logsubst debug {\t\t With: [$item asXML]}
             }
             lappend newItemList $item
         }
@@ -1653,7 +1673,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
             }
         }
     }
-    ::log::log debug [list Leaving ::WS::Utils::convertTypeToDict with $results]
+    ::log::logsubst debug {Leaving ::WS::Utils::convertTypeToDict with $results}
     return $results
 }
 
@@ -1745,8 +1765,8 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 #
 ###########################################################################
 proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0} {enforceRequired 0}} {
-    ::log::log debug "Entering ::WS::Utils::convertDictToType $mode $service $doc $parent {$dict} $type"
-    # ::log::log debug "  Parent xml: [$parent asXML]"
+    ::log::logsubst debug {Entering [info level 0]}
+    # ::log::logsubst debug {  Parent xml: [$parent asXML]}
     variable typeInfo
     variable simpleTypes
     variable options
@@ -1764,7 +1784,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     }
     set typeInfoList [TypeInfo $mode $service $type]
     set type [string trimright $type {?}]
-    ::log::log debug "\t typeInfoList = {$typeInfoList}"
+    ::log::logsubst debug {\t typeInfoList = {$typeInfoList}}
     if {[dict exists $typeInfo $mode $service $service:$type]} {
         set typeName $service:$type
     } else {
@@ -1801,7 +1821,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
             set itemList [list $type {type string}]
         }
     }
-    ::log::log debug "\titemList is {$itemList} in $xns"
+    ::log::logsubst debug {\titemList is {$itemList} in $xns}
     set entryNs $currentNs
     if {!$forceNs} {
         set currentNs $xns
@@ -1811,11 +1831,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         set baseName [lindex [split $itemName {:}] end]
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType ={$itemType}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} itemType ={$itemType}}
         set typeInfoList [TypeInfo $mode $service $itemType 1]
-        ::log::log debug "Expr [list ![dict exists $dict $itemName] && ![dict exists $dict $baseName]]"
+        ::log::logsubst debug {Expr [list ![dict exists $dict $itemName] && ![dict exists $dict $baseName]]}
         if {![dict exists $dict $itemName] && ![dict exists $dict $baseName]} {
-            ::log::log debug "Neither {$itemName} nor {$baseName} are in dictionary {$dict}, skipping"
+            ::log::logsubst debug {Neither {$itemName} nor {$baseName} are in dictionary {$dict}, skipping}
             # If required parameters are being enforced and this field is not optional, throw an error
             if {$enforceRequired && ![lindex $typeInfoList 2]} {
                 error "Required field $itemName is missing from response"
@@ -1841,16 +1861,16 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1 && $key ne "isList" && $key ne "xns"} {
                 lappend attrList $key [dict get $itemDef $key]
-                ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
+                ::log::logsubst debug {key = {$key} standardAttributes = {$standardAttributes}}
             }
         }
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} itemXns = {$itemXns} tmpInfo = {$tmpInfo} attrList = {$attrList}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} itemXns = {$itemXns} tmpInfo = {$tmpInfo} attrList = {$attrList}}
         set isAbstract false
         set baseType [string trimright $itemType {()?}]
         if {$options(genOutAttr) && [dict exists $typeInfo $mode $service $baseType abstract]} {
             set isAbstract [dict get $typeInfo $mode $service $baseType abstract]
         }
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} isAbstract = {$isAbstract}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList} isAbstract = {$isAbstract}}
         # Strip the optional flag off the typeInfoList
         set typeInfoList [lrange $typeInfoList 0 1]
         switch -exact -- $typeInfoList {
@@ -1904,7 +1924,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     }
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
-                        ::log::log debug "<$row> '$dictList'"
+                        ::log::logsubst debug {<$row> '$dictList'}
                         set resultValue {}
                         foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                             if {[string equal $attr $valueAttr]} {
@@ -2038,7 +2058,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         #}
     }
     set currentNs $entryNs
-    ::log::log debug "Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]"
+    ::log::logsubst debug {Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]}
     return;
 }
 
@@ -2083,7 +2103,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
 #
 ###########################################################################
 proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired 0}} {
-    ::log::log debug "Entering ::WS::Utils::convertDictToJson $mode $service $doc {$dict} $type"
+    ::log::logsubst debug {Entering [info level 0]}
     variable typeInfo
     variable simpleTypes
     variable simpleTypesJson
@@ -2114,12 +2134,12 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
             set itemList [list $type {type string}]
         }
     }
-    ::log::log debug "\titemList is {$itemList}"
+    ::log::logsubst debug {\titemList is {$itemList}}
     set fieldList {}
     foreach {itemName itemDef} $itemList {
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} itemType = {$itemType}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} itemType = {$itemType}}
         set typeInfoList [TypeInfo $mode $service $itemType 1]
         if {![dict exists $dict $itemName]} {
             if {$enforceRequired && ![lindex $typeInfoList 2]} {
@@ -2134,7 +2154,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
             set yajlType "string"
         }
 
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}}
         set typeInfoList [lrange $typeInfoList 0 1]
         switch $typeInfoList {
             {0 0} {
@@ -2228,7 +2248,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
 #
 ###########################################################################
 proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enforceRequired 0}} {
-    ::log::log debug "Entering ::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent {$dict} $type"
+    ::log::logsubst debug {Entering [info level 0]}
     # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
     variable simpleTypes
@@ -2254,9 +2274,9 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
         }
         set itemList [list $type {type string}]
     }
-    ::log::log debug "\titemList is {$itemList}"
+    ::log::logsubst debug {\titemList is {$itemList}}
     foreach {itemName itemDef} $itemList {
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef}}
         set itemType [dict get $itemDef type]
         set isAbstract false
         set baseType [string trimright $itemType {()?}]
@@ -2274,10 +2294,10 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
         foreach key [dict keys $itemDef] {
             if {[lsearch -exact $standardAttributes $key] == -1 && $key ne "isList" && $key ne "xns"} {
                 lappend attrList $key [dict get $itemDef $key]
-                ::log::log debug "key = {$key} standardAttributes = {$standardAttributes}"
+                ::log::logsubst debug {key = {$key} standardAttributes = {$standardAttributes}}
             }
         }
-        ::log::log debug "\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}"
+        ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}}
         set typeInfoList [lrange $typeInfoList 0 1]
         switch -exact -- $typeInfoList {
             {0 0} {
@@ -2454,13 +2474,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
 #
 ###########################################################################
 proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
-    ::log::log debug "Entering ::WS::Utils::convertDictToEncodedType $mode $service $doc $parent {$dict} $type"
+    ::log::logsubst debug {Entering [info level 0]}
     variable typeInfo
     variable options
 
 
     set typeInfoList [TypeInfo $mode $service $type]
-    ::log::log debug "\t typeInfoList = {$typeInfoList}"
+    ::log::logsubst debug {\t typeInfoList = {$typeInfoList}}
     set type [string trimright $type {?}]
     if {[lindex $typeInfoList 0]} {
         set itemList [dict get $typeInfo $mode $service $type definition]
@@ -2488,16 +2508,16 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
             set itemList [list $type {type string}]
         }
     }
-    ::log::log debug "\titemList is {$itemList} in $xns"
+    ::log::logsubst debug {\titemList is {$itemList} in $xns}
     foreach {itemName itemDef} $itemList {
         set itemType [string trimright [dict get $itemList $itemName type] {?}]
         set typeInfoList [TypeInfo $mode $service $itemType]
-        ::log::log debug "\t\t Looking for {$itemName} in {$dict}"
+        ::log::logsubst debug {\t\t Looking for {$itemName} in {$dict}}
         if {![dict exists $dict $itemName]} {
             ::log::log debug "\t\t Not found, skipping"
             continue
         }
-        ::log::log debug "\t\t Type info is {$typeInfoList}"
+        ::log::logsubst debug {\t\t Type info is {$typeInfoList}}
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -2634,10 +2654,10 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
     variable typeInfo
     variable nsList
 
-    ::log::log debug [list ::WS::Utils::parseDynamicType $mode $serviceName $node $type]
+    ::log::logsubst debug {Entering [info level 0]}
 
     foreach child [$node childNodes] {
-        ::log::log debug "\t Child $child is [$child nodeName]"
+        ::log::logsubst debug {\t Child $child is [$child nodeName]}
     }
 
     ##
@@ -2721,7 +2741,7 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
 #
 ###########################################################################
 proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVar tnsCountVar} {
-    ::log::log debug "Entering :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
+    ::log::logsubst debug {Entering [info level 0]}
 
     upvar 1 $tnsCountVar tnsCount
     upvar 1 $serviceInfoVar serviceInfo
@@ -2735,16 +2755,16 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     foreach attr [$schemaNode attributes] {
         set value {?}
         catch {set value [$schemaNode getAttribute $attr]}
-        ::log::log debug "Attribute $attr = $value"
+        ::log::logsubst debug {Attribute $attr = $value}
     }
     if {[$schemaNode hasAttribute targetNamespace]} {
         set xns [$schemaNode getAttribute targetNamespace]
-        ::log::log debug "In Parse Scheme, found targetNamespace attribute with {$xns}"
+        ::log::logsubst debug {In Parse Scheme, found targetNamespace attribute with {$xns}}
         set ::WS::Utils::targetNs $xns
     } else {
         set xns $::WS::Utils::targetNs
     }
-    ::log::log debug "@3a {$xns} {[dict get $serviceInfo tnsList url]}"
+    ::log::logsubst debug {@3a {$xns} {[dict get $serviceInfo tnsList url]}}
     if {![dict exists $serviceInfo tnsList url $xns]} {
         set tns [format {tns%d} [incr tnsCount]]
         dict set serviceInfo targetNamespace $tns $xns
@@ -2753,7 +2773,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     } else {
         set tns [dict get $serviceInfo tnsList url $xns]
     }
-    ::log::log debug "@3 TNS count for $xns is $tnsCount {$tns}"
+    ::log::logsubst debug {@3 TNS count for $xns is $tnsCount {$tns}}
 
     set prevTnsDict [dict get $serviceInfo tnsList tns]
     dict set serviceInfo tns {}
@@ -2792,52 +2812,52 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     set lastUnknownRefCount 0
     array unset unkownRef
     while {($pass == 1) || ($lastUnknownRefCount != [array size unkownRef])} {
-        ::log::log debug  "Pass $pass over schema"
+        ::log::logsubst debug  {Pass $pass over schema}
         incr pass
         set lastUnknownRefCount [array size unkownRef]
         array unset unkownRef
 
         foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
             if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
-                ::log::log notice "Import failed due to: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Import failed due to: {$msg}.  Trace: $::errorInfo}
             }
         }
 
         foreach element [$schemaNode selectNodes -namespaces $nsList w:import] {
             if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
-                ::log::log notice "Import failed due to: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Import failed due to: {$msg}.  Trace: $::errorInfo}
             }
         }
 
-        ::log::log debug  "Parsing Element types for $xns as $tns"
+        ::log::logsubst debug {Parsing Element types for $xns as $tns}
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
-            ::log::log debug "\tprocessing $element"
+            ::log::logsubst debug {\tprocessing $element}
             if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
-                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Unhandled error: {$msg}.  Trace: $::errorInfo}
             }
         }
 
-        ::log::log debug  "Parsing Attribute types for $xns as $tns"
+        ::log::logsubst debug {Parsing Attribute types for $xns as $tns}
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:attribute] {
-            ::log::log debug "\tprocessing $element"
+            ::log::logsubst debug {\tprocessing $element}
             if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
-                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Unhandled error: {$msg}.  Trace: $::errorInfo}
             }
         }
 
-        ::log::log debug "Parsing Simple types for $xns as $tns"
+        ::log::logsubst debug {Parsing Simple types for $xns as $tns}
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:simpleType] {
-            ::log::log debug "\tprocessing $element"
+            ::log::logsubst debug {\tprocessing $element}
             if {[catch {parseSimpleType $mode serviceInfo $serviceName $element $tns} msg]} {
-                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Unhandled error: {$msg}.  Trace: $::errorInfo}
             }
         }
 
-        ::log::log debug  "Parsing Complex types for $xns as $tns"
+        ::log::logsubst debug {Parsing Complex types for $xns as $tns}
         foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:complexType] {
-            ::log::log debug "\tprocessing $element"
+            ::log::logsubst debug {\tprocessing $element}
             if {[catch {parseComplexType $mode serviceInfo $serviceName $element $tns} msg]} {
-                ::log::log notice "Unhandled error: {$msg}.  Trace: $::errorInfo"
+                ::log::logsubst notice {Unhandled error: {$msg}.  Trace: $::errorInfo}
             }
         }
     }
@@ -2848,11 +2868,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Unknown type reference $unkRef in type $usedByType"
+                    ::log::logsubst $options(StrictMode) {Unknown type reference $unkRef in type $usedByType}
                 }
                 error -
                 default {
-                    log::log error "Unknown type reference $unkRef in type $usedByType"
+                    ::log::logsubst error {Unknown type reference $unkRef in type $usedByType}
                 }
             }
         }
@@ -2863,7 +2883,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             debug -
             warning {
                 set ::WS::Utils::targetNs $tmpTargetNs
-                ::log::log $options(StrictMode) "Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]"
+                ::log::logsubst $options(StrictMode) {Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]}
             }
             error -
             default {
@@ -2890,18 +2910,18 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
+                    ::log::logsubst $options(StrictMode) {Could not parse:\n [$element asXML]}
+                    ::log::logsubst $options(StrictMode) {\t error was: $msg}
                 }
                 error -
                 default {
                     set errorCode $::errorCode
                     set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    log::log error "\t error info: $errorInfo"
-                    log::log error "\t error in: [lindex [info level 0] 0]"
-                    log::log error "\t error code: $errorCode"
+                    ::log::logsubst error {Could not parse:\n [$element asXML]}
+                    ::log::logsubst error {\t error was: $msg}
+                    ::log::logsubst error {\t error info: $errorInfo}
+                    ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
+                    ::log::logsubst error {\t error code: $errorCode}
                     set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
@@ -2913,26 +2933,26 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug  "Parsing Element types for $xns as $tns"
+    ::log::logsubst debug {Parsing Element types for $xns as $tns}
     foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:element] {
-        ::log::log debug "\tprocessing $element"
+        ::log::logsubst debug {\tprocessing $element}
         if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
+                    ::log::logsubst $options(StrictMode) {Could not parse:\n [$element asXML]}
+                    ::log::logsubst $options(StrictMode) {\t error was: $msg}
                 }
                 error -
                 default {
                     set errorCode $::errorCode
                     set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    log::log error "\t error info: $errorInfo"
-                    log::log error "\t last element: $::elementName"
-                    log::log error "\t error in: [lindex [info level 0] 0]"
-                    log::log error "\t error code: $errorCode"
+                    ::log::logsubst error {Could not parse:\n [$element asXML]}
+                    ::log::logsubst error {\t error was: $msg}
+                    ::log::logsubst error {\t error info: $errorInfo}
+                    ::log::logsubst error {\t last element: $::elementName}
+                    ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
+                    ::log::logsubst error {\t error code: $errorCode}
                     set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
@@ -2944,26 +2964,26 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug  "Parsing Attribute types for $xns as $tns"
+    ::log::logsubst debug {Parsing Attribute types for $xns as $tns}
     foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:attribute] {
-        ::log::log debug "\tprocessing $element"
+        ::log::logsubst debug {\tprocessing $element}
         if {[catch {parseElementalType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
+                    ::log::logsubst $options(StrictMode) {Could not parse:\n [$element asXML]}
+                    ::log::logsubst $options(StrictMode) {\t error was: $msg}
                 }
                 error -
                 default {
                     set errorCode $::errorCode
                     set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    log::log error "\t error info: $errorInfo"
-                    log::log error "\t error in: [lindex [info level 0] 0]"
-                    log::log error "\t error code: $errorCode"
-                    log::log error "\t last element: $::elementName"
+                    ::log::logsubst error {Could not parse:\n [$element asXML]}
+                    ::log::logsubst error {\t error was: $msg}
+                    ::log::logsubst error {\t error info: $errorInfo}
+                    ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
+                    ::log::logsubst error {\t error code: $errorCode}
+                    ::log::logsubst error {\t last element: $::elementName}
                     set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
@@ -2975,25 +2995,25 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug "Parsing Simple types for $xns as $tns"
+    ::log::logsubst debug {Parsing Simple types for $xns as $tns}
     foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:simpleType] {
-        ::log::log debug "\tprocessing $element"
+        ::log::logsubst debug {\tprocessing $element}
         if {[catch {parseSimpleType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
+                    ::log::logsubst $options(StrictMode) {Could not parse:\n [$element asXML]}
+                    ::log::logsubst $options(StrictMode) {\t error was: $msg}
                 }
                 error -
                 default {
                     set errorCode $::errorCode
                     set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    log::log error "\t error info: $errorInfo"
-                    log::log error "\t error in: [lindex [info level 0] 0]"
-                    log::log error "\t error code: $errorCode"
+                    ::log::logsubst error {Could not parse:\n [$element asXML]}
+                    ::log::logsubst error {\t error was: $msg}
+                    ::log::logsubst error {\t error info: $errorInfo}
+                    ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
+                    ::log::logsubst error {\t error code: $errorCode}
                     set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
@@ -3005,25 +3025,25 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    ::log::log debug  "Parsing Complex types for $xns as $tns"
+    ::log::logsubst debug {Parsing Complex types for $xns as $tns}
     foreach element [$schemaNode selectNodes -namespaces $nsList child::xs:complexType] {
-        ::log::log debug "\tprocessing $element"
+        ::log::logsubst debug {\tprocessing $element}
         if {[catch {parseComplexType $mode serviceInfo $serviceName $element $tns} msg]} {
             switch -exact -- $options(StrictMode) {
                 debug -
                 warning {
-                    log::log $options(StrictMode) "Could not parse:\n [$element asXML]"
-                    log::log $options(StrictMode) "\t error was: $msg"
+                    ::log::logsubst $options(StrictMode) {Could not parse:\n [$element asXML]}
+                    ::log::logsubst $options(StrictMode) {\t error was: $msg}
                 }
                 error -
                 default {
                     set errorCode $::errorCode
                     set errorInfo $::errorInfo
-                    log::log error "Could not parse:\n [$element asXML]"
-                    log::log error "\t error was: $msg"
-                    log::log error "\t error info: $errorInfo"
-                    log::log error "\t error in: [lindex [info level 0] 0]"
-                    log::log error "\t error code: $errorCode"
+                    ::log::logsubst error {Could not parse:\n [$element asXML]}
+                    ::log::logsubst error {\t error was: $msg}
+                    ::log::logsubst error {\t error info: $errorInfo}
+                    ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
+                    ::log::logsubst error {\t error code: $errorCode}
                     set ::WS::Utils::targetNs $tmpTargetNs
                     return \
                         -code error \
@@ -3036,8 +3056,8 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     }
 
     set ::WS::Utils::targetNs $tmpTargetNs
-    ::log::log debug "Leaving :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar"
-    ::log::log debug "Target NS is now: $::WS::Utils::targetNs"
+    ::log::logsubst debug {Leaving :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar}
+    ::log::logsubst debug {Target NS is now: $::WS::Utils::targetNs}
     dict set serviceInfo tnsList tns $prevTnsDict
 }
 
@@ -3091,7 +3111,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     variable importedXref
     variable options
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     ##
     ## Get the xml
     ##
@@ -3108,18 +3128,18 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     }
     set urlTail [$importNode getAttribute $attrName]
     set url [::uri::resolve $baseUrl  $urlTail]
-    ::log::log debug "Including $url"
+    ::log::logsubst debug {Including $url}
 
     set lastPos [string last / $url]
     set testUrl [string range $url 0 [expr {$lastPos - 1}]]
     if { [info exists ::WS::Utils::redirectArray($testUrl)] } {
         set newUrl $::WS::Utils::redirectArray($testUrl)
         append newUrl [string range $url $lastPos end]
-        ::log::log debug "newUrl = $newUrl"
+        ::log::logsubst debug {newUrl = $newUrl}
         set url $newUrl
     }
 
-    ::log::log debug "\t Importing {$url}"
+    ::log::logsubst debug {\t Importing {$url}}
 
     ##
     ## Skip "known" namespace
@@ -3141,16 +3161,16 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     ## Short-circuit infinite loop on inports
     ##
     if { [info exists importedXref($mode,$serviceName,$url)] } {
-        ::log::log debug "$mode,$serviceName,$url was already imported: $importedXref($mode,$serviceName,$url)"
+        ::log::logsubst debug {$mode,$serviceName,$url was already imported: $importedXref($mode,$serviceName,$url)}
         return
     }
     dict lappend serviceInfo imports $url
     set importedXref($mode,$serviceName,$url) [list $mode $serviceName $tnsCount]
     set urlScheme [dict get [::uri::split $url] scheme]
-    ::log::log debug "URL Scheme of {$url} is {$urlScheme}"
+    ::log::logsubst debug {URL Scheme of {$url} is {$urlScheme}}
     switch -exact -- $urlScheme {
         file {
-            ::log::log debug "In file processor -- {$urlTail}"
+            ::log::logsubst debug {In file processor -- {$urlTail}}
             set fn [file join  $options(includeDirectory) [string range $urlTail 8 end]]
             set ifd  [open $fn r]
             set xml [read $ifd]
@@ -3175,13 +3195,13 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
                     "HTTP get of import file failed '$url'"
             } elseif {($ncode == 200) && ![string equal $options(includeDirectory) {}]} {
                 set fn [file join  $options(includeDirectory) [file tail $urlTail]]
-                ::log::log info "Could not access $url -- using $fn"
+                ::log::logsubst info {Could not access $url -- using $fn}
                 set ifd  [open $fn r]
                 set xml [read $ifd]
                 close $ifd
             }
             if {[catch {ProcessImportXml $mode $baseUrl $xml $serviceName $serviceInfoVar $tnsCountVar} err]} {
-                ::log::log info "Error during processing of XML: $err"
+                ::log::logsubst info {Error during processing of XML: $err}
                 #puts stderr "error Info: $::errorInfo"
             } else {
                 #puts stderr "import successful"
@@ -3244,15 +3264,15 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     variable unkownRef
     variable defaultType
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
 
     set isAbstractType false
     set defaultType string
     set typeName $tns:[$node getAttribute name]
-    ::log::log debug "Complex Type is $typeName"
+    ::log::logsubst debug {Complex Type is $typeName}
     if {[$node hasAttribute abstract]} {
         set isAbstractType [$node getAttribute abstract]
-        ::log::log debug "\t Abstract type = $isAbstractType"
+        ::log::logsubst debug {\t Abstract type = $isAbstractType}
     }
     #if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $typeName]]} {
     #    ::log::log debug "\t Type $typeName is already defined -- leaving"
@@ -3270,7 +3290,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             set comment [string trim [$commentNode asText]]
         }
         set middle [$middleNode localName]
-        ::log::log debug "Complex Type is $typeName, middle is $middle"
+        ::log::logsubst debug {Complex Type is $typeName, middle is $middle}
         #if {$isAbstractType && [string equal $middle attribute]} {
         #    ##
         #    ## Abstract type, so treat like an element
@@ -3290,7 +3310,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 set nodeFound 1
                 if {[$middleNode hasAttribute ref]} {
                     set partType [$middleNode getAttribute ref]
-                    ::log::log debug "\t\t has a ref of {$partType}"
+                    ::log::logsubst debug {\t\t has a ref of {$partType}}
                     if {[catch {
                         set refTypeInfo [split $partType {:}]
                         set partName [lindex $refTypeInfo end]
@@ -3351,7 +3371,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 set partMax [$middleNode getAttribute maxOccurs 1]
                 set tmp [partList $mode $middleNode $serviceName results $tns $partMax]
                 if {[llength $tmp]} {
-                    ::log::log debug "\tadding {$tmp} to partslist"
+                    ::log::logsubst debug {\tadding {$tmp} to partslist}
                     set nodeFound 1
                     set partList [concat $partList $tmp]
                 } elseif {!$nodeFound} {
@@ -3373,7 +3393,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 foreach child [$middleNode childNodes] {
                     set parent [$child parent]
                     set contentType [$child localName]
-                    ::log::log debug "Content Type is {$contentType}"
+                    ::log::logsubst debug {Content Type is {$contentType}}
                     switch -exact -- $contentType {
                         restriction {
                             set nodeFound 1
@@ -3398,11 +3418,11 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                             set nodeFound 1
                         }
                         extension {
-                            ::log::log debug "Calling partList for $contentType of $typeName"
+                            ::log::logsubst debug {Calling partList for $contentType of $typeName}
                             if {[catch {set tmp [partList $mode $child $serviceName results $tns]} msg]} {
-                                ::log::log debug "Error in partList {$msg}, errorInfo: $errorInfo"
+                                ::log::logsubst debug {Error in partList {$msg}, errorInfo: $errorInfo}
                             }
-                            ::log::log debug "partList for $contentType of $typeName is {$tmp}"
+                            ::log::logsubst debug {partList for $contentType of $typeName is {$tmp}}
                             if {[llength $tmp]  && ![string equal [lindex $tmp 0] {}]} {
                                 set nodeFound 1
                                 set partList [concat $partList $tmp]
@@ -3437,7 +3457,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
             }
         }
     }
-    ::log::log debug "at end of foreach {$typeName} with {$partList}"
+    ::log::logsubst debug {at end of foreach {$typeName} with {$partList}}
     if {[llength $partList] || $isAbstractType} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
@@ -3512,7 +3532,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
 
     set partList {}
     set middle [$node localName]
-    ::log::log debug "Entering [info level 0] -- for $middle"
+    ::log::logsubst debug {Entering [info level 0] -- for $middle}
     switch -exact -- $middle {
         anyAttribute -
         attribute {
@@ -3535,7 +3555,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         extension {
             set baseName [getQualifiedType $results [$node getAttribute base string] $tns]
             set baseTypeInfo [TypeInfo Client $serviceName $baseName]
-            ::log::log debug "\t base name of extension is {$baseName} with typeinfo {$baseTypeInfo}"
+            ::log::logsubst debug {\t base name of extension is {$baseName} with typeinfo {$baseTypeInfo}}
             if {[lindex $baseTypeInfo 0]} {
                 if {[catch {::WS::Utils::GetServiceTypeDef Client $serviceName $baseName}]} {
                     set baseQuery [format {child::*[attribute::name='%s']} $baseName]
@@ -3560,15 +3580,15 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                     }
                 }
                 set baseInfo [GetServiceTypeDef $mode $serviceName $baseName]
-                ::log::log debug "\t baseInfo is {$baseInfo}"
+                ::log::logsubst debug {\t baseInfo is {$baseInfo}}
                 if {[llength $baseInfo] == 0} {
-                    ::log::log debug "\t Unknown reference '$baseName'"
+                    ::log::logsubst debug {\t Unknown reference '$baseName'}
                     set unkownRef($baseName) 1
                     return;
                 }
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
             } else {
-                ::log::log debug "\t Simple type"
+                ::log::logsubst debug {\t Simple type}
             }
             foreach elementNode [$node childNodes] {
                 set tmp [partList $mode $elementNode $serviceName results $tns]
@@ -3582,9 +3602,9 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         all {
             set elementList [$node selectNodes -namespaces $nsList xs:element]
             set elementsFound 0
-            ::log::log debug "\telement list is {$elementList}"
+            ::log::logsubst debug {\telement list is {$elementList}}
             foreach element $elementList {
-                ::log::log debug "\t\tprocessing $element ([$element nodeName])"
+                ::log::logsubst debug {\t\tprocessing $element ([$element nodeName])}
                 set comment {}
                 set additional_defininition_elements {}
                 if {[catch {
@@ -3602,11 +3622,11 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         set partType [string trimright [getQualifiedType $results $partName $tns] {?}]
                         set partTypeInfo [::WS::Utils::GetServiceTypeDef $mode $serviceName $partType]
                         set partName [lindex [split $partName {:}] end]
-                        ::log::log debug "\t\t\t part name is {$partName} type is {$partTypeInfo}"
+                        ::log::logsubst debug {\t\t\t part name is {$partName} type is {$partTypeInfo}}
                         if {[dict exists $partTypeInfo definition $partName]} {
                             set partType [dict get $partTypeInfo definition $partName type]
                         }
-                        ::log::log debug "\t\t\t part name is {$partName} type is {$partType}"
+                        ::log::logsubst debug {\t\t\t part name is {$partName} type is {$partType}}
                     } else {
                         ##
                         ## See if really a complex definition
@@ -3651,10 +3671,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                         lappend partList $partName [concat [list type [string trimright ${partType} {()?}]() comment $comment] $additional_defininition_elements]
                     }
                 } msg]} {
-                    ::log::log error "\tError processing {$msg} for [$element asXML]"
+                    ::log::logsubst error {\tError processing {$msg} for [$element asXML]}
                     if {$isRef} {
                         ::log::log error "\t\t Was a reference.  Additionally information is:"
-                        ::log::log error "\t\t\t part name is {$partName} type is {$partType} with {$partTypeInfo}"
+                        ::log::logsubst error {\t\t\t part name is {$partName} type is {$partType} with {$partTypeInfo}}
                     }
                 }
             }
@@ -3767,7 +3787,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     variable nsList
     variable unkownRef
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
 
     set attributeName name
     if {![$node hasAttribute $attributeName]} {
@@ -3775,31 +3795,31 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     }
     set typeName [$node getAttribute $attributeName]
     if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $tns:$typeName]]} {
-        ::log::log debug "\t Type $tns:$typeName is already defined -- leaving"
+        ::log::logsubst debug {\t Type $tns:$typeName is already defined -- leaving}
         return
     }
     set typeType ""
     if {[$node hasAttribute type]} {
         set typeType [getQualifiedType $results [$node getAttribute type string] $tns]
     }
-    ::log::log debug "Elemental Type is $typeName"
+    ::log::logsubst debug {Elemental Type is $typeName}
     set partList {}
     set partType {}
     set isAbstractType false
     if {[$node hasAttribute abstract]} {
         set isAbstractType [$node getAttribute abstract]
-        ::log::log debug "\t Abstract type = $isAbstractType"
+        ::log::logsubst debug {\t Abstract type = $isAbstractType}
     }
     set elements [$node selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
-    ::log::log debug "\t element list is {$elements} partList {$partList}"
+    ::log::logsubst debug {\t element list is {$elements} partList {$partList}}
     foreach element $elements {
         set ::elementName [$element asXML]
-        ::log::log debug "\t\t Processing element {[$element nodeName]}"
+        ::log::logsubst debug {\t\t Processing element {[$element nodeName]}}
         set elementsFound 1
         set typeAttribute ""
         if {[$element hasAttribute ref]} {
             set partType [$element getAttribute ref]
-            ::log::log debug "\t\t has a ref of {$partType}"
+            ::log::logsubst debug {\t\t has a ref of {$partType}}
             if {[catch {
                 set refTypeInfo [split $partType {:}]
                 set partName [lindex $refTypeInfo end]
@@ -3812,7 +3832,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 ##
                 set partType  [getQualifiedType $results $partType $tns]
                 set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
-                log::log debug "looking up ref {$partType} got {$refTypeInfo}"
+                log::logsubst debug {looking up ref {$partType} got {$refTypeInfo}}
                 if {![llength $refTypeInfo]} {
                     error "lookup failed"
                 }
@@ -3841,16 +3861,16 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 }
             } msg]} {
                 lappend unkownRef($partType) $typeName
-                log::log debug "Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo"
+                log::logsubst debug {Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo}
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
                     "Unknown forward type reference {$partType} in {$typeName}"
             }
         } else {
-            ::log::log debug "\t\t\t has no ref has {[$element attributes]}"
+            ::log::logsubst debug {\t\t\t has no ref has {[$element attributes]}}
             set childList [$element selectNodes -namespaces $nsList xs:complexType/xs:sequence/xs:element]
-            ::log::log debug "\t\t\ has no ref has [llength $childList]"
+            ::log::logsubst debug {\t\t\ has no ref has [llength $childList]}
             if {[llength $childList]} {
                 ##
                 ## Element defines another element layer
@@ -3869,7 +3889,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
             }
         }
         set partMax [$element getAttribute maxOccurs -1]
-        ::log::log debug "\t\t\t part is {$partName} {$partType} {$partMax}"
+        ::log::logsubst debug {\t\t\t part is {$partName} {$partType} {$partMax}}
 
         if {[string equal $partMax -1]} {
             set partMax [[$element parent] getAttribute maxOccurs -1]
@@ -3991,16 +4011,16 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
     upvar 1 $dictVar results
     variable nsList
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
 
     set typeName [$node getAttribute name]
     if {$typeName in {SAP_VALID_FROM}} {
         set foo 1
     }
     set isList no
-    ::log::log debug "Simple Type is $typeName"
+    ::log::logsubst debug {Simple Type is $typeName}
     if {[string length [::WS::Utils::GetServiceTypeDef $mode $serviceName $tns:$typeName]]} {
-        ::log::log debug "\t Type $tns:$typeName is already defined -- leaving"
+        ::log::logsubst debug {\t Type $tns:$typeName is already defined -- leaving}
         return
     }
     #puts "Simple Type is $typeName"
@@ -4049,7 +4069,7 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
         ServiceSimpleTypeDef $mode $serviceName $tns:$typeName $partList $tns
         dict set results simpletypes $tns:$typeName $partList
     } else {
-        ::log::log debug "\t type already exists as $tns:$typeName"
+        ::log::logsubst debug {\t type already exists as $tns:$typeName}
     }
 }
 
@@ -4447,7 +4467,7 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
             set result $type
         } else {
             ::log::log error $serviceInfo
-            ::log::log error "Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}"
+            ::log::logsubst error {Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}}
             set result $tns:$type
             return -code error
         }
@@ -4500,13 +4520,13 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
 proc ::WS::Utils::GenerateTemplateDict {mode serviceName type {arraySize 2}} {
     variable generatedTypes
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     unset -nocomplain -- generatedTypes
 
     set result [_generateTemplateDict $mode $serviceName $type $arraySize]
 
     unset -nocomplain -- generatedTypes
-    ::log::log debug "Leaving [info level 0] with {$result}"
+    ::log::logsubst debug {Leaving [info level 0] with {$result}}
 
     return $result
 }
@@ -4558,7 +4578,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
     variable options
     variable generatedTypes
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     set results {}
 
     ##
@@ -4566,7 +4586,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
     ##
     if {[info exists generatedTypes([list $mode $serviceName $type])]} {
         set results {<** Circular Reference **>}
-        ::log::log debug "Leaving [info level 0] with {$results}"
+        ::log::logsubst debug {Leaving [info level 0] with {$results}}
         return $results
     } else {
         set generatedTypes([list $mode $serviceName $type]) 1
@@ -4580,7 +4600,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
       set typeDefInfo [GetServiceTypeDef $mode $serviceName ${xns}:$type]
     }
 
-    ::log::log debug "\t type def = {$typeDefInfo}"
+    ::log::logsubst debug {\t type def = {$typeDefInfo}}
     set xns [dict get $typeDefInfo xns]
 
     ##
@@ -4588,7 +4608,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
     ##
     if {[info exists mutableTypeInfo([list $mode $serviceName $type])]} {
         set results {<** Mutable Type **>}
-        ::log::log debug "Leaving [info level 0] with {$results}"
+        ::log::logsubst debug {Leaving [info level 0] with {$results}}
         return $results
     }
 
@@ -4604,7 +4624,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
       set typeDefInfo [dict create definition [dict create $type $typeDefInfo]]
     }
     set partsList [dict keys [dict get $typeDefInfo definition]]
-    ::log::log debug "\t partsList is {$partsList}"
+    ::log::logsubst debug {\t partsList is {$partsList}}
     foreach partName $partsList {
         set partType [string trimright [dict get $typeDefInfo definition $partName type] {?}]
         set partXns $xns
@@ -4612,7 +4632,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
         set typeInfoList [TypeInfo $mode $serviceName $partType]
         set isArray [lindex $typeInfoList end]
 
-        ::log::log debug "\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList"
+        ::log::logsubst debug {\tpartName $partName partType $partType xns $xns typeInfoList $typeInfoList}
         switch -exact -- $typeInfoList {
             {0 0} {
                 ##
@@ -4669,7 +4689,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
             }
         }
     }
-    ::log::log debug "Leaving [info level 0] with {$results}"
+    ::log::logsubst debug {Leaving [info level 0] with {$results}}
     return $results
 }
 
@@ -4770,29 +4790,29 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
 #
 ###########################################################################
 proc ::WS::Utils::geturl_followRedirects {url args} {
-    ::log::log debug "[info level 0]"
+    ::log::logsubst debug {[info level 0]}
     set initialUrl $url
     set finalUrl $url
     array set URI [::uri::split $url] ;# Need host info from here
     for {set loop 1} {$loop <=5} {incr loop} {
         if {[llength $args]} {
-            ::log::log info [concat [list ::http::geturl $url] $args]
+            ::log::logsubst info {[concat [list ::http::geturl $url] $args]}
             set token [eval [list http::geturl $url] $args]
         } else {
-            ::log::log info [list ::http::geturl $url]
+            ::log::logsubst info {::http::geturl $url}
             set token [::http::geturl $url]
         }
         set ncode [::http::ncode $token]
-        ::log::log info "ncode = $ncode"
+        ::log::logsubst info {ncode = $ncode}
         if {![string match {30[12378]} $ncode]} {
-            ::log::log debug "initialUrl = $initialUrl, finalUrl = $finalUrl"
+            ::log::logsubst debug {initialUrl = $initialUrl, finalUrl = $finalUrl}
             if {![string equal $finalUrl {}]} {
                 ::log::log debug "Getting initial URL directory"
                 set lastPos [string last / $initialUrl]
                 set initialUrlDir [string range $initialUrl 0 [expr {$lastPos - 1}]]
                 set lastPos [string last / $finalUrl]
                 set finalUrlDir [string range $finalUrl 0 [expr {$lastPos - 1}]]
-                ::log::log debug "initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir"
+                ::log::logsubst debug {initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir}
                 set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
             }
             return $token
@@ -4814,7 +4834,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
         }
         # problem w/ relative versus absolute paths
         set url [eval ::uri::join [array get uri]]
-        ::log::log debug "url = $url"
+        ::log::logsubst debug {url = $url}
         set finalUrl $url
     }
     # > 5 redirects reached -> exit with error
@@ -4866,7 +4886,7 @@ proc ::WS::Utils::geturl_fetchbody {args} {
     set codeOkList {200}
     set codeVar ""
     set bodyAlwaysOk 0
-    ::log::log info [concat ::WS::Utils::geturl_fetchbody $args]
+    ::log::logsubst info {Entering [info level 0]}
     if {[lindex $args 0] eq "-codeok"} {
         set codeOkList [lindex $args 1]
         set args [lrange $args 2 end]
@@ -4899,14 +4919,14 @@ proc ::WS::Utils::geturl_fetchbody {args} {
             || -1 != [lsearch $codeOkList $ncode]
         } {
             # >> Fetch ok
-            ::log::log debug "\tReceived: $body"
+            ::log::logsubst debug {\tReceived: $body}
             return $body
         }
-        ::log::log debug "\tHTTP error: Wrong code $ncode or no data"
+        ::log::logsubst debug {\tHTTP error: Wrong code $ncode or no data}
         return -code error -errorcode [list WS CLIENT HTTPERROR $ncode]\
                 "HTTP failure code $ncode"
     }
-    ::log::log debug "\tHTTP error [array get $token]"
+    ::log::logsubst debug {\tHTTP error [array get $token]}
     set error [::http::error $token]
     ::http::cleanup $token
     return -errorcode [list WS CLIENT HTTPERROR $error]\
