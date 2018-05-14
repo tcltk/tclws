@@ -79,7 +79,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.4.1
+package provide WS::Utils 2.4.2
 
 namespace eval ::WS {}
 
@@ -1382,9 +1382,14 @@ proc ::WS::Utils::getTypeWSDLInfo {mode serviceName field type} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #
+# 2.4.2    2018-05-14  H.Oehlmann   Add support to translate namespace prefixes
+#                                   in attribute values or text values.
+#                                   New parameter "xnsDistantToLocalDict".
 #
 ###########################################################################
-proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}} {
+proc ::WS::Utils::convertTypeToDict {
+        mode serviceName node type root {isArray 0} {xnsDistantToLocalDict {}}
+} {
     variable typeInfo
     variable mutableTypeInfo
     variable options
@@ -1449,7 +1454,7 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
             ##
             set savedTypeInfo $typeInfo
             parseDynamicType $mode $serviceName $node $type
-            set tmp [convertTypeToDict $mode $serviceName $node $type $root]
+            set tmp [convertTypeToDict $mode $serviceName $node $type $root 0 $xnsDistantToLocalDict]
             foreach partName [dict keys $tmp] {
                 dict set results $partName [dict get $tmp $partName]
             }
@@ -1606,8 +1611,28 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                 ## Non-simple non-array
                 ##
                 if {$options(parseInAttr)} {
+                    ## Translate an abstract type from the WSDL to a type given
+                    ## in the response
+                    ## Example xml response from bug 584bfb772:
+                    ## <soap:Envelope ...
+                    ##    xmlns:tns="http://www.esri.com/schemas/ArcGIS/10.3">
+                    ##  <soap:Body>
+                    ##    <tns:GetServerInfoResponse>
+                    ##      <Result xsi:type="tns:MapServerInfo">
+                    ##      <Name>Layers</Name>
+                    ##      <Description></Description>
+                    ##        <FullExtent xsi:type="tns:EnvelopeN">
+                    ##
+                    ## The element FullExtend gets type "tns:EnvelopeN".
+                    ##
+                    ## xnsDistantToLocalDict
                     if {$isAbstract && [$item hasAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]} {
-                        set partType [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]
+                        # partType is now tns::EnvelopeN
+                        set partType [XNSDistantToLocal $xnsDistantToLocalDict\
+                                [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]]
+                        
+                        # Remove this type attribute from the snippet.
+                        # So, it is not handled in the loop below.
                         $item removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
                     }
                     foreach attrList [$item attributes] {
@@ -1625,9 +1650,9 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                             }
                         }
                     }
-                    dict set results $partName $valueAttr [convertTypeToDict $mode $serviceName $item $partType $root]
+                    dict set results $partName $valueAttr [convertTypeToDict $mode $serviceName $item $partType $root 0 $xnsDistantToLocalDict]
                 } else {
-                    dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root]
+                    dict set results $partName [convertTypeToDict $mode $serviceName $item $partType $root  0 $xnsDistantToLocalDict]
                 }
             }
             {1 1} {
@@ -1658,10 +1683,10 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
                                 }
                             }
                         }
-                        lappend rowList $valueAttr [convertTypeToDict $mode $serviceName $row $partType $root 1]
+                        lappend rowList $valueAttr [convertTypeToDict $mode $serviceName $row $partType $root 1 $xnsDistantToLocalDict]
                         lappend tmp $rowList
                     } else {
-                        lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root 1]
+                        lappend tmp [convertTypeToDict $mode $serviceName $row $partType $root 1 $xnsDistantToLocalDict]
                     }
                 }
                 dict set results $partName $tmp
@@ -1673,9 +1698,61 @@ proc ::WS::Utils::convertTypeToDict {mode serviceName node type root {isArray 0}
             }
         }
     }
-    ::log::logsubst debug {Leaving ::WS::Utils::convertTypeToDict with $results}
+    ::log::logsubst debug {Leaving ::WS::Utils::convertTypeToDict with result '$results'}
     return $results
 }
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::XNSDistantToLocal
+#
+# Description : Get a reference node.
+#
+# Arguments :
+#    xnsDistantToLocalDict - Dict to translate distant to local NS prefixes
+#    typeDistant - Type string with possible distant namespace prefix
+#
+# Returns : type with local namespace prefix
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 2.4.2    2017-11-03  H.Oehlmann   Initial version
+#
+###########################################################################
+proc ::WS::Utils::XNSDistantToLocal {xnsDistantToLocalDict type} {
+    set collonPos [string first ":" $type]
+    # check for namespace prefix present
+    if {-1 < $collonPos} {
+        set prefixDistant [string range $type 0 $collonPos-1]
+        if {[dict exists $xnsDistantToLocalDict $prefixDistant]} {
+            set type [dict get $xnsDistantToLocalDict $prefixDistant][string range $type $collonPos end]
+            log::logsubst debug {Mapped distant namespace prefix '$prefixDistant' to type '$type'}
+        } else {
+            log::logsubst warning {Distant type '$type' does not have a known namespace prefix ([dict keys $xnsDistantToLocalDict])}
+        }
+    }
+    return $type
+}
+
 
 ###########################################################################
 #
@@ -2156,7 +2233,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
 
         ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} typeInfoList = {$typeInfoList}}
         set typeInfoList [lrange $typeInfoList 0 1]
-        switch $typeInfoList {
+        switch -- $typeInfoList {
             {0 0} {
                 ##
                 ## Simple non-array
@@ -2254,6 +2331,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
     variable simpleTypes
     variable options
     variable standardAttributes
+    variable currentNs
 
     if {$options(valueAttrCompatiblityMode)} {
         set valueAttr {}
@@ -2361,12 +2439,13 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                 ##
                 ## Non-simple non-array
                 ##
-                $parent appendChild [$doc createElement $itemName retnode]
+                $parent appendChild [$doc createElement $itemName retNode]
                 if {$options(genOutAttr)} {
                     set dictList [dict keys [dict get $dict $itemName]]
                     set resultValue {}
                     foreach attr [lindex [::struct::set intersect3 $standardAttributes $dictList] end] {
                         if {$isAbstract && [string equal $attr {::type}]} {
+                            # *** HaO: useName is never defined
                             set itemType [dict get $dict $useName $attr]
                             $retNode setAttributeNS "http://www.w3.org/2001/XMLSchema-instance" xsi:type $itemType
                         } elseif {[string equal $attr $valueAttr]} {
@@ -2385,7 +2464,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
                 }
-                convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $itemType $enforceRequired
+                convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $itemType $enforceRequired
             }
             {1 1} {
                 ##
@@ -2394,7 +2473,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                 set dataList [dict get $dict $itemName]
                 set tmpType [string trimright $itemType {()}]
                 foreach row $dataList {
-                    $parent appendChild [$doc createElement $itemName retnode]
+                    $parent appendChild [$doc createElement $itemName retNode]
                     if {$options(genOutAttr)} {
                         set dictList [dict keys $row]
                         set resultValue {}
@@ -2418,7 +2497,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
-                    convertDictToTypeNoNs $mode $service $doc $retnode $resultValue $tmpType $enforceRequired
+                    convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $tmpType $enforceRequired
                 }
             }
             default {
@@ -4187,7 +4266,7 @@ proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
                 ##
                 ## Fields was required but is missing
                 ##
-                set ::errorCode [list WS CHECK MISSREQFLD [list $type $field]]
+                set ::errorCode [list WS CHECK MISSREQFLD [list $typeName $field]]
                 set result 0
             } elseif {$fieldInfoArr(minOccurs) &&
                       ($fieldInfoArr(minOccurs) > [llength $fieldInfoArr($field)])} {
@@ -4202,7 +4281,7 @@ proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
                 ##
                 ## Fields was required and present, but too many times
                 ##
-                set ::errorCode [list WS CHECK MAXOCCUR [list $type $field]]
+                set ::errorCode [list WS CHECK MAXOCCUR [list $typeName $field]]
                 set result 0
             } elseif {[info exists fieldInfoArr($field)]} {
                 foreach node $fieldInfoArr($field) {
@@ -4279,6 +4358,7 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
         maxLength -1
         fixed false
     }
+    # returns indexes type, xns, ...
     array set typeInfos [GetServiceTypeDef $mode $serviceName $type]
     foreach {var value} [array get typeInfos] {
         set $var $value
@@ -4286,16 +4366,16 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
     set result 1
 
     if {$minLength >= 0 && [string length $value] < $minLength} {
-        set ::errorCode [list WS CHECK VALUE_TO_SHORT [list $key $value $minLength $typeInfo]]
+        set ::errorCode [list WS CHECK VALUE_TO_SHORT [list $type $value $minLength $typeInfo]]
         set result 0
     } elseif {$maxLength >= 0 && [string length $value] > $maxLength} {
-        set ::errorCode [list WS CHECK VALUE_TO_LONG [list $key $value $maxLength $typeInfo]]
+        set ::errorCode [list WS CHECK VALUE_TO_LONG [list $type $value $maxLength $typeInfo]]
         set result 0
     } elseif {[info exists enumeration] && ([lsearch -exact $enumeration $value] == -1)} {
-        set errorCode [list WS CHECK VALUE_NOT_IN_ENUMERATION [list $key $value $enumerationVals $typeInfo]]
+        set errorCode [list WS CHECK VALUE_NOT_IN_ENUMERATION [list $type $value $enumeration $typeInfo]]
         set result 0
     } elseif {[info exists pattern] && (![regexp -- $pattern $value])} {
-        set errorCode [list WS CHECK VALUE_NOT_MATCHES_PATTERN [list $key $value $pattern $typeInfo]]
+        set errorCode [list WS CHECK VALUE_NOT_MATCHES_PATTERN [list $type $value $pattern $typeInfo]]
         set result 0
     }
 
@@ -4355,7 +4435,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
     set baseTypeName [string trimright $typeName {()?}]
     set typeInfo [GetServiceTypeDef $mode $serviceName $baseTypeName]
     set typeName [string trimright $typeName {?}]
-    set xns [dict get $typeInfo $mode $service $type xns]
+    set xns [dict get $typeInfo $mode $serviceName $typeName xns]
 
     foreach {field fieldDef} [dict get $typeInfo definition] {
         ##
@@ -4403,7 +4483,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
             ##
             set minOccurs $fieldInfoArr(maxOccurs)
             return \
-                -errorcode [list WS CHECK MAXOCCUR [list $type $field]] \
+                -errorcode [list WS CHECK MAXOCCUR [list $typeName $field]] \
                 "Field '$field' of type '$typeName' could only occur $minOccurs time(s) but occured $valueListLenght time(s)"
         } elseif {[dict exists $valueInfos $field]} {
             foreach value $valueList {
