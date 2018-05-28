@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.5.0
+package provide WS::Client 2.5.1
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -343,11 +343,11 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
         dict set serviceArr($serviceName) $name $value
     }
 
-    ::log::log debug "Setting Target Namespace tns1 as $target"
+    ::log::logsubst debug {Setting Target Namespace tns1 as $target}
     if {[dict exists $serviceArr($serviceName) xns]} {
         foreach xnsItem [dict get $serviceArr($serviceName) xns] {
             lassign $xnsItem tns xns
-            ::log::log debug "Setting targetNamespace $tns for $xns"
+            ::log::logsubst debug {Setting targetNamespace $tns for $xns}
             dict set serviceArr($serviceName) targetNamespace $tns $xns
         }
     }
@@ -1157,7 +1157,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     if {$first > 0} {
         set wsdlXML [string range $wsdlXML $first end]
     }
-    ::log::log debug [list "Parsing WSDL" $wsdlXML]
+    ::log::logsubst debug {Parsing WSDL: $wsdlXML}
 
     # save parsed document node to tmpdoc
     dom parse $wsdlXML tmpdoc
@@ -1260,7 +1260,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
             # <wsdl:definitions xmlns:q1="URI1" ...>
             #   <xs:element xmlns:q1="URI2" type="q1:MessageQ1"/>
             if { [dict exists $nsDict tns $ns] && $tns ne [dict get $nsDict tns $ns] } {
-                ::log::log debug "Namespace prefix '$ns' with different URI '$url': $nsDict"
+                ::log::logsubst debug {Namespace prefix '$ns' with different URI '$url': $nsDict}
                 return \
                     -code error \
                     -errorcode [list WS CLIENT AMBIGNSPREFIX] \
@@ -1389,7 +1389,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
         if {[dict exists $inputMsgTypeDefinition definition]} {
           set inputFields [dict keys [dict get $inputMsgTypeDefinition definition]]
          } else {
-          ::log::log debug "no definition found for inputMsgType $inputMsgType"
+          ::log::logsubst debug {no definition found for inputMsgType $inputMsgType}
           set inputFields {}
         }
         if {$inputFields ne {}} {
@@ -1405,7 +1405,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
             foreach var [namespace eval ::${serviceName}:: [list info args $operationName]] {
                 lappend argList $var [set $var]
             }
-            ::log::log debug [list ::WS::Client::DoCall $serviceName $operationName $argList]
+            ::log::logsubst debug {::WS::Client::DoCall $serviceName $operationName $argList}
             ::WS::Client::DoCall $serviceName $operationName $argList
         }
         proc $procName $argList $body
@@ -1468,7 +1468,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
 proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering ::WS::Client::DoRawCall {$serviceName $operationName $argList}"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -1512,7 +1512,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
 
-    ::log::log debug "Leaving ::WS::Client::DoRawCall with {$body}"
+    ::log::logsubst debug {Leaving ::WS::Client::DoRawCall with {$body}}
     return $body
 
 }
@@ -1572,7 +1572,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering ::WS::Client::DoCall {$serviceName $operationName $argList}"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -1633,12 +1633,12 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         if {$hadError} {
             lassign $::errorCode mainError subError
             if {$mainError eq {WSCLIENT} && $subError eq {NOSOAP}} {
-                ::log::log debug "\tHTTP error $body"
+                ::log::logsubst debug {\tHTTP error $body}
                 set results $body
                 set errorCode [list WSCLIENT HTTPERROR $body]
                 set errorInfo {}
             } else {
-                ::log::log debug "Reply was $body"
+                ::log::logsubst debug {Reply was $body}
                 set errorCode $::errorCode
                 set errorInfo $::errorInfo
             }
@@ -1653,7 +1653,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set hadError [catch {parseResults $serviceName $operationName $body} results]
         RestoreSavedOptions $serviceName
         if {$hadError} {
-            ::log::log debug "Reply was $body"
+            ::log::logsubst debug {Reply was $body}
             set errorCode $::errorCode
             set errorInfo $::errorInfo
         }
@@ -1666,7 +1666,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
             -errorinfo $errorInfo \
             $results
     } else {
-        ::log::log debug "Leaving ::WS::Client::DoCall with {$results}"
+        ::log::logsubst debug {Leaving ::WS::Client::DoCall with {$results}}
         return $results
     }
 
@@ -1779,7 +1779,7 @@ proc ::WS::Client::FormatHTTPError {token} {
 proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd errorCmd {headers {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering ::WS::Client::DoAsyncCall [list $serviceName $operationName $argList $succesCmd $errorCmd $headers]"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -1805,31 +1805,27 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
         RestoreSavedOptions $serviceName
     }
     if {[llength $headers]} {
-        ::log::log info [list \
-            ::http::geturl $url \
+        ::log::logsubst info {::http::geturl $url \
                 -query $query \
                 -type [dict get $serviceInfo contentType] \
                 -headers $headers \
-                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd] \
-        ]
+                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]}
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -headers $headers \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
-        ::log::log info [list \
-            ::http::geturl $url \
+        ::log::logsubst info {::http::geturl $url \
                 -query $query \
                 -type [dict get $serviceInfo contentType] \
-                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd] \
-        ]
+                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]}
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
     }
-    ::log::log debug "Leaving ::WS::Client::DoAsyncCall"
+    ::log::logsubst debug {Leaving ::WS::Client::DoAsyncCall}
     return;
 }
 
@@ -2046,13 +2042,13 @@ proc ::WS::Client::ListRest {serviceName} {
 #
 ###########################################################################
 proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd token} {
-    ::log::log debug "Entering ::WS::Client::asyncCallDone {$serviceName $operationName $succesCmd $errorCmd $token}"
+    ::log::logsubst debug {Entering [info level 0]}
 
     ##
     ## Check for errors
     ##
     set body [::http::data $token]
-    ::log::log info "\nReceived: $body"
+    ::log::logsubst info {\nReceived: $body}
     set results {}
     if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
@@ -2138,13 +2134,17 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 #                                   (ticket [21f41e22bc]).
 # 2.4.3    2017-11-03  H.Oehlmann   Extended upper commit also to search
 #                                   for multiple child nodes.
-#
+# 2.5.1    2018-05-14  H.Oehlmann   Add support to translate namespace prefixes
+#                                   in attribute values or text values.
+#                                   Translation dict "xnsDistantToLocalDict" is
+#                                   passed to ::WS::Utils::convertTypeToDict
+#                                   to translate abstract types.
 #
 ###########################################################################
 proc ::WS::Client::parseResults {serviceName operationName inXML} {
     variable serviceArr
 
-    ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
+    ::log::logsubst debug {Entering [info level 0]}
 
     set serviceInfo $serviceArr($serviceName)
 
@@ -2157,18 +2157,54 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     }
     # parse xml and save handle in variable doc and free it when out of scope
     dom parse $inXML doc
+
     # save top node handle in variable top and free it if out of scope
     $doc documentElement top
+
     set xns {
         ENV http://schemas.xmlsoap.org/soap/envelope/
         xsi "http://www.w3.org/2001/XMLSchema-instance"
         xs "http://www.w3.org/2001/XMLSchema"
     }
-    foreach tmp [dict get $serviceInfo targetNamespace] {
-        lappend xns $tmp
+    foreach {prefixCur URICur} [dict get $serviceInfo targetNamespace] {
+        lappend xns $prefixCur $URICur
     }
-    ::log::log debug "Using namespaces {$xns}"
+    ::log::logsubst debug {Using namespaces {$xns}}
     $doc selectNodesNamespaces $xns
+
+    ##
+    ## When arguments with tags are passed (example: abstract types),
+    ## the upper "selectNodesNamespaces translation must be executed manually.
+    ## Thus, we need a list of server namespace prefixes to our client namespace
+    ## prefixes. (bug 584bfb77)
+    ##
+    # Example xml:
+    # <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+    #   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    #   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    #   xmlns:tns="http://www.esri.com/schemas/ArcGIS/10.3">
+
+    set xnsDistantToLocalDict {}
+    foreach attributeCur [$top attributes] {
+        # attributeCur is a list of "prefix local URI",
+        # which is for xmlns tags: "prefix prefix {}".
+        set attributeCur [lindex $attributeCur 0]
+        # Check if this is a namespace prefix
+        if { ! [$top hasAttribute "xmlns:$attributeCur"] } {continue}
+        set URIServer [$top getAttribute "xmlns:$attributeCur"]
+        # Check if it is included in xns
+        foreach {prefixCur URICur} $xns {
+            if {$URIServer eq $URICur} {
+                dict set xnsDistantToLocalDict $attributeCur $prefixCur
+                break
+            }
+        }
+    }
+    ::log::logsubst debug {Server to Client prefix dict: $xnsDistantToLocalDict}
+    
+    ##
+    ## Get body tag
+    ##
     set body [$top selectNodes ENV:Body]
     if {![llength $body]} {
         return \
@@ -2225,7 +2261,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     }
     
     set rootNodeList [$body childNodes]
-    ::log::log debug "Have [llength $rootNodeList] node under Body"
+    ::log::logsubst debug {Have [llength $rootNodeList] node under Body}
     foreach rootNodeCur $rootNodeList {
         set rootNameCur [$rootNodeCur localName]
         if {$rootNameCur eq {}} {
@@ -2234,10 +2270,10 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         if {$rootNameCur in $nodeNameCandidateList} {
             set rootNode $rootNodeCur
             set rootName $rootNameCur
-            ::log::log debug "Result root name is '$rootName'"
+            ::log::logsubst debug {Result root name is '$rootName'}
             break
         }
-        ::log::log debug "Result root name '$rootNameCur' not in candidates '$nodeNameCandidateList'"
+        ::log::logsubst debug {Result root name '$rootNameCur' not in candidates '$nodeNameCandidateList'}
     }
     ##
     ## Exit if there is no such node
@@ -2298,18 +2334,21 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
             #if {[llength $outHeaderAttrs]} {
             #    ::WS::Utils::setAttr $node $outHeaderAttrs
             #}
-            ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]"
-            lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode]
+            ::log::logsubst debug {Calling convertTypeToDict from header node type '$outHeaderType'}
+            lappend results [::WS::Utils::convertTypeToDict Client $serviceName $node $outHeaderType $headerRootNode 0 $xnsDistantToLocalDict]
         }
     }
-    ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body]"
+    ##
+    ## Call Utility function to build result list
+    ##
     if {$rootName ne {}} {
+        ::log::log debug "Calling convertTypeToDict with root node"
         set bodyData [::WS::Utils::convertTypeToDict \
-                         Client $serviceName $rootNode $expectedMsgType $body]
+                     Client $serviceName $rootNode $expectedMsgType $body 0 $xnsDistantToLocalDict]
         if {![llength $bodyData] && ([dict get $serviceInfo skipLevelWhenActionPresent] || [dict get $serviceInfo skipLevelOnReply])} {
-            ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $rootNode $expectedMsgType $body] -- skipLevelWhenActionPresent was set"
+            ::log::log debug "Calling convertTypeToDict with skipped action level (skipLevelWhenActionPresent was set)"
             set bodyData [::WS::Utils::convertTypeToDict \
-                         Client $serviceName $body $expectedMsgType $body]
+                         Client $serviceName $body $expectedMsgType $body 0 $xnsDistantToLocalDict]
         }
         lappend results $bodyData
     }
@@ -2395,7 +2434,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
-    ::log::log debug "Leaving ::WS::Client::buildCallquery with {$xml}"
+    ::log::logsubst debug {Leaving ::WS::Client::buildCallquery with {$xml}}
     return $xml
 
 }
@@ -2443,7 +2482,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
 proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argList} {
     variable serviceArr
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo operation $operationName inputs]
     set url [dict get $serviceInfo location]
@@ -2526,7 +2565,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         set forceNs 1
         set reply $bod
     } else {
-        ::log::log debug "$bod appendChild \[$doc createElement $xns:$msgType reply\]"
+        ::log::logsubst debug {$bod appendChild \[$doc createElement $xns:$msgType reply\]}
         $bod appendChild [$doc createElement $xns:$msgType reply]
         set forceNs 0
     }
@@ -2538,7 +2577,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
     append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     $doc delete
 
-    ::log::log debug "Leaving ::WS::Client::buildDocLiteralCallquery with {$xml}"
+    ::log::logsubst debug {Leaving ::WS::Client::buildDocLiteralCallquery with {$xml}}
 
     return [encoding convertto $encoding $xml]
 
@@ -2587,7 +2626,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
 proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argList} {
     variable serviceArr
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo operation $operationName inputs]
     set xnsList [dict get $serviceInfo targetNamespace]
@@ -2636,7 +2675,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     set xml [format {<?xml version="1.0"  encoding="%s"?>} $encoding]
     append xml "\n" [$doc asXML -indent none -doctypeDeclaration 0]
     $doc delete
-    ::log::log debug "Leaving ::WS::Client::buildRpcEncodedCallquery with {$xml}"
+    ::log::logsubst debug {Leaving ::WS::Client::buildRpcEncodedCallquery with {$xml}}
 
     return [encoding convertto $encoding $xml]
 
@@ -2691,7 +2730,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceA
     ## Need to refactor to foreach service parseService
     ##  Service drills down to ports, which drills down to bindings and messages
     ##
-    ::log::log debug [list "Entering ::WS::Client::buildServiceInfo with doc" $wsdlNode]
+    ::log::logsubst debug {Entering [info level 0]}
 
     ##
     ## Parse Service information
@@ -2731,7 +2770,7 @@ proc ::WS::Client::buildServiceInfo {wsdlNode tnsDict {serviceInfo {}} {serviceA
         lappend serviceInfo [parseService $wsdlNode $serviceNode $serviceAlias $tnsDict]
     }
 
-    ::log::log debug [list "Leaving ::WS::Client::buildServiceInfo with" $serviceInfo]
+    ::log::logsubst debug {Leaving ::WS::Client::buildServiceInfo with $serviceInfo}
     return $serviceInfo
 }
 
@@ -2780,7 +2819,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
     variable serviceArr
     variable options
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
     } else {
@@ -2845,7 +2884,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
 
     set ::WS::Utils::targetNs $tmpTargetNs
 
-    ::log::log debug "Leaving [lindex [info level 0] 0] with $serviceInfo"
+    ::log::logsubst debug {Leaving [lindex [info level 0] 0] with $serviceInfo}
     return $serviceInfo
 }
 
@@ -3444,7 +3483,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {headers {}} {location {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -3495,7 +3534,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
         set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
     }
 
-    ::log::log debug "Leaving ::WS::Client::DoRawRestCall with {$body}"
+    ::log::logsubst debug {Leaving ::WS::Client::DoRawRestCall with {$body}}
     return $body
 
 }
@@ -3555,7 +3594,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {headers {}} {location {}}} {
     variable serviceArr
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -3618,7 +3657,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
         return -code error $results
     }
     RestoreSavedOptions $serviceName
-    ::log::log debug "Leaving ::WS::Client::DoRestCall with {$results}"
+    ::log::logsubst debug {Leaving ::WS::Client::DoRestCall with {$results}}
     return $results
 
 }
@@ -3685,7 +3724,7 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     if {[llength $svcHeaders]} {
         set headers [concat $headers $svcHeaders]
     }
-    ::log::log debug "Entering ::WS::Client::DoAsyncRestCall [list $serviceName $objectName $operationName $argList $succesCmd $errorCmd $headers]"
+    ::log::logsubst debug {Entering [info level 0]}
     if {![info exists serviceArr($serviceName)]} {
         return \
             -code error \
@@ -3711,25 +3750,21 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
         RestoreSavedOptions $serviceName
     }
     if {[llength $headers]} {
-        ::log::log info [list \
-            ::http::geturl $url \
+        ::log::logsubst info {::http::geturl $url \
                 -query $query \
                 -type [dict get $serviceInfo contentType] \
                 -headers $headers \
-                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
-        ]
+                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]}
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -headers $headers \
             -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
     } else {
-        ::log::log info [list \
-            ::http::geturl $url \
+        ::log::logsubst info {::http::geturl $url \
                 -query $query \
                 -type [dict get $serviceInfo contentType] \
-                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
-        ]
+                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]}
         ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
@@ -3782,7 +3817,7 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
 proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url argList} {
     variable serviceArr
 
-    ::log::log debug "Entering [info level 0]"
+    ::log::logsubst debug {Entering [info level 0]}
     set serviceInfo $serviceArr($serviceName)
     set msgType [dict get $serviceInfo object $objectName operation $operationName inputs]
     set xnsList [dict get $serviceInfo targetNamespace]
@@ -3800,7 +3835,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
 
     set xns [dict get [::WS::Utils::GetServiceTypeDef Client $serviceName $msgType] xns]
 
-    ::log::log debug "calling [list ::WS::Utils::convertDictToType Client $serviceName $doc $body $argList $msgType]"
+    ::log::logsubst debug {calling [list ::WS::Utils::convertDictToType Client $serviceName $doc $body $argList $msgType]}
     set options [::WS::Utils::SetOption]
     ::WS::Utils::SetOption UseNS 0
     ::WS::Utils::SetOption genOutAttr 1
@@ -3822,7 +3857,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
         set xml [$inTransform $serviceName $operationName REQUEST $xml $url $argList]
     }
 
-    ::log::log debug "Leaving ::WS::Client::buildRestCallquery with {$xml}"
+    ::log::logsubst debug {Leaving ::WS::Client::buildRestCallquery with {$xml}}
 
     return $xml
 
@@ -3875,7 +3910,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
 proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML} {
     variable serviceArr
 
-    ::log::log debug "In parseResults $serviceName $operationName {$inXML}"
+    ::log::logsubst debug {Entering [info level 0]}
     set first [string first {<} $inXML]
     if {$first > 0} {
         set inXML [string range $inXML $first end]
@@ -3894,7 +3929,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     foreach tmp [dict get $serviceInfo targetNamespace] {
         lappend xns $tmp
     }
-    ::log::log debug "Using namespaces {$xns}"
+    ::log::logsubst debug {Using namespaces {$xns}}
     set body $top
     set status [$body getAttribute status]
 
@@ -3921,7 +3956,7 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
     set options [::WS::Utils::SetOption]
     ::WS::Utils::SetOption UseNS 0
     ::WS::Utils::SetOption parseInAttr 1
-    ::log::log debug "Calling [list ::WS::Utils::convertTypeToDict Client $serviceName $body $expectedMsgType $body]"
+    ::log::logsubst debug {Calling ::WS::Utils::convertTypeToDict Client $serviceName $body $expectedMsgType $body}
     if {$expectedMsgType ne {}} {
         set node [$body childNodes]
         set nodeName [$node nodeName]
@@ -3988,13 +4023,13 @@ proc ::WS::Client::parseRestResults {serviceName objectName operationName inXML}
 #
 ###########################################################################
 proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succesCmd errorCmd token} {
-    ::log::log debug "Entering ::WS::Client::asyncCallDone {$serviceName $objectName $operationName $succesCmd $errorCmd $token}"
+    ::log::logsubst debug {Entering [info level 0]}
 
     ##
     ## Check for errors
     ##
     set body [::http::data $token]
-    ::log::log info "\nReceived: $body"
+    ::log::logsubst info {\nReceived: $body}
     if {[::http::status $token] ne {ok} ||
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
