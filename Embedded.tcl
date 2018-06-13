@@ -54,7 +54,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.4.1
+package provide WS::Embeded 2.6.0
 
 namespace eval ::WS::Embeded {
 

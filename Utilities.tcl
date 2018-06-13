@@ -70,7 +70,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.4.2
+package provide WS::Utils 2.6.0
 
 namespace eval ::WS {}
 
