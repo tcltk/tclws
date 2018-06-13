@@ -44,7 +44,17 @@ package require base64
 package require html
 package require log
 
-package provide WS::Embeded 2.4.0
+# Emulate the log::logsubst command introduced in log 1.4
+if {![llength [info command ::log::logsubst]]} {
+	proc ::log::logsubst {level text} {
+		if {[::log::lvIsSuppressed $level]} {
+			return
+		}
+		::log::log $level [uplevel 1 [list subst $text]]
+	}
+}
+
+package provide WS::Embeded 2.4.1
 
 namespace eval ::WS::Embeded {
 
@@ -225,7 +235,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             -request 0
         set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
     } else {
-        ::log::log debug [list socket -server [list ::WS::Embeded::accept $port] $port]
+        ::log::logsubst debug {socket -server [list ::WS::Embeded::accept $port] $port}
         set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
 
@@ -433,7 +443,7 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
     if {[info exists portInfo($port,auths)] && [llength $portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
         set realm $portInfo($port,realm)
         respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
-        ::log::log warning "Unauthorized from $ip"
+        ::log::logsubst warning {Unauthorized from $ip}
         return -code error
     }
 }
@@ -574,13 +584,13 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
     variable portInfo
 
     upvar #0 ::WS::Embeded::Httpd$sock query
-    ::log::log info "Receviced request on $port for $ip:$clientport"
+    ::log::logsubst info {Receviced request on $port for $ip:$clientport}
 
     array unset query reply
     chan configure $sock -translation crlf
     if {1 == [catch {
         gets $sock line
-        ::log::log debug "Request is: $line"
+        ::log::logsubst debug {Request is: $line}
         set auth {}
         set request {}
         while {[gets $sock temp] > 0 && ![eof $sock]} {
@@ -589,7 +599,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
             }
         }
         if {[eof $sock]} {
-            ::log::log warning  "Connection closed from $ip"
+            ::log::logsubst warning  {Connection closed from $ip}
             return
         }
         if {[dict exists $request header authorization]} {
@@ -597,7 +607,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                 [dict get $request header authorization] -> auth
         }
         if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
-            ::log::log warning  "Wrong request: $line"
+            ::log::logsubst warning  {Wrong request: $line}
             return
         }
         switch -exact -- $method {
@@ -631,7 +641,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                 handler $port $sock $ip [uri::split $url] $auth
             }
             default {
-                ::log::log warning "Unsupported method '$method' from $ip"
+                ::log::logsubst warning {Unsupported method '$method' from $ip}
                 respond $sock 501 "Method not implemented"
             }
         }

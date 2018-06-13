@@ -44,7 +44,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.4.0
+package provide WS::Server 2.4.1
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -164,7 +164,7 @@ proc ::WS::Server::Service {args} {
     variable procInfo
     variable mode
 
-    ::log::log debug "Defining Service as $args"
+    ::log::logsubst debug {Defining Service as $args}
 
     array set defaults {
         -description    {}
@@ -238,7 +238,7 @@ proc ::WS::Server::Service {args} {
     ##
     interp alias {} ::WS::Server::generateInfo_${service} \
                  {} ::WS::Server::generateInfo ${service}
-    ::log::log debug "Installing Generate info for $service at $defaults(-prefix)"
+    ::log::logsubst debug {Installing Generate info for $service at $defaults(-prefix)}
     switch -exact -- $mode {
         embedded {
             package require WS::Embeded 2.1.3
@@ -314,7 +314,7 @@ proc ::WS::Server::Service {args} {
     ##
     interp alias {} ::WS::Server::generateWsdl_${service} \
                  {} ::WS::Server::generateWsdl ${service}
-    ::log::log debug "Installing GenerateWsdl info for $service at $defaults(-prefix)/wsdl"
+    ::log::logsubst debug {Installing GenerateWsdl info for $service at $defaults(-prefix)/wsdl}
     switch -exact -- $mode {
         embedded {
             foreach port $defaults(-ports) {
@@ -339,7 +339,7 @@ proc ::WS::Server::Service {args} {
     ##
     interp alias {} ::WS::Server::callOperation_${service} \
                  {} ::WS::Server::callOperation ${service}
-    ::log::log debug "Installing callOperation info for $service at $defaults(-prefix)/op"
+    ::log::logsubst debug {Installing callOperation info for $service at $defaults(-prefix)/op}
     switch -exact -- $mode {
         embedded {
             foreach port $defaults(-ports) {
@@ -421,9 +421,9 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
     variable procInfo
 
     set name [lindex $nameInfo 0]
-    ::log::log debug "Defining operation $name for $service"
+    ::log::logsubst debug {Defining operation $name for $service}
     set argOrder {}
-    ::log::log debug "\targs are {$arglist}"
+    ::log::logsubst debug {\targs are {$arglist}}
     foreach {arg data} $arglist {
         lappend argOrder $arg
     }
@@ -494,7 +494,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
     array set serviceData $serviceArr($serviceName)
 
     set operList [lsort -dictionary [dict get $procInfo $serviceName operationList]]
-    ::log::log debug "Generating WSDL for $serviceName"
+    ::log::logsubst debug {Generating WSDL for $serviceName}
     if {![info exists serviceArr($serviceName)]} {
         set msg "Unknown service '$serviceName'"
         ::return \
@@ -714,7 +714,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
     array set serviceData $serviceArr($serviceName)
 
     set operList [lsort -dictionary [dict get $procInfo $serviceName operationList]]
-    ::log::log debug "Generating WSDL for $serviceName on $sock with {$args}"
+    ::log::logsubst debug {Generating WSDL for $serviceName on $sock with {$args}}
     if {![info exists serviceArr($serviceName)]} {
         set msg "Unknown service '$serviceName'"
         switch -exact -- $mode {
@@ -901,7 +901,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
     variable serviceArr
     variable procInfo
 
-    ::log::log debug "Generating JSON Documentation for $service on $sock with {$args}"
+    ::log::logsubst debug {Generating JSON Documentation for $service on $sock with {$args}}
     set serviceInfo $serviceArr($service)
     array set serviceData $serviceInfo
     set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
@@ -926,7 +926,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
             $doc string inputs array_open
             
             foreach arg [dict get $procInfo $service op$oper argOrder] {
-                ::log::log debug "\t\t\tDisplaying '$arg'"
+                ::log::logsubst debug {\t\t\tDisplaying '$arg'}
                 if {[dict exists $procInfo $service op$oper argList $arg comment]} {
                     set comment [dict get $procInfo $service op$oper argList $arg comment]
                 } else {
@@ -965,7 +965,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
     $doc string types array_open
     set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
     foreach type [lsort -dictionary [dict keys $localTypeInfo]] {
-        ::log::log debug "\t\tDisplaying '$type'"
+        ::log::logsubst debug {\t\tDisplaying '$type'}
 
         $doc map_open
         $doc string name string $type
@@ -973,7 +973,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         
         set typeDetails [dict get $localTypeInfo $type definition]
         foreach part [lsort -dictionary [dict keys $typeDetails]] {
-            ::log::log debug "\t\t\tDisplaying '$part'"
+            ::log::logsubst debug {\t\t\tDisplaying '$part'}
             set subType [dict get $typeDetails $part type]
             set comment {}
             if {[dict exists $typeDetails $part comment]} {
@@ -1044,7 +1044,7 @@ proc ::WS::Server::generateInfo {service sock args} {
     variable procInfo
     variable mode
 
-    ::log::log debug "Generating HTML Documentation for $service on $sock with {$args}"
+    ::log::logsubst debug {Generating HTML Documentation for $service on $sock with {$args}}
     if {![info exists serviceArr($service)]} {
         set msg "Unknown service '$service'"
         switch -exact -- $mode {
@@ -1282,9 +1282,9 @@ proc ::WS::Server::callOperation {service sock args} {
         set flavor "rest"
     }
 
-    ::log::log debug "In ::WS::Server::callOperation {$service $sock $args}"
+    ::log::logsubst debug {In ::WS::Server::callOperation {$service $sock $args}}
     array set serviceInfo $serviceArr($service)
-    ::log::log debug "\tDocument is {$inXML}"
+    ::log::logsubst debug {\tDocument is {$inXML}}
 
     set ::errorInfo {}
     set ::errorCode {}
@@ -1328,9 +1328,9 @@ proc ::WS::Server::callOperation {service sock args} {
             # parse the XML request
             dom parse $inXML doc
             $doc documentElement top
-            ::log::log debug [list $doc selectNodesNamespaces \
-                                  [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-                                       $service http://$serviceInfo(-host)$serviceInfo(-prefix)]]
+            ::log::logsubst debug {$doc selectNodesNamespaces \
+                    [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
+                    $service http://$serviceInfo(-host)$serviceInfo(-prefix)]}
             $doc selectNodesNamespaces \
                 [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
                      $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
@@ -1346,7 +1346,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 catch {$top nodeName} requestMessage
                 set legacyRpcMode 1
             }
-            ::log::log debug "requestMessage = {$requestMessage}"
+            ::log::logsubst debug {requestMessage = {$requestMessage} legacyRpcMode=$legacyRpcMode}
             if {[string match {*Request} $requestMessage]} {
                 set operation [string range $requestMessage 0 end-7]
             } else {
@@ -1355,6 +1355,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 set operation $requestMessage
                 set legacyRpcMode 1
             }
+            ::log::logsubst debug {operation = '$operation' legacyRpcMode=$legacyRpcMode}
             set contentType "text/xml"
         }
         default {
@@ -1380,7 +1381,7 @@ proc ::WS::Server::callOperation {service sock args} {
         catch {$doc delete}
         set httpStatus 404
         if {$errorCallback ne {}} { $errorCallback "UNKNOWN_METHOD $msg" httpStatus $operation $flavor }
-        ::log::log debug "Leaving @ error 1::WS::Server::callOperation $response"
+        ::log::logsubst debug {Leaving @ error 1::WS::Server::callOperation $response}
 
         # wrap in JSONP
         if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
@@ -1437,7 +1438,7 @@ proc ::WS::Server::callOperation {service sock args} {
                     set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
 
                     if {![info exists rawargs($argName)]} {
-                        ::log::log debug "did not find argument for $argName, leaving blank"
+                        ::log::logsubst debug {did not find argument for $argName, leaving blank}
                         lappend tclArgList {}
                         continue
                     }
@@ -1496,11 +1497,11 @@ proc ::WS::Server::callOperation {service sock args} {
                             incr argIndex
                         }
                         if {[string equal $node {}]} {
-                            ::log::log debug "did not find argument for $argName using $path, leaving blank"
+                            ::log::logsubst debug {did not find argument for $argName using $path, leaving blank (pass $pass)}
                             lappend tclArgList {}
                             continue
                         }
-                        ::log::log debug "found argument $argName using $path, processing $node"
+                        ::log::logsubst debug {found argument $argName using $path, processing $node}
                         set gotAnyArgs 1
                         switch -exact -- $typeInfoList {
                             {0 0} {
@@ -1534,7 +1535,7 @@ proc ::WS::Server::callOperation {service sock args} {
                             }
                         }
                     }
-                    ::log::log debug "gotAnyArgs $gotAnyArgs, legacyRpcMode $legacyRpcMode"
+                    ::log::logsubst debug {gotAnyArgs $gotAnyArgs, legacyRpcMode $legacyRpcMode}
                     if {$gotAnyArgs || !$legacyRpcMode} break
                 }
             }
@@ -1543,7 +1544,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 error "invalid flavor"
             }
         }
-        ::log::log debug "finalargs $tclArgList"
+        ::log::logsubst debug {finalargs $tclArgList}
     } errMsg]} {
         ::log::log error $errMsg
         set localerrorCode $::errorCode
@@ -1557,7 +1558,7 @@ proc ::WS::Server::callOperation {service sock args} {
         catch {$doc delete}
         set httpStatus 400
         if {$errorCallback ne {}} { $errorCallback "INVALID_ARGUMENT $errMsg" httpStatus $operation $flavor }
-        ::log::log debug "Leaving @ error 3::WS::Server::callOperation $response"
+        ::log::logsubst debug {Leaving @ error 3::WS::Server::callOperation $response}
 
         # wrap in JSONP
         if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
@@ -1661,7 +1662,7 @@ proc ::WS::Server::callOperation {service sock args} {
             lappend precmd POST $service $operation OK $results
             catch $precmd
         }
-        ::log::log debug "Leaving ::WS::Server::callOperation $response"
+        ::log::logsubst debug {Leaving ::WS::Server::callOperation $response}
         switch -exact -- $mode {
             tclhttpd {
                 ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response 200
@@ -1708,7 +1709,7 @@ proc ::WS::Server::callOperation {service sock args} {
         catch {$doc delete}
         set httpStatus 500
         if {$errorCallback ne {}} { $errorCallback $msg httpStatus $operation $flavor }
-        ::log::log debug "Leaving @ error 2::WS::Server::callOperation $response"
+        ::log::logsubst debug {Leaving @ error 2::WS::Server::callOperation $response}
 
         # wrap in JSONP
         if {$flavor == "rest" && [info exists rawargs(jsonp_callback)]} {
@@ -1790,7 +1791,7 @@ proc ::WS::Server::callOperation {service sock args} {
 #
 ###########################################################################
 proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flavor} {
-    ::log::log debug "Entering ::WS::Server::generateError $faultcode $faultstring {$detail}"
+    ::log::logsubst debug {Entering ::WS::Server::generateError $faultcode $faultstring {$detail}}
     set code [lindex $detail 1]
     switch -exact -- $code {
         "VersionMismatch" {
@@ -1857,7 +1858,7 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flav
             error "unsupported flavor"
         }
     }
-    ::log::log debug "Leaving (error) ::WS::Server::generateError $response"
+    ::log::logsubst debug {Leaving (error) ::WS::Server::generateError $response}
     return $response
 }
 
@@ -1902,7 +1903,7 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flav
 #
 ###########################################################################
 proc ::WS::Server::generateReply {serviceName operation results flavor} {
-    ::log::log debug "Entering ::WS::Server::generateReply $serviceName $operation {$results}"
+    ::log::logsubst debug {Entering ::WS::Server::generateReply $serviceName $operation {$results}}
 
     variable serviceArr
 
@@ -1964,7 +1965,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
         }
     }
 
-    ::log::log debug "Leaving ::WS::Server::generateReply $output"
+    ::log::logsubst debug {Leaving ::WS::Server::generateReply $output}
     return $output
 
 }
@@ -2215,7 +2216,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
 
     set docFormat [dict get $serviceInfo -docFormat]
     foreach {oper anchor} $operList {
-        ::log::log debug "\t\tDisplaying '$oper'"
+        ::log::logsubst debug {\t\tDisplaying '$oper'}
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
 
         append msg [::html::h4 {Description}] "\n"
@@ -2242,7 +2243,7 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
             append msg [::html::openTag {table} {border="2"}]
             append msg [::html::hdrRow Name Type Description]
             foreach arg [dict get $procInfo $service op$oper argOrder] {
-                ::log::log debug "\t\t\tDisplaying '$arg'"
+                ::log::logsubst debug {\t\t\tDisplaying '$arg'}
                 if {[dict exists $procInfo $service op$oper argList $arg comment]} {
                     set comment [dict get $procInfo $service op$oper argList $arg comment]
                 } else {
@@ -2344,7 +2345,7 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
 
     set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
     foreach type [lsort -dictionary [dict keys $localTypeInfo]] {
-        ::log::log debug "\t\tDisplaying '$type'"
+        ::log::logsubst debug {\t\tDisplaying '$type'}
         set href_type [lindex [split $type :] end]
         set typeOverloadArray($type) 1
         append msg [::html::h3 "<a id='type_${href_type}'>$type</a>"]
@@ -2352,7 +2353,7 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
         append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Field Type Comment]
         foreach part [lsort -dictionary [dict keys $typeDetails]] {
-            ::log::log debug "\t\t\tDisplaying '$part'"
+            ::log::logsubst debug {\t\t\tDisplaying '$part'}
             if {[dict exists $typeDetails $part comment]} {
                 set comment [dict get $typeDetails $part comment]
             } else {
@@ -2428,13 +2429,13 @@ proc ::WS::Server::generateSimpleTypeInfo {serviceInfo menuList} {
     set localTypeInfo [::WS::Utils::GetServiceSimpleTypeDef Server $service]
     foreach typeDetails [lsort -dictionary -index 0 $localTypeInfo] {
         set type [lindex $typeDetails 0]
-        ::log::log debug "\t\tDisplaying '$type'"
+        ::log::logsubst debug {\t\tDisplaying '$type'}
         set typeOverloadArray($type) 1
         append msg [::html::h3 "<a id='type_$type'>$type</a>"]
         append msg [::html::openTag {table} {border="2"}]
         append msg [::html::hdrRow Attribute Value]
         foreach part [lsort -dictionary [dict keys [lindex $typeDetails 1]]] {
-            ::log::log debug "\t\t\tDisplaying '$part'"
+            ::log::logsubst debug {\t\t\tDisplaying '$part'}
             append msg [::html::row \
                             $part \
                             [dict get [lindex $typeDetails 1] $part]

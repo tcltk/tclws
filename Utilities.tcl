@@ -59,21 +59,12 @@ package require log
 
 # Emulate the log::logsubst command introduced in log 1.4
 if {![llength [info command ::log::logsubst]]} {
-    if {![llength [info command ::tailcall]]} {
-        proc ::log::logsubst {level text} {
-            if {[::log::lvIsSuppressed $level]} {
-                return
-            }
-            ::log::log $level [uplevel 1 [list subst $text]]
-        }
-    } else {
-        proc ::log::logsubst {level text} {
-            if {[::log::lvIsSuppressed $level]} {
-                return
-            }
-            tailcall ::log::log $level [uplevel 1 [list subst $text]]
-        }
-    }
+	proc ::log::logsubst {level text} {
+		if {[::log::lvIsSuppressed $level]} {
+			return
+		}
+		::log::log $level [uplevel 1 [list subst $text]]
+	}
 }
 
 package require tdom 0.8
