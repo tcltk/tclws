@@ -3256,7 +3256,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
             #parray $token
             ::http::wait $token
             set ncode [::http::ncode $token]
-            puts "returned code {$ncode}"
+            ::log::log debug "returned code {$ncode}"
             set xml [::http::data $token]
             ::http::cleanup $token
             if {($ncode != 200) && [string equal $options(includeDirectory) {}]} {
