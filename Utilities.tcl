@@ -762,6 +762,7 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     upvar 1 $serviceInfoVar serviceInfo
     upvar 1 $tnsCountVar tnsCount
     variable currentSchema
+    variable nsList
     variable xsltSchemaDom
 
     set first [string first {<} $xml]
