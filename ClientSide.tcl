@@ -3252,7 +3252,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #
 ###########################################################################
 proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inName serviceInfoVar style} {
-    ::log:::log debug "Enteringing [info level 0]"
+    ::log:::log debug "Entering [info level 0]"
     upvar 1 $serviceInfoVar serviceInfo
 
     set inType {}
@@ -3347,7 +3347,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
 ###########################################################################
 proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceInfoVar style} {
     upvar 1 $serviceInfoVar serviceInfo
-    ::log:::log debug "Enteringing [info level 0]"
+    ::log:::log debug "Entering [info level 0]"
 
     #puts "Message to Type $serviceName $operName $msgName"
 
