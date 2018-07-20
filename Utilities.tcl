@@ -59,12 +59,12 @@ package require log
 
 # Emulate the log::logsubst command introduced in log 1.4
 if {![llength [info command ::log::logsubst]]} {
-	proc ::log::logsubst {level text} {
-		if {[::log::lvIsSuppressed $level]} {
-			return
-		}
-		::log::log $level [uplevel 1 [list subst $text]]
-	}
+    proc ::log::logsubst {level text} {
+        if {[::log::lvIsSuppressed $level]} {
+            return
+        }
+        ::log::log $level [uplevel 1 [list subst $text]]
+    }
 }
 
 package require tdom 0.8
@@ -754,6 +754,7 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+#   2.6.1  07/20/2018  A.Goth       Correct variable access problems
 #
 #
 ###########################################################################
@@ -1622,7 +1623,7 @@ proc ::WS::Utils::convertTypeToDict {
                         # partType is now tns::EnvelopeN
                         set partType [XNSDistantToLocal $xnsDistantToLocalDict\
                                 [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]]
-                        
+
                         # Remove this type attribute from the snippet.
                         # So, it is not handled in the loop below.
                         $item removeAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type
@@ -2186,7 +2187,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
     } else {
         set typeName $type
     }
-	set itemList {}
+    set itemList {}
     if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
         set itemList [dict get $typeInfo $mode $service $typeName definition]
         set xns [dict get $typeInfo $mode $service $typeName xns]
@@ -3475,10 +3476,10 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                 ##  <xs:complexType name="Geometry">
                 ##    <xs:annotation><xs:documentation /></xs:annotation>
                 ##  </xs:complexType>
-                
+
                 set isComplexContent [expr {$middle eq "complexContent"}]
                 ::log::logsubst debug {isComplexContent = $isComplexContent}
-                
+
                 ##
                 ## Loop over the components of the type
                 ##
@@ -5002,7 +5003,7 @@ proc ::WS::Utils::geturl_fetchbody {args} {
         set bodyAlwaysOk [lindex $args 1]
         set args [lrange $args 2 end]
     }
-    
+
     set token [eval ::WS::Utils::geturl_followRedirects $args]
     ::http::wait $token
     if {[::http::status $token] eq {ok}} {
