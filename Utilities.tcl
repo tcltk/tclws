@@ -314,7 +314,7 @@ proc ::WS::Utils::SetOption {args} {
         if {[info exists options($opt)]} {
             return $options($opt)
         } else {
-            ::log::logsubst debug {Unkown option {$opt}}
+            ::log::logsubst debug {Unknown option {$opt}}
             return \
                 -code error \
                 -errorcode [list WS CLIENT UNKOPTION $opt] \
@@ -327,7 +327,7 @@ proc ::WS::Utils::SetOption {args} {
                 ::log::logsubst debug {Setting Option {$opt} to {$value}}
                 set options($opt) $value
             } else {
-                ::log::logsubst debug {Unkown option {$opt}}
+                ::log::logsubst debug {Unknown option {$opt}}
                 return \
                     -code error \
                     -errorcode [list WS CLIENT UNKOPTION $opt] \
@@ -2818,7 +2818,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     variable currentSchema
     variable nsList
     variable options
-    variable unkownRef
+    variable unknownRef
 
     set currentSchema $schemaNode
     set tmpTargetNs $::WS::Utils::targetNs
@@ -2880,12 +2880,12 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     ##
     set pass 1
     set lastUnknownRefCount 0
-    array unset unkownRef
-    while {($pass == 1) || ($lastUnknownRefCount != [array size unkownRef])} {
+    array unset unknownRef
+    while {($pass == 1) || ($lastUnknownRefCount != [array size unknownRef])} {
         ::log::logsubst debug  {Pass $pass over schema}
         incr pass
-        set lastUnknownRefCount [array size unkownRef]
-        array unset unkownRef
+        set lastUnknownRefCount [array size unknownRef]
+        array unset unknownRef
 
         foreach element [$schemaNode selectNodes -namespaces $nsList xs:import] {
             if {[catch {processImport $mode $baseUrl $element $serviceName serviceInfo tnsCount} msg]} {
@@ -2932,8 +2932,8 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    set lastUnknownRefCount [array size unkownRef]
-    foreach {unkRef usedByTypeList} [array get unkownRef] {
+    set lastUnknownRefCount [array size unknownRef]
+    foreach {unkRef usedByTypeList} [array get unknownRef] {
         foreach usedByType $usedByTypeList {
             switch -exact -- $options(StrictMode) {
                 debug -
@@ -2953,7 +2953,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
             debug -
             warning {
                 set ::WS::Utils::targetNs $tmpTargetNs
-                ::log::logsubst $options(StrictMode) {Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]}
+                ::log::logsubst $options(StrictMode) {Found $lastUnknownRefCount forward type references: [join [array names unknownRef] {,}]}
             }
             error -
             default {
@@ -2961,7 +2961,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
-                    "Found $lastUnknownRefCount forward type references: [join [array names unkownRef] {,}]"
+                    "Found $lastUnknownRefCount forward type references: [join [array names unknownRef] {,}]"
             }
         }
     }
@@ -3331,7 +3331,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     upvar 1 $dictVar results
     variable currentSchema
     variable nsList
-    variable unkownRef
+    variable unknownRef
     variable defaultType
 
     ::log::logsubst debug {Entering [info level 0]}
@@ -3409,7 +3409,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         }
                         lappend partList $partName [list type $partType]
                     }]} {
-                        lappend unkownRef($partType) $typeName
+                        lappend unknownRef($partType) $typeName
                         return \
                             -code error \
                             -errorcode [list WS $mode UNKREF [list $typeName $partType]] \
@@ -3624,7 +3624,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
 ###########################################################################
 proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
     variable currentSchema
-    variable unkownRef
+    variable unknownRef
     variable nsList
     variable defaultType
     variable options
@@ -3684,7 +3684,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 ::log::logsubst debug {\t baseInfo is {$baseInfo}}
                 if {[llength $baseInfo] == 0} {
                     ::log::logsubst debug {\t Unknown reference '$baseName'}
-                    set unkownRef($baseName) 1
+                    set unknownRef($baseName) 1
                     return;
                 }
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
@@ -3886,7 +3886,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     upvar 1 $dictVar results
     variable importedXref
     variable nsList
-    variable unkownRef
+    variable unknownRef
 
     ::log::logsubst debug {Entering [info level 0]}
 
@@ -3961,7 +3961,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                     }
                 }
             } msg]} {
-                lappend unkownRef($partType) $typeName
+                lappend unknownRef($partType) $typeName
                 log::logsubst debug {Unknown ref {$partType,$typeName} error: {$msg} trace: $::errorInfo}
                 return \
                     -code error \
