@@ -151,6 +151,58 @@ namespace eval ::WS::Client {
 }
 
 
+
+# BEGIN Andy Goth hacks -------------------------------------------------------
+
+if {0} {
+    package require log
+    package require WS::Client
+    #log::lvSuppress debug 0
+    WS::Client::GetAndParseWsdl https://coverity.labs.quest.com/ws/v9/configurationservice?wsdl
+    WS::Client::GetAndAddXsdTypes ConfigurationServiceService http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd 
+    WS::Client::AddInputHeader ConfigurationServiceService getVersion wsse:Security {
+        wsse:UsernameToken {wsse:Username foo wsse:Password bar}
+    }
+}
+
+proc ::WS::Client::GetAndAddXsdTypes {serviceName url {headers {}}} {
+    switch -- [dict get [::uri::split $url] scheme] {
+    file {
+        upvar #0 [::uri::geturl $url] token
+        set xsd $token(data)
+        unset token
+    } http - https {
+        if {[llength $headers]} {
+            set xsd [::WS::Utils::geturl_fetchbody $url -headers $headers]
+        } else {
+            set xsd [::WS::Utils::geturl_fetchbody $url]
+        }
+        # HACK?? convert from UTF-8? shouldn't this have already been handled?
+        set xsd [encoding convertfrom utf-8 $xsd]
+    } default {
+        return \
+            -code error \
+            -errorcode [list WS CLIENT UNKURLTYP $url] \
+            "Unknown URL type '$url'"
+    }}
+
+    AddXsdTypes $serviceName $xsd $url
+}
+
+proc ::WS::Client::AddXsdTypes {serviceName xsd baseUrl} {
+    variable serviceArr
+
+    dom parse $xsd doc
+    $doc documentElement node
+    set tnsCount [llength [dict keys\
+            [dict get $serviceArr($serviceName) tnsList url]]]
+    ::WS::Utils::parseScheme Client $baseUrl $node $serviceName\
+            serviceArr($serviceName) tnsCount
+    $doc delete
+}
+
+# END Andy Goth hacks ---------------------------------------------------------
+
 ###########################################################################
 #
 # Public Procedure Header - as this procedure is modified, please be sure

@@ -2823,7 +2823,9 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     variable unknownRef
 
     set currentSchema $schemaNode
-    set tmpTargetNs $::WS::Utils::targetNs
+    if {[info exists ::WS::Utils::targetNs]} {
+        set tmpTargetNs $::WS::Utils::targetNs
+    }
     foreach attr [$schemaNode attributes] {
         set value {?}
         catch {set value [$schemaNode getAttribute $attr]}
@@ -2954,12 +2956,20 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         switch -exact -- $options(StrictMode) {
             debug -
             warning {
-                set ::WS::Utils::targetNs $tmpTargetNs
+                if {[info exists tmpTargetNs]} {
+                    set ::WS::Utils::targetNs $tmpTargetNs
+                } else {
+                    unset -nocomplain ::WS::Utils::targetNs
+                }
                 ::log::logsubst $options(StrictMode) {Found $lastUnknownRefCount forward type references: [join [array names unknownRef] {,}]}
             }
             error -
             default {
-                set ::WS::Utils::targetNs $tmpTargetNs
+                if {[info exists tmpTargetNs]} {
+                    set ::WS::Utils::targetNs $tmpTargetNs
+                } else {
+                    unset -nocomplain ::WS::Utils::targetNs
+                }
                 return \
                     -code error \
                     -errorcode [list WS $mode UNKREFS [list $lastUnknownRefCount]] \
@@ -2994,7 +3004,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     ::log::logsubst error {\t error info: $errorInfo}
                     ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
                     ::log::logsubst error {\t error code: $errorCode}
-                    set ::WS::Utils::targetNs $tmpTargetNs
+                    if {[info exists tmpTargetNs]} {
+                        set ::WS::Utils::targetNs $tmpTargetNs
+                    } else {
+                        unset -nocomplain ::WS::Utils::targetNs
+                    }
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -3025,7 +3039,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     ::log::logsubst error {\t last element: $::elementName}
                     ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
                     ::log::logsubst error {\t error code: $errorCode}
-                    set ::WS::Utils::targetNs $tmpTargetNs
+                    if {[info exists tmpTargetNs]} {
+                        set ::WS::Utils::targetNs $tmpTargetNs
+                    } else {
+                        unset -nocomplain ::WS::Utils::targetNs
+                    }
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -3056,7 +3074,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
                     ::log::logsubst error {\t error code: $errorCode}
                     ::log::logsubst error {\t last element: $::elementName}
-                    set ::WS::Utils::targetNs $tmpTargetNs
+                    if {[info exists tmpTargetNs]} {
+                        set ::WS::Utils::targetNs $tmpTargetNs
+                    } else {
+                        unset -nocomplain ::WS::Utils::targetNs
+                    }
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -3086,7 +3108,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     ::log::logsubst error {\t error info: $errorInfo}
                     ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
                     ::log::logsubst error {\t error code: $errorCode}
-                    set ::WS::Utils::targetNs $tmpTargetNs
+                    if {[info exists tmpTargetNs]} {
+                        set ::WS::Utils::targetNs $tmpTargetNs
+                    } else {
+                        unset -nocomplain ::WS::Utils::targetNs
+                    }
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -3116,7 +3142,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
                     ::log::logsubst error {\t error info: $errorInfo}
                     ::log::logsubst error {\t error in: [lindex [info level 0] 0]}
                     ::log::logsubst error {\t error code: $errorCode}
-                    set ::WS::Utils::targetNs $tmpTargetNs
+                    if {[info exists tmpTargetNs]} {
+                        set ::WS::Utils::targetNs $tmpTargetNs
+                    } else {
+                        unset -nocomplain ::WS::Utils::targetNs
+                    }
                     return \
                         -code error \
                         -errorcode $errorCode \
@@ -3127,7 +3157,11 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
         }
     }
 
-    set ::WS::Utils::targetNs $tmpTargetNs
+    if {[info exists tmpTargetNs]} {
+        set ::WS::Utils::targetNs $tmpTargetNs
+    } else {
+        unset -nocomplain ::WS::Utils::targetNs
+    }
     ::log::logsubst debug {Leaving :WS::Utils::parseScheme $mode $baseUrl $schemaNode $serviceName $serviceInfoVar $tnsCountVar}
     ::log::logsubst debug {Target NS is now: $::WS::Utils::targetNs}
     dict set serviceInfo tnsList tns $prevTnsDict
