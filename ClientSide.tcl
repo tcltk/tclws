@@ -2929,7 +2929,7 @@ proc ::WS::Client::parseService {wsdlNode serviceNode serviceAlias tnsDict} {
 #
 ###########################################################################
 proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
-    ::log:::log debug "Entering [info level 0]"
+    ::log::log debug "Entering [info level 0]"
 
     upvar 1 $serviceInfoVar serviceInfo
 
@@ -2937,11 +2937,11 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
     set tnsCount [llength [dict keys [dict get $serviceInfo tnsList url]]]
     set baseUrl [dict get $serviceInfo location]
     foreach schemaNode [$wsdlNode selectNodes w:types/xs:schema] {
-        ::log:::log debug "Parsing node $schemaNode"
+        ::log::log debug "Parsing node $schemaNode"
         ::WS::Utils::parseScheme Client $baseUrl $schemaNode $serviceName serviceInfo tnsCount
     }
 
-    ::log:::log debug "Leaving [lindex [info level 0] 0]"
+    ::log::log debug "Leaving [lindex [info level 0] 0]"
 }
 
 ###########################################################################
@@ -2988,7 +2988,7 @@ proc ::WS::Client::parseTypes {wsdlNode serviceName serviceInfoVar} {
 #
 ###########################################################################
 proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar} {
-    ::log:::log debug "Entering [info level 0]"
+    ::log::log debug "Entering [info level 0]"
     upvar 1 $serviceInfoVar serviceInfo
     variable options
 
@@ -2997,7 +2997,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
     foreach binding [$wsdlNode selectNodes $bindQuery] {
         array unset msgToOper *
         set portName [lindex [split [$binding  getAttribute type] {:}] end]
-        ::log:::log debug "\t Processing binding '$bindingName' on port '$portName'"
+        ::log::log debug "\t Processing binding '$bindingName' on port '$portName'"
         set operList [$binding selectNodes w:operation]
         set styleNode [$binding selectNodes d:binding]
         if {![info exists style]} {
@@ -3007,7 +3007,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     ##
                     ## This binding is for a SOAP level other than 1.1
                     ##
-                    ::log:::log debug "Skiping non-SOAP 1.1 binding [$binding asXML]"
+                    ::log::log debug "Skiping non-SOAP 1.1 binding [$binding asXML]"
                     continue
                 }
                 set style [$styleNode getAttribute style]
@@ -3017,7 +3017,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 #puts "Using style for first binding {$style}"
             }
             if {!($style eq {document} || $style eq {rpc} )} {
-                ::log:::log debug "Leaving [lindex [info level 0] 0] with error @1"
+                ::log::log debug "Leaving [lindex [info level 0] 0] with error @1"
                 return \
                     -code error \
                     -errorcode [list WS CLIENT UNSSTY $style] \
@@ -3028,7 +3028,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 set use [[$binding selectNodes {w:operation[1]/w:input/d:body}] getAttribute use]
                 if {!($style eq {document} && $use eq {literal} ) &&
                     !($style eq {rpc} && $use eq {encoded} )} {
-                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @2"
+                    ::log::log debug "Leaving [lindex [info level 0] 0] with error @2"
                     return \
                         -code error \
                         -errorcode [list WS CLIENT UNSMODE $use] \
@@ -3045,7 +3045,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
         foreach oper $operList {
             set operName [$oper getAttribute name]
             set baseName $operName
-            ::log:::log debug "\t Processing operation '$operName'"
+            ::log::log debug "\t Processing operation '$operName'"
 
             ##
             ## Check for overloading
@@ -3089,7 +3089,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             #puts "Processing operation $operName"
             set actionNode [$oper selectNodes d:operation]
             if {$actionNode eq {}} {
-                ::log:::log debug "Skiping operation with no action [$oper asXML]"
+                ::log::log debug "Skiping operation with no action [$oper asXML]"
                 continue
             }
             dict lappend serviceInfo operList $operName
@@ -3117,14 +3117,14 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 ##set part [$inHeader getAttribute part]
                 set tmp [$inHeader getAttribute use]
                 if {$tmp ne $use} {
-                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @3"
+                    ::log::log debug "Leaving [lindex [info level 0] 0] with error @3"
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
                 set msgName [$inHeader getAttribute message]
-                ::log:::log debug [list messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
+                ::log::log debug [list messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
                 set type [messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
                 lappend soapRequestHeaderList $type
             }
@@ -3141,7 +3141,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 ##set part [$outHeader getAttribute part]
                 set tmp [$outHeader getAttribute use]
                 if {$tmp ne $use} {
-                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @4"
+                    ::log::log debug "Leaving [lindex [info level 0] 0] with error @4"
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
@@ -3149,7 +3149,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                 }
                 set messagePath [$outHeader getAttribute message]
                 set msgName [lindex [split $messagePath {:}] end]
-                ::log:::log debug [list messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
+                ::log::log debug [list messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
                 set type [messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
                 lappend soapReplyHeaderList $type
             }
@@ -3164,14 +3164,14 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
             catch {set outUse [[$oper selectNodes w:output/d:body] getAttribute use]}
             foreach tmp [list $inUse $outUse] {
                 if {$tmp ne $use} {
-                    ::log:::log debug "Leaving [lindex [info level 0] 0] with error @5"
+                    ::log::log debug "Leaving [lindex [info level 0] 0] with error @5"
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
                         "Mixed usageage not supported!'"
                 }
             }
-            ::log:::log debug "\t Input/Output types and names are {$typeNameList}"
+            ::log::log debug "\t Input/Output types and names are {$typeNameList}"
             foreach {type name} $typeNameList mode {inputs outputs} {
                 dict set serviceInfo operation $operName $mode $type
                 # also set outputsname which is used to match it as alternate response node name
@@ -3200,7 +3200,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
         }
     }
 
-    ::log:::log debug "Leaving [lindex [info level 0] 0]"
+    ::log::log debug "Leaving [lindex [info level 0] 0]"
 }
 
 ###########################################################################
@@ -3252,7 +3252,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
 #
 ###########################################################################
 proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inName serviceInfoVar style} {
-    ::log:::log debug "Entering [info level 0]"
+    ::log::log debug "Entering [info level 0]"
     upvar 1 $serviceInfoVar serviceInfo
 
     set inType {}
@@ -3267,12 +3267,12 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
         set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']/w:input[attribute::name='%s']/parent::*} \
                         $portName $operName $inName]
     }
-    ::log:::log debug "\t operNode query is {$operQuery}"
+    ::log::log debug "\t operNode query is {$operQuery}"
     set operNode [$wsdlNode selectNodes $operQuery]
     if {$operNode eq {} && $inName ne {}} {
         set operQuery [format {w:portType[attribute::name='%s']/w:operation[attribute::name='%s']} \
                         $portName $operName]
-        ::log:::log debug "\t operNode query is {$operQuery}"
+        ::log::log debug "\t operNode query is {$operQuery}"
         set operNode [$wsdlNode selectNodes $operQuery]
     }
 
@@ -3299,7 +3299,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
     ##
     ## Return the types
     ##
-    ::log:::log debug "Leaving [lindex [info level 0] 0] with $resList"
+    ::log::log debug "Leaving [lindex [info level 0] 0] with $resList"
     return $resList
 }
 
@@ -3347,7 +3347,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
 ###########################################################################
 proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceInfoVar style} {
     upvar 1 $serviceInfoVar serviceInfo
-    ::log:::log debug "Entering [info level 0]"
+    ::log::log debug "Entering [info level 0]"
 
     #puts "Message to Type $serviceName $operName $msgName"
 
@@ -3369,7 +3369,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
         document/literal {
             set partNode [$msg selectNodes w:part]
             set partNodeCount [llength $partNode]
-            ::log:::log debug  "partNodeCount = {$partNodeCount}"
+            ::log::log debug  "partNodeCount = {$partNodeCount}"
             if {$partNodeCount == 1} {
                 if {[$partNode hasAttribute element]} {
                     set type [::WS::Utils::getQualifiedType $serviceInfo [$partNode getAttribute element] tns1]
@@ -3422,7 +3422,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
     ##
     ## Return the type name
     ##
-    ::log:::log debug "Leaving [lindex [info level 0] 0] with {$type}"
+    ::log::log debug "Leaving [lindex [info level 0] 0] with {$type}"
     return $type
 }
 

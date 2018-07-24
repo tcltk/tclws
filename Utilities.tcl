@@ -3524,7 +3524,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                                 ## Found extension, but it is an empty type
                                 ##
                             } else {
-                                ::log:::log debug  "Unknown extension!"
+                                ::log::log debug  "Unknown extension!"
                                 return
                             }
                         }
@@ -3554,7 +3554,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
     if {[llength $partList] || $isAbstractType} {
         #dict set results types $tns:$typeName $partList
         dict set results types $typeName $partList
-        ::log:::logsubst debug  {Defining $typeName as '$partList'}
+        ::log::logsubst debug  {Defining $typeName as '$partList'}
         ##
         ## Add complex type definition, if:
         ##   *  there is a part list
