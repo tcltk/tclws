@@ -198,7 +198,7 @@ namespace eval ::WS::Client {
 #                                   given. Options -globalonly or -defaultonly
 #                                   limit this to options which are (not)
 #                                   copied to the service.
-#                                   
+#
 ###########################################################################
 proc ::WS::Client::SetOption {args} {
     variable options
@@ -207,7 +207,7 @@ proc ::WS::Client::SetOption {args} {
         return [array get options]
     }
     set args [lassign $args option]
-    
+
     switch -exact -- $option {
         -globalonly {
             ##
@@ -404,7 +404,7 @@ proc ::WS::Client::Config {args} {
 
     set validOptionList $serviceLocalOptionsList
     lappend validOptionList location targetNamespace
-    
+
     if {0 == [llength $args]} {
         # A list convertible to a dict is build for performance reasons:
         # - lappend does not test existence for each element
@@ -419,7 +419,7 @@ proc ::WS::Client::Config {args} {
             }
         }
         return $res
-    }    
+    }
     set args [lassign $args serviceName]
     if {0 == [llength $args]} {
         set res {}
@@ -428,7 +428,7 @@ proc ::WS::Client::Config {args} {
         }
         return $res
     }
-    
+
     set args [lassign $args item]
     if { $item ni $validOptionList } {
         return -code error "Uknown option '$item' -- must be one of: [join $validOptionList {, }]"
@@ -1014,7 +1014,7 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 #                       cannot be corrupted.
 #                       This is an optional argument and defaults to {}.
 #       serviceAlias  - Alias (unique) name for service.
-#                       This is an optional argument and defaults to the name 
+#                       This is an optional argument and defaults to the name
 #                       of the service in serviceInfo.
 #       serviceNumber - Number of service within the WSDL to assign the
 #                       serviceAlias to. Only usable with a serviceAlias.
@@ -1205,14 +1205,14 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     ##
     ## the top node is always used
     set NSDefinitionNodeList [list $wsdlNode]
-    
+
     ##
     ## get namespace definitions in element nodes
     ##
     ## Element nodes may declare namespaces inline like:
     ## <xs:element xmlns:q1="myURI" type="q1:MessageQ1"/>
     ## ticket [dcce437d7a]
-    
+
     # This is only done, if option inlineElementNS is set in the default
     # options. Service dependent options may not be used at this stage,
     # as serviceArr is not created jet (Client::Config will fail) and the
@@ -1223,7 +1223,7 @@ proc ::WS::Client::ParseWsdl {wsdlXML args} {
     foreach elemNode $NSDefinitionNodeList {
         # Get list of xmlns attributes
         # This list looks for the example like: {{q1 q1 {}} ... }
-        set xmlnsAttributes [$elemNode attributes xmlns:*] 
+        set xmlnsAttributes [$elemNode attributes xmlns:*]
         # Loop over found namespaces
         foreach itemList $xmlnsAttributes {
             set ns [lindex $itemList 0]
@@ -1482,11 +1482,11 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $operationName]] \
             "Unknown operation '$operationName' for service '$serviceName'"
     }
-    
+
     ##
     ## build query
     ##
-    
+
     set url [dict get $serviceInfo location]
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildCallquery $serviceName $operationName $url $argList]} err]} {
@@ -1501,11 +1501,11 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     if {[dict exists $serviceInfo operation $operationName action]} {
         lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
-    
+
     ##
     ## do http call
     ##
-    
+
     if {[llength $headers]} {
         set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
@@ -2201,7 +2201,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
         }
     }
     ::log::logsubst debug {Server to Client prefix dict: $xnsDistantToLocalDict}
-    
+
     ##
     ## Get body tag
     ##
@@ -2259,7 +2259,7 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {[dict exists $serviceInfo operation $operationName outputsname]} {
         lappend nodeNameCandidateList [dict get $serviceInfo operation $operationName outputsname]
     }
-    
+
     set rootNodeList [$body childNodes]
     ::log::logsubst debug {Have [llength $rootNodeList] node under Body}
     foreach rootNodeCur $rootNodeList {
@@ -3275,7 +3275,7 @@ proc ::WS::Client::getTypesForPort {wsdlNode serviceName operName portName inNam
         ::log:::log debug "\t operNode query is {$operQuery}"
         set operNode [$wsdlNode selectNodes $operQuery]
     }
-    
+
     set resList {}
     foreach sel {w:input w:output} defaultNameSuffix {Request Response} {
         set nodeList [$operNode selectNodes $sel]
@@ -3503,11 +3503,11 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
             -errorcode [list WS CLIENT UNKOPER [list $serviceName $objectName $operationName]] \
             "Unknown operation '$operationName' for object '$objectName' of service '$serviceName'"
     }
-    
+
     ##
     ## build call query
     ##
-    
+
     if {$location ne {}} {
         set url $location
     } else {
@@ -3523,11 +3523,11 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
-    
+
     ##
     ## do http call
     ##
-    
+
     if {[llength $headers]} {
         set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
     } else {
@@ -3619,22 +3619,22 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     } else {
         set url [dict get $serviceInfo object $objectName location]
     }
-    
+
     ##
     ## build call query
     ##
-    
+
     SaveAndSetOptions $serviceName
     if {[catch {set query [buildRestCallquery $serviceName $objectName $operationName $url $argList]} err]} {
         RestoreSavedOptions $serviceName
         return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
     }
     RestoreSavedOptions $serviceName
-    
+
     ##
     ## Do http call
     ##
-    
+
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
@@ -3647,7 +3647,7 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     ##
     ## Parse results
     ##
-    
+
     SaveAndSetOptions $serviceName
     if {[catch {
         parseRestResults $serviceName $objectName $operationName $body
