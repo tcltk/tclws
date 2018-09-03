@@ -754,9 +754,10 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
-#   2.6.1  07/20/2018  A.Goth       Correct variable access problems.
-#                                   Bug introduced 2015-05-24 Checkin [9c7e118edb]
-#
+#   2.6.1  07/20/2018  A.Goth       Correct variable access problems. Ticket [7bb1cd7b43]
+#                                   Corrected access of right document. Ticket [61fd346dc3]
+#                                   Bugs introduced 2015-05-24 Checkin [9c7e118edb]
+#          2018-09-03  H.Oehlmann   Replaced stderr error print by error log.
 #
 ###########################################################################
 proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar tnsCountVar} {
@@ -786,10 +787,7 @@ proc ::WS::Utils::ProcessImportXml {mode baseUrl xml serviceName serviceInfoVar 
     }
     $doc documentElement schema
     if {[catch {ProcessIncludes $schema $baseUrl} errMsg]} {
-        puts stderr "Error processing include $schema $baseUrl"
-        puts stderr $::errorInfo
-        puts stderr $::errorCode
-        puts stderr $errMsg
+	::log::log error "Error processing include $schema $baseUrl: $errMsg"
     }
 
     set prevSchema $currentSchema
