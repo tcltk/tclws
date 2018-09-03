@@ -70,7 +70,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.6.0
+package provide WS::Utils 2.6.1
 
 namespace eval ::WS {}
 
@@ -754,7 +754,8 @@ proc ::WS::Utils::GetServiceSimpleTypeDef {mode service {type {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
-#   2.6.1  07/20/2018  A.Goth       Correct variable access problems
+#   2.6.1  07/20/2018  A.Goth       Correct variable access problems.
+#                                   Bug introduced 2015-05-24 Checkin [9c7e118edb]
 #
 #
 ###########################################################################
