@@ -70,7 +70,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.6.1
+package provide WS::Utils 2.6.2
 
 namespace eval ::WS {}
 
@@ -3392,7 +3392,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                         ##
                         ## Convert the reference to the local tns space
                         ##
-                        set partType  [getQualifiedType $results $partType $tns]
+                        set partType [getQualifiedType $results $partType $tns $middleNode]
                         set refTypeInfo [GetServiceTypeDef $mode $serviceName $partType]
                         set refTypeInfo [dict get $refTypeInfo definition]
                         set tmpList [dict keys $refTypeInfo]
@@ -3406,7 +3406,7 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                                 ##
                                 set partName [lindex [dict keys $refTypeInfo] 0]
                             }
-                            set partType [getQualifiedType $results [dict get $refTypeInfo $partName type] $tns]
+                            set partType [getQualifiedType $results [dict get $refTypeInfo $partName type] $tns $middleNode]
                         }
                         lappend partList $partName [list type $partType]
                     }]} {
@@ -3418,7 +3418,8 @@ proc ::WS::Utils::parseComplexType {mode dictVar serviceName node tns} {
                     }
                 } else {
                     set partName [$middleNode getAttribute name]
-                    set partType [string trimright [getQualifiedType $results [$middleNode getAttribute type string:string] $tns] {?}]
+                    set partType [string trimright \
+                        [getQualifiedType $results [$middleNode getAttribute type string:string] $tns $middleNode] {?}]
                     set partMax [$middleNode getAttribute maxOccurs 1]
                     if {$partMax <= 1} {
                         lappend partList $partName [list type $partType comment $comment]
@@ -3645,7 +3646,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
         element {
             catch {
                 set partName [$node getAttribute name]
-                set partType [string trimright [getQualifiedType $results [$node getAttribute type string] $tns] {?}]
+                set partType [string trimright [getQualifiedType $results [$node getAttribute type string] $tns $node] {?}]
                 set partMax [$node getAttribute maxOccurs 1]
                 if {$partMax <= 1} {
                     set partList [list $partName [list type $partType comment {}]]
@@ -3655,7 +3656,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
             }
         }
         extension {
-            set baseName [getQualifiedType $results [$node getAttribute base string] $tns]
+            set baseName [getQualifiedType $results [$node getAttribute base string] $tns $node]
             set baseTypeInfo [TypeInfo Client $serviceName $baseName]
             ::log::logsubst debug {\t base name of extension is {$baseName} with typeinfo {$baseTypeInfo}}
             if {[lindex $baseTypeInfo 0]} {
@@ -3753,10 +3754,10 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                                   set partType [dict get $additional_defininition_elements baseType]
                                 }
                             } else {
-                                set partType [getQualifiedType $results [$element getAttribute type string] $tns]
+                                set partType [getQualifiedType $results [$element getAttribute type string] $tns $element]
                             }
                         } else {
-                            set partType [getQualifiedType $results [$element getAttribute type string] $tns]
+                            set partType [getQualifiedType $results [$element getAttribute type string] $tns $element]
                         }
                     }
                     if {[string length $occurs]} {
@@ -3902,7 +3903,7 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
     }
     set typeType ""
     if {[$node hasAttribute type]} {
-        set typeType [getQualifiedType $results [$node getAttribute type string] $tns]
+        set typeType [getQualifiedType $results [$node getAttribute type string] $tns $node]
     }
     ::log::logsubst debug {Elemental Type is $typeName}
     set partList {}
@@ -3978,12 +3979,12 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
                 ## Element defines another element layer
                 ##
                 set partName [$element getAttribute name]
-                set partType [getQualifiedType $results $partName $tns]
+                set partType [getQualifiedType $results $partName $tns $element]
                 parseElementalType $mode results $serviceName $element $tns
             } else {
                 set partName [$element getAttribute name]
                 if {[$element hasAttribute type]} {
-                    set partType [getQualifiedType $results [$element getAttribute type] $tns]
+                    set partType [getQualifiedType $results [$element getAttribute type] $tns $element]
                 } else {
                     set partType xs:string
                 }
@@ -4034,9 +4035,9 @@ proc ::WS::Utils::parseElementalType {mode dictVar serviceName node tns} {
         }
         # have an element with a type only, so do the work here
         if {[$node hasAttribute type]} {
-            set partType [getQualifiedType $results [$node getAttribute type] $tns]
+            set partType [getQualifiedType $results [$node getAttribute type] $tns $node]
         } elseif {[$node hasAttribute base]}  {
-            set partType [getQualifiedType $results [$node getAttribute base] $tns]
+            set partType [getQualifiedType $results [$node getAttribute base] $tns $node]
         } else {
             set partType xs:string
         }
@@ -4529,12 +4530,15 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
 #
 # Procedure Name : ::WS::Utils::getQualifiedType
 #
-# Description : Set attributes on a DOM node
+# Description : Get a qualified type name from a local reference.
+#               Thus return <Prefix>:<Type> which is in the global type list.
+#               The <Prefix> is adjusted to point to the global type list.
 #
 # Arguments :
 #       serviceInfo - service information dictionary
 #       type        - type to get local qualified type on
 #       tns         - current namespace
+#       node        - optional XML item to search for xmlns:* attribute
 #
 # Returns :     nothing
 #
@@ -4555,15 +4559,37 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  02/24/2011  G. Lester    Initial version
+#   2.6.2  2018-09-22  C. Werner    Added parameter "node" to first search a
+#                                   namespace attribute "xmlns:yprefix>" in the
+#                                   current node.
 #
 ###########################################################################
-proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
+proc ::WS::Utils::getQualifiedType {serviceInfo type tns {node {}}} {
 
     set typePartsList [split $type {:}]
     if {[llength $typePartsList] == 1} {
         set result $tns:$type
     } else {
         lassign $typePartsList tmpTns tmpType
+        # Search the namespace attribute in the current node for a node-local prefix.
+        # Aim is to translate the node-local prefix to a global namespace prefix.
+        # Example is: <xs:element name="A_O_S" type="x1:ArrayOfSomething" xmlns:x1="http://foo.org/bar" />
+        # Variable setup:
+        # - type: x1:ArrayOfSomething
+        # - tmpTns: x1
+        # - tmpType: ArrayOfSomething
+        # Return value: <Prefix in serviceinfo which corresponds to namespace: "http://foo.org/bar">:ArrayOfSomething
+        if {$node ne {}} {
+            set attr xmlns:$tmpTns
+            if {[$node hasAttribute $attr]} {
+                set xmlns [$node getAttribute $attr]
+                if {[dict exists $serviceInfo tnsList url $xmlns]} {
+                    set result [dict get $serviceInfo tnsList url $xmlns]:$tmpType
+                    return $result
+                }
+                # fail later if namespace not found
+            }
+        }
         if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
             set result [dict get $serviceInfo tnsList tns $tmpTns]:$tmpType
         } elseif {[dict exists $serviceInfo types $type]} {
@@ -4574,8 +4600,8 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns} {
             set result $tns:$type
             return -code error
         }
-
     }
+
     return $result
 }
 
