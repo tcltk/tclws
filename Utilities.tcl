@@ -4568,26 +4568,46 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns {node {}}} {
 
     set typePartsList [split $type {:}]
     if {[llength $typePartsList] == 1} {
+        # No namespace prefix given - use current prefix
         set result $tns:$type
     } else {
         lassign $typePartsList tmpTns tmpType
         # Search the namespace attribute in the current node for a node-local prefix.
         # Aim is to translate the node-local prefix to a global namespace prefix.
-        # Example is: <xs:element name="A_O_S" type="x1:ArrayOfSomething" xmlns:x1="http://foo.org/bar" />
+        # Example:
+        # <xs:element name="A_O_S"
+        #    type="x1:ArrayOfSomething"
+        #    xmlns:x1="http://foo.org/bar" />
+        #
         # Variable setup:
         # - type: x1:ArrayOfSomething
         # - tmpTns: x1
         # - tmpType: ArrayOfSomething
-        # Return value: <Prefix in serviceinfo which corresponds to namespace: "http://foo.org/bar">:ArrayOfSomething
+        # Return value:
+        #   - <Prefix in serviceinfo which corresponds to namespace: "http://foo.org/bar">
+        #   - plus ":ArrayOfSomething"
         if {$node ne {}} {
             set attr xmlns:$tmpTns
             if {[$node hasAttribute $attr]} {
+                # There is a node-local attribute (Example: xmlns:x1) giving the node namespace
                 set xmlns [$node getAttribute $attr]
                 if {[dict exists $serviceInfo tnsList url $xmlns]} {
                     set result [dict get $serviceInfo tnsList url $xmlns]:$tmpType
+                    ::log::logsubst debug {Got global qualified type '$result' from node-local qualified namespace '$xmlns'}
                     return $result
+                } else {
+                    # The node namespace (Ex: http://foo.org/bar) was not found as global prefix.
+                    # Thus, the type is refused.
+                    # HaO 2018-11-05 Opinion:
+                    # Continuing here is IMHO not an option, as the prefix (Ex: x1) might have a
+                    # different namespace on the global level which would lead to a misassignment.
+                    #
+                    # One day, we may support cascading namespace prefixes. Then, we may define
+                    # the namespace here
+                    set errMsg "Node local namespace URI '$xmlns' not found for type: '$type'"
+                    ::log::log error $errMsg
+                    return -code error $errMsg
                 }
-                # fail later if namespace not found
             }
         }
         if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
@@ -4597,11 +4617,9 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns {node {}}} {
         } else {
             ::log::log error $serviceInfo
             ::log::logsubst error {Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}}
-            set result $tns:$type
-            return -code error
+            return -code error "Namespace prefix of type '$Type' not found."
         }
     }
-
     return $result
 }
 
