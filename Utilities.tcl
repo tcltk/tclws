@@ -4884,8 +4884,9 @@ if {[package vcompare [info patchlevel] 8.5] == -1} {
     ## 8.4, so can not use {*} expansion
     ##
     proc ::WS::Utils::setAttr {node attrList} {
-        lassign $attrList name value
-        $node setAttribute $name $value
+        foreach {name value} $attrList {
+            $node setAttribute $name $value
+        }
     }
 } else {
     ##
