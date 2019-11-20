@@ -2054,20 +2054,18 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
         ( [::http::ncode $token] != 200 && $body eq {} )} {
         set errorCode [list WS CLIENT HTTPERROR [::http::code $token]]
         set hadError 1
-        set errorInfo [FormatHTTPError $token]
+        set results [FormatHTTPError $token]
+        set errorInfo ""
     } else {
         SaveAndSetOptions $serviceName
-        if {[catch {set hadError [catch {parseResults $serviceName $operationName $body} results]} err]} {
-            RestoreSavedOptions $serviceName
-            return -code error -errorcode $::errorCode -errorinfo $::errorInfo $err
-        } else {
-            RestoreSavedOptions $serviceName
-        }
+        set hadError [catch {parseResults $serviceName $operationName $body} results]
+        RestoreSavedOptions $serviceName
         if {$hadError} {
             set errorCode $::errorCode
             set errorInfo $::errorInfo
         }
     }
+    ::http::cleanup $token
 
     ##
     ## Call the appropriate callback
@@ -2078,14 +2076,16 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     } else {
         set cmd $succesCmd
     }
-    lappend cmd $results
-    catch $cmd
-
+    if {$cmd ne ""} {
+        lappend cmd $results
+        if {[catch $cmd cmdErr]} {
+            ::log::log error "Error invoking callback '$cmd': $cmdErr" 
+        }
+    }
     ##
     ## All done
     ##
-    ::http::cleanup $token
-    return;
+    return
 }
 
 ###########################################################################

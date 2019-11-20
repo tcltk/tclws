@@ -287,11 +287,13 @@ causes no ill effects to put this in each file using the utilties. </P>
      <I>succesCmd</I>       - A command prefix to be called if the operations
                        does not raise an error.  The results, as a dictionary
                        object are concatinated to the prefix. This includes
-                       both the return result and any return headers.
+                       both the return result and any return headers.  Leave
+                       empty to not call any function.
 
      <I>errorCmd</I>        - A command prefix to be called if the operations
-                       raises an error.  The error code and stack trace
-                       are concatinated to the prefix.
+                       raises an error.  The error code, stack trace and
+                       error message are concatinated to the prefix.  Leave
+                       empty to not call any function.
      <I>headers</I>         - Extra headers to add to the HTTP request. This
                        is a key value list argument. It must be a list with
                        an even number of elements that alternate between
