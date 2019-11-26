@@ -2281,8 +2281,8 @@ proc ::WS::Client::parseResults {serviceName operationName inXML} {
     if {![info exists rootName]} {
         return \
             -code error \
-            -errorcode [list WS CLIENT BADREPLY [list $rootName $expectedMsgTypeBase]] \
-            "Bad reply type, received '$rootName'; but expected '$expectedMsgTypeBase'."
+            -errorcode [list WS CLIENT BADREPLY [list $rootNameCur $expectedMsgTypeBase]] \
+            "Bad reply type, received '$rootNameCur'; but expected '$expectedMsgTypeBase'."
     }
 
     ##
