@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2016-2017, Harald Oehlmann                                 ##
+##  Copyright (c) 2016-2019, Harald Oehlmann                                 ##
 ##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.6.0
+package provide WS::Client 2.6.3
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
