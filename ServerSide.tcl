@@ -167,7 +167,6 @@ proc ::WS::Server::Service {args} {
     ::log::logsubst debug {Defining Service as $args}
 
     array set defaults {
-        -description    {}
         -checkheader    {::WS::Server::ok}
         -inheaders      {}
         -outheaders     {}
