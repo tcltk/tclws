@@ -33,7 +33,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.4
+package require Tcl 8.5
 # WS::Utils usable here for dict?
 if {![llength [info command dict]]} {
     package require dict
@@ -54,7 +54,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.6.0
+package provide WS::Embeded 2.6.1
 
 namespace eval ::WS::Embeded {
 
@@ -464,7 +464,6 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #       port        -- Port number
 #       sock        -- Incoming socket
 #       ip          -- Requester's IP address
-#       reqstring   -- Requester's message
 #       auth        -- Authentication information
 #
 # Returns :
@@ -488,23 +487,23 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
 #   2.3.0  10/31/2012  G.Lester     bug fix for [68310fe3bd] -- correct encoding and data length
+#   2.6.1  2020-10-22  H.Oehlmann   Do not pass parameter reqstring.
+#                                   The corresponding value is found in global
+#                                   array anyway.
+#                                   Use charset handler of request decoding.
 #
 #
 ###########################################################################
-proc ::WS::Embeded::handler {port sock ip reqstring auth} {
+proc ::WS::Embeded::handler {port sock ip auth} {
     variable portInfo
-    upvar #0 ::WS::Embeded::Httpd$sock req
+    upvar #0 ::WS::Embeded::Httpd$sock dataArray
 
     if {[catch {checkauth $port $sock $ip $auth}]} {
         ::log::log warning {Auth Failed}
         return
     }
 
-    array set req $reqstring
-    #foreach var {type data code} {
-    #    dict set req(reply) $var [set $var]
-    #}
-    set path "/[string trim $req(path) /]"
+    set path "/[string trim $dataArray(path) /]"
     if {[dict exists $portInfo($port,handlers) $path]} {
         set cmd [dict get $portInfo($port,handlers) $path]
         lappend cmd $sock {}
@@ -513,14 +512,11 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
             ::log::log error "Return 404 due to eval error: $msg"
             respond $sock 404 "Error: $msg"
         } else {
-            set type [dict get $req(reply) type]
-            set encoding [string tolower [lindex [split [lindex [split $type {;}] 1] {=}] 1]]
-            if {$encoding ni [encoding names]} {
-                set encoding utf-8
-                set type "[lindex [split $type ";"] 0]; charset=UTF-8"
-            }
-            set data [encoding convertto $encoding [dict get $req(reply) data]]
-            set reply "[httpreturncode [dict get $req(reply) code]]\n"
+            set type [dict get $dataArray(reply) type]
+            # This may modify the type variable, if encoding is not found
+            set encoding [contentTypeParse 0 type]
+            set data [encoding convertto $encoding [dict get $dataArray(reply) data]]
+            set reply "[httpreturncode [dict get $dataArray(reply) code]]\n"
             append reply "Content-Type: $type\n"
             append reply "Connection: close\n"
             append reply "Content-length: [string length $data]\n"
@@ -577,16 +573,19 @@ proc ::WS::Embeded::handler {port sock ip reqstring auth} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
 #   2.3.0  10/31/2012  G.Lester     Bug fix [66fb3aeef5] -- correct header parsing
+#   2.6.1  2020-10-22  H.Oehlmann   Honor received encoding.
+#                                   Only pass request data by global array
+#                                   to the handler.
 #
 #
 ###########################################################################
 proc ::WS::Embeded::accept {port sock ip clientport} {
     variable portInfo
 
-    upvar #0 ::WS::Embeded::Httpd$sock query
+    upvar #0 ::WS::Embeded::Httpd$sock dataArray
     ::log::logsubst info {Receviced request on $port for $ip:$clientport}
 
-    array unset query reply
+    array unset dataArray reply
     chan configure $sock -translation crlf
     if {1 == [catch {
         gets $sock line
@@ -606,10 +605,19 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
             regexp -nocase {^basic +([^ ]+)$}\
                 [dict get $request header authorization] -> auth
         }
+        if {![dict exists $request header content-type]} {
+            ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
+            return
+        }
         if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
             ::log::logsubst warning  {Wrong request: $line}
             return
         }
+        
+        ##
+        ## Process passed http method
+        ##
+        
         switch -exact -- $method {
             POST {
                 ##
@@ -630,15 +638,17 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                     set data [read $sock [dict get $request header content-length]]
                     chan configure $sock -translation crlf
                 }
-                array set query [uri::split $url]
-                set query(query) $data
-                set query(headers) $request
-                set query(ipaddr) $ip
-                #parray query
-                handler $port $sock $ip [array get query] $auth
+                array set dataArray [uri::split $url]
+                set contentType [dict get $request header content-type]
+                set requestEncoding [contentTypeParse 1 contentType]
+                set dataArray(query) [encoding convertfrom $requestEncoding $data]
+                set dataArray(headers) $request
+                set dataArray(ipaddr) $ip
+                handler $port $sock $ip $auth
             }
             GET {
-                handler $port $sock $ip [uri::split $url] $auth
+                array set dataArray [uri::split $url]
+                handler $port $sock $ip $auth
             }
             default {
                 ::log::logsubst warning {Unsupported method '$method' from $ip}
@@ -654,4 +664,128 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
     catch {flush $sock}
     catch {close $sock}
     return
+}
+
+
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Embeded::contentTypeParse
+#
+# Description : Parse a content-type value and get the encoding.
+#               When receiving, only the encoding is required.
+#               When sending, we have to correct the encoding, if not known
+#               by TCL. Thus, the content-type string is changed.
+#
+# Arguments :
+#       fReceiving  -- When receiving, we only need the extracted codepage.
+#                       If sending, the content-type string must be modified,
+#                       if the codepage is not found in tcl
+#       contentTypeName --  The variable containing the content type string.
+#
+# Returns :
+#       tcl encoding to apply
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#   2.6.1  2020-10-22  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::contentTypeParse {fReceiving contentTypeName} {
+
+    upvar 1 $contentTypeName contentType
+
+    ##
+    ## Extract charset parameter from content-type header
+    ##
+
+    # content-type example content: text/xml;charset=utf-8
+    set paramList [lassign [split $contentType ";"] typeOnly]
+    foreach parameterCur $paramList {
+        set parameterCur [string trim $parameterCur]
+        # Check for 'charset="<data>', where data may contain '\"'
+        if {[regexp -nocase {^charset\s*=\s*\"((?:[^""]|\\\")*)\"$}\
+                $parameterCur -> requestEncoding]
+        } {
+            set requestEncoding [string map {{\"} \"} $requestEncoding]
+            break
+        } else {
+            # check for 'charset=<data>'
+            regexp -nocase {^charset\s*=\s*(\S+?)$}\
+                    $parameterCur -> requestEncoding
+            break
+        }
+    }
+
+    ##
+    ## Find the corresponding TCL encoding name
+    ##
+
+    if {[info exists requestEncoding]} {
+        if {[llength [info commands ::http::CharsetToEncoding]]} {
+            # Use private http package routine
+            set requestEncoding [::http::CharsetToEncoding $requestEncoding]
+            # Output is "binary" if not found
+            if {$requestEncoding eq "binary"} {
+                unset requestEncoding
+            }
+        } else {
+            # Reduced version of the http package version only honoring ISO8859-x
+            # and encoding names identical to tcl encoding names
+            set requestEncoding [string tolower $requestEncoding]
+            if {[regexp {iso-?8859-([0-9]+)} $requestEncoding -> num]} {
+                set requestEncoding "iso8859-$num"
+            }
+            if {$requestEncoding ni [encoding names]} {
+                unset requestEncoding
+            }
+        }
+    }
+
+    ##
+    ## Output found encoding and eventually content type
+    ##
+
+    # If encoding was found, just return it
+    if {[info exists requestEncoding]} {
+        return $requestEncoding
+    }
+
+    # encoding was not found
+    if {$fReceiving} {
+        # This is the http default so use that
+        ::log::logsubst information {Use default encoding as content type header has missing/unknown charset in '$contentType'}
+        return iso8859-1
+    }
+    
+    # When sending, be sure to cover all characters, so use utf-8
+    # correct content-type string (upvar)
+    ::log::logsubst information {Set send charset to utf-8 due missing/unknown charset in '$contentType'}
+    if {[info exists typeOnly]} {
+        set contentType "${typeOnly};charset=utf-8"
+    } else {
+        set contentType "text/xml;charset=utf-8"
+    }
+    return utf-8
 }
