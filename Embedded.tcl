@@ -54,7 +54,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.6.1
+package provide WS::Embeded 2.7.0
 
 namespace eval ::WS::Embeded {
 
@@ -179,8 +179,15 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 #
 # Arguments :
 #       port     -- Port number to listen on
-#       certfile -- Name of the certificate file
+#       certfile -- Name of the certificate file or a pfx archive for twapi
 #       keyfile  -- Name of the key file
+#                   To use twapi TLS, specify a list with the following elements:
+#                    -- "-twapi": Flag, that TWAPI TLS should be used
+#                    -- password: password of PFX file passed by
+#                       [::twapi::conceal]. The concealing makes sure that the
+#                       password is not readable in the error stack trace
+#                    -- ?subject?: optional search string in pfx file, if
+#                       multiple certificates are included.
 #       userpwds -- A list of username:password
 #       realm    -- The security realm
 #
@@ -212,7 +219,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
     variable portList
 
     lappend portList $port
-    foreach key {port certfile keyfile userpwds realm} {
+    foreach key {port userpwds realm} {
         set portInfo($port,$key) [set $key]
     }
     if {![info exists portInfo($port,handlers)]} {
@@ -222,19 +229,96 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
         lappend portInfo($port,auths) [base64::encode $up]
     }
 
-    if {$certfile ne ""} {
-        package require tls
-
-        ::tls::init \
-            -certfile $certfile \
-            -keyfile  $keyfile \
-            -ssl2 1 \
-            -ssl3 1 \
-            -tls1 0 \
-            -require 0 \
-            -request 0
-        set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
+    if {$certfile ne "" } {
+        if { [string is list $keyfile] && [lindex $keyfile 0] eq "-twapi"} {
+            
+            ##
+            ## Use TWAPI TLS
+            ##
+            
+            package require twapi_crypto
+            
+            # Decode parameters
+            #
+            # certfile is the pfx file name
+            # keyfile is a list of:
+            #   -twapi: fix element
+            #   password of the pfx file, passed by twapi::conceal
+            #   Optional Subject of the certificate, if there are multiple
+            #       certificates contained.
+            #       If not given, the first certificate is used.
+            set pfxpassword [lindex $keyfile 1]
+            set pfxsubject ""
+            if {[llength $keyfile] > 2} {
+                set pfxsubject [lindex $keyfile 2]
+            }
+            # Create certificate selection tring
+            if {$pfxsubject eq ""} {
+                set pfxselection any
+            } else {
+                set pfxselection [list subject_substring $pfxsubject)]
+            }
+            
+            set hFile [open $certfile rb]
+            set PFXCur [read $hFile]
+            close $hFile
+            # Set up the store containing the certificates
+            # Import the PFX file and search the certificate.
+            set certstore [twapi::cert_temporary_store -pfx $PFXCur\
+                    -password $pfxpassword]
+            set servercert [twapi::cert_store_find_certificate $certstore\
+                    {*}$pfxselection]
+            if {"" eq $servercert} {
+                # There was no certificate included in the pfx file
+                catch {twapi::cert_store_release $certstore}
+                return -code error "no certificate found in file '$certfile'"
+            }
+            # The following is catched to clean-up in case of any error
+            if {![catch {
+                # Start the TLS socket with the credentials
+                set creds [twapi::sspi_schannel_credentials \
+                        -certificates [list $servercert]\
+                        -protocols [list ssl3 tls1.1 tls1.2]]
+                set creds [twapi::sspi_acquire_credentials \
+                        -credentials $creds -package unisp -role server]
+                set handle [::twapi::tls_socket\
+                        -server [list ::WS::Embeded::accept $port]\
+                        -credentials $creds $port]
+            } errormsg errordict]} {
+                # All ok, clear error flag
+                unset errormsg
+            }
+            # Clean up certificate and certificate store
+            if {[info exists servercert]} {
+                catch {twapi::cert_release $servercert}
+            }
+            catch {twapi::cert_store_release $certstore}
+            # Return error if happened above
+            if {[info exists errormsg]} {
+                dict unset errordict -level
+                return -options  $errordict $errormsg
+            }
+        } else {
+            
+            ##
+            ## Use TCL Package
+            ##
+            
+            package require tls
+    
+            ::tls::init \
+                -certfile $certfile \
+                -keyfile  $keyfile \
+                -require 0 \
+                -request 0
+            set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
+        }
     } else {
+        
+        ##
+        ## Use http protocol without encryption
+        ##
+        
         ::log::logsubst debug {socket -server [list ::WS::Embeded::accept $port] $port}
         set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
@@ -507,7 +591,10 @@ proc ::WS::Embeded::handler {port sock ip auth} {
     if {[dict exists $portInfo($port,handlers) $path]} {
         set cmd [dict get $portInfo($port,handlers) $path]
         lappend cmd $sock {}
-        #puts "Calling {$cmd}"
+        # ::WS::Server::callOperation is called (for operations).
+        # This routine reads our data by:
+        #   upvar #0 ::WS::Embeded::Httpd$sock data
+        # while only the array index (query) is used
         if {[catch {eval $cmd} msg]} {
             ::log::log error "Return 404 due to eval error: $msg"
             respond $sock 404 "Error: $msg"
@@ -605,10 +692,6 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
             regexp -nocase {^basic +([^ ]+)$}\
                 [dict get $request header authorization] -> auth
         }
-        if {![dict exists $request header content-type]} {
-            ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
-            return
-        }
         if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
             ::log::logsubst warning  {Wrong request: $line}
             return
@@ -639,6 +722,10 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                     chan configure $sock -translation crlf
                 }
                 array set dataArray [uri::split $url]
+                if {![dict exists $request header content-type]} {
+                    ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
+                    return
+                }
                 set contentType [dict get $request header content-type]
                 set requestEncoding [contentTypeParse 1 contentType]
                 set dataArray(query) [encoding convertfrom $requestEncoding $data]

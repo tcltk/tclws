@@ -48,8 +48,18 @@ procedure. </P>
 they are: </P>
 <PRE>
      <I>port    </I> -- Port number to listen on.
-     <I>certfile</I> -- Name of the certificate file. Defaults to {}.
-     <I>keyfile </I> -- Name of the key file. Defaults to {}.
+     <I>certfile</I> -- Name of the certificate pem file for the tcltls package,
+                 or a pfx certificate archive file for twapi TLS.
+                 Defaults to {} (no TLS).
+     <I>keyfile </I> -- Name of the key pem file for the tcltls package.
+                 Defaults to {}.
+                 To use twapi TLS, specify a list with the following elements:
+                    <I>-twapi</I>: fix flag, that TWAPI TLS should be used
+                    <I>password</I>: password of PFX file passed by
+                        [::twapi::conceal]. The concealing makes sure that the
+                        password is not readable in the error stack trace
+                    <I>?subject?</I>: optional search string in pfx file, if
+                        multiple certificates are included.
      <I>userpwds</I> -- A list of username:password. Defaults to {}.
      <I>realm   </I> -- The seucrity realm. Defaults to {}.
 </PRE>
