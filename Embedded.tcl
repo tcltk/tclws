@@ -34,11 +34,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.5
-# WS::Utils usable here for dict?
-if {![llength [info command dict]]} {
-    package require dict
-}
+package require Tcl 8.6
 
 package require uri
 package require base64
@@ -55,11 +51,11 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.7.0
+package provide WS::Embeded 3.0.0
 
 namespace eval ::WS::Embeded {
 
-    array set portInfo {}
+    set portInfo {}
 
     set portList [list]
     set forever {}
@@ -112,7 +108,7 @@ namespace eval ::WS::Embeded {
 proc ::WS::Embeded::AddHandler {port url callback} {
     variable portInfo
 
-    dict set portInfo($port,handlers) $url $callback
+    dict set portInfo $port handlers $url $callback
     return;
 }
 
@@ -160,7 +156,7 @@ proc ::WS::Embeded::GetValue {index {sock ""}} {
     variable portInfo
 
     switch -exact -- $index {
-        isHTTPS { return $portInfo($sock,$index) }
+        isHTTPS { return [dict get $portInfo $sock $index] }
         default {return -code error "Unknown index '$index'"}
     }
 }
@@ -270,20 +266,22 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 
     lappend portList $port
     foreach key {port userpwds realm} {
-        set portInfo($port,$key) [set $key]
+        dict set portInfo $port $key [set $key]
     }
-    if {![info exists portInfo($port,handlers)]} {
-        set portInfo($port,handlers) {}
+    if {![dict exists $portInfo $port handlers]} {
+        dict set portInfo $port handlers {}
     }
-    foreach up $userpwds {
-        lappend portInfo($port,auths) [base64::encode $up]
+    set authlist {}
+	foreach up $userpwds {
+        lappend authlist [base64::encode $up]
     }
+	dict set portInfo $port auths $authlist
     
     ##
     ## Check if HTTPS protocol is used
     ##
     
-    set portInfo($port,isHTTPS) [expr {$certfile ne ""}]
+    dict set portInfo $port isHTTPS [expr {$certfile ne ""}]
 
     if {$certfile ne "" } {
         if { [string is list $keyfile] && [lindex $keyfile 0] eq "-twapi"} {
@@ -580,8 +578,10 @@ proc ::WS::Embeded::httpreturncode {code} {
 proc ::WS::Embeded::checkauth {port sock ip auth} {
     variable portInfo
 
-    if {[info exists portInfo($port,auths)] && [llength $portInfo($port,auths)] && [lsearch -exact $portInfo($port,auths) $auth]==-1} {
-        set realm $portInfo($port,realm)
+    if { [dict exists $portInfo $port auths] &&
+            0 != [llength [dict get $portInfo $port auths]] &&
+            $auth ni [dict get $portInfo $port auths] } {
+        set realm [dict get $portInfo $port realm]
         respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
         ::log::logsubst warning {Unauthorized from $ip}
         return -code error
@@ -646,8 +646,8 @@ proc ::WS::Embeded::handler {port sock ip auth} {
     }
 
     set path "/[string trim $dataArray(path) /]"
-    if {[dict exists $portInfo($port,handlers) $path]} {
-        set cmd [dict get $portInfo($port,handlers) $path]
+    if {[dict exists $portInfo $port handlers $path]} {
+        set cmd [dict get $portInfo $port handlers $path]
         lappend cmd $sock $port
         # ::WS::Server::callOperation is called (for operations).
         # This routine reads our data by:
@@ -725,7 +725,6 @@ proc ::WS::Embeded::handler {port sock ip auth} {
 #
 ###########################################################################
 proc ::WS::Embeded::accept {port sock ip clientport} {
-    variable portInfo
 
     upvar #0 ::WS::Embeded::Httpd$sock dataArray
     ::log::logsubst info {Receviced request on $port for $ip:$clientport}

@@ -39,13 +39,13 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.4
+package require Tcl 8.6
 package require WS::Utils
 package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.7.0
+package provide WS::Server 3.0.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -168,34 +168,36 @@ proc ::WS::Server::Service {args} {
 
     ::log::logsubst debug {Defining Service as $args}
 
-    array set defaults {
-        -checkheader    {::WS::Server::ok}
-        -inheaders      {}
-        -outheaders     {}
-        -intransform    {}
-        -outtransform   {}
-        -htmlhead       {TclHttpd Based Web Services}
-        -author         {}
-        -description    {}
-        -mode           {tclhttpd}
-        -ports          {80}
-        -traceEnabled   {Y}
-        -docFormat      {text}
-        -stylesheet     {}
-        -beautifyJson   {N}
-        -errorCallback  {}
-        -verifyUserArgs {N}
-        -enforceRequired {N}
-    }
-    array set defaults $args
-    if {[string equal $defaults(-mode) channel]} {
-        set defaults(-ports) {stdin stdout}
-        array set defaults $args
+    set defaults [dict create\
+        -checkheader    {::WS::Server::ok}\
+        -inheaders      {}\
+        -outheaders     {}\
+        -intransform    {}\
+        -outtransform   {}\
+        -htmlhead       {TclHttpd Based Web Services}\
+        -author         {}\
+        -description    {}\
+        -mode           {tclhttpd}\
+        -ports          {80}\
+        -traceEnabled   {Y}\
+        -docFormat      {text}\
+        -stylesheet     {}\
+        -beautifyJson   {N}\
+        -errorCallback  {}\
+        -verifyUserArgs {N}\
+        -enforceRequired {N} ]
+
+    set defaults [dict merge $defaults $args]
+    
+    # Set default -ports value if mode equal channel
+    if {    [dict get $defaults -mode] eq "channel" &&
+            ! [dict exists $args -ports] } {
+        dict set defaults -ports {stdin stdout}
     }
     set requiredList {-service}
     set missingList {}
     foreach opt $requiredList {
-        if {![info exists defaults($opt)]} {
+        if {![dict exists $defaults $opt]} {
             lappend missingList $opt
         }
     }
@@ -205,52 +207,51 @@ proc ::WS::Server::Service {args} {
             -errorcode [list WSSERVER MISSREQARG $missingList] \
             "Missing required arguments '[join $missingList {,}]'"
     }
-    set service $defaults(-service)
-    if {![info exists defaults(-prefix)]} {
-        set defaults(-prefix) /service/$service
+    set service [dict get $defaults -service]
+    if {![dict exists $defaults -prefix]} {
+        dict set defaults -prefix /service/$service
     }
     # find default host
-    if {![info exists defaults(-host)]} {
-        switch -exact -- $defaults(-mode) {
+    if {![dict exists $defaults -host]} {
+        switch -exact -- [dict get $defaults -mode] {
             embedded {
                 set me [socket -server garbage_word -myaddr [info hostname] 0]
-                set defaults(-host) [lindex [fconfigure $me -sockname] 0]
+                dict set defaults -host [lindex [fconfigure $me -sockname] 0]
                 close $me
-                if { 0 !=[llength $defaults(-ports)] &&
-                        ( 80 != [lindex $defaults(-ports) 0] ||
-                        433 != [lindex $defaults(-ports) 0] ) } {
-                    append defaults(-host) ":[lindex $defaults(-ports) 0]"
+                if { 0 !=[llength [dict get $defaults -ports]] &&
+                        [lindex [dict get $defaults -ports] 0] ni {80 433} } {
+                    dict append defaults -host ":[lindex [dict get $defaults -ports] 0]"
                 }
             }
             default {
-                set defaults(-host) localhost
+                dict set defaults -host localhost
             }
         }
     }
 
-    set defaults(-uri) $service
+    dict set defaults -uri $service
     namespace eval ::$service {}
-    set serviceArr($service) [array get defaults]
+    set serviceArr($service) $defaults
     if {![dict exists $procInfo $service operationList]} {
         dict set procInfo $service operationList {}
     }
-    set mode $defaults(-mode)
+    set mode [dict get $defaults -mode]
 
     ##
     ## Install wsdl doc
     ##
     interp alias {} ::WS::Server::generateInfo_${service} \
                  {} ::WS::Server::generateInfo ${service}
-    ::log::logsubst debug {Installing Generate info for $service at $defaults(-prefix)}
+    ::log::logsubst debug {Installing Generate info for $service at [dict get $defaults -prefix]}
     switch -exact -- $mode {
         embedded {
-            package require WS::Embeded 2.1.3
-            foreach port $defaults(-ports) {
-                ::WS::Embeded::AddHandler $port $defaults(-prefix) ::WS::Server::generateInfo_${service}
+            package require WS::Embeded
+            foreach port [dict get $defaults -ports] {
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix] ::WS::Server::generateInfo_${service}
             }
         }
         tclhttpd {
-            ::Url_PrefixInstall $defaults(-prefix) ::WS::Server::generateInfo_${service}  \
+            ::Url_PrefixInstall [dict get $defaults -prefix] ::WS::Server::generateInfo_${service}  \
                 -thread 0
         }
         wub {
@@ -301,7 +302,7 @@ proc ::WS::Server::Service {args} {
                 }
             }
 
-            ::wibble::handle $defaults(-prefix) webservice name $service
+            ::wibble::handle [dict get $defaults -prefix] webservice name $service
         }
         default {
             return \
@@ -317,19 +318,19 @@ proc ::WS::Server::Service {args} {
     ##
     interp alias {} ::WS::Server::generateWsdl_${service} \
                  {} ::WS::Server::generateWsdl ${service}
-    ::log::logsubst debug {Installing GenerateWsdl info for $service at $defaults(-prefix)/wsdl}
+    ::log::logsubst debug {Installing GenerateWsdl info for $service at [dict get $defaults -prefix]/wsdl}
     switch -exact -- $mode {
         embedded {
-            foreach port $defaults(-ports) {
-                ::WS::Embeded::AddHandler $port $defaults(-prefix)/wsdl ::WS::Server::generateWsdl_${service}
+            foreach port [dict get $defaults -ports] {
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/wsdl ::WS::Server::generateWsdl_${service}
             }
         }
         channel {
             package require WS::Channel
-            ::WS::Channel::AddHandler $defaults(-ports) {} ::WS::Server::generateWsdl_${service}
+            ::WS::Channel::AddHandler [dict get $defaults -ports] {} ::WS::Server::generateWsdl_${service}
         }
         tclhttpd {
-            ::Url_PrefixInstall $defaults(-prefix)/wsdl ::WS::Server::generateWsdl_${service} \
+            ::Url_PrefixInstall [dict get $defaults -prefix]/wsdl ::WS::Server::generateWsdl_${service} \
                 -thread 0
         }
         default {
@@ -342,19 +343,19 @@ proc ::WS::Server::Service {args} {
     ##
     interp alias {} ::WS::Server::callOperation_${service} \
                  {} ::WS::Server::callOperation ${service}
-    ::log::logsubst debug {Installing callOperation info for $service at $defaults(-prefix)/op}
+    ::log::logsubst debug {Installing callOperation info for $service at [dict get $defaults -prefix]/op}
     switch -exact -- $mode {
         embedded {
-            foreach port $defaults(-ports) {
-                ::WS::Embeded::AddHandler $port $defaults(-prefix)/op ::WS::Server::callOperation_${service}
+            foreach port [dict get $defaults -ports] {
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/op ::WS::Server::callOperation_${service}
             }
         }
         channel {
             package require WS::Channel
-            ::WS::Channel::AddHandler $defaults(-ports) {op} ::WS::Server::callOperation_${service}
+            ::WS::Channel::AddHandler [dict get $defaults -ports] {op} ::WS::Server::callOperation_${service}
         }
         tclhttpd {
-            ::Url_PrefixInstall $defaults(-prefix)/op ::WS::Server::callOperation_${service} \
+            ::Url_PrefixInstall [dict get $defaults -prefix]/op ::WS::Server::callOperation_${service} \
                 -thread 1
         }
         default {
@@ -496,7 +497,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     variable serviceArr
     variable procInfo
 
-    array set serviceData $serviceArr($serviceName)
+    set serviceData $serviceArr($serviceName)
 
     set operList [lsort -dictionary [dict get $procInfo $serviceName operationList]]
     ::log::logsubst debug {Generating WSDL for $serviceName}
@@ -518,8 +519,8 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
         xmlns:xs         "http://www.w3.org/2001/XMLSchema" \
         xmlns:soap      "http://schemas.xmlsoap.org/wsdl/soap/" \
         xmlns:soapenc   "http://schemas.xmlsoap.org/soap/encoding/" \
-        xmlns:${serviceName} "http://$serviceData(-host)$serviceData(-prefix)" \
-        targetNamespace "http://$serviceData(-host)$serviceData(-prefix)"
+        xmlns:${serviceName} "http://[dict get $serviceData -host][dict get $serviceData -prefix]" \
+        targetNamespace "http://[dict get $serviceData -host][dict get $serviceData -prefix]"
 
     foreach topLevel {types} {
         $definition appendChild [$reply createElement wsdl:$topLevel $topLevel]
@@ -546,7 +547,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     }
 
     ## Input headers
-    foreach headerType $serviceData(-inheaders) {
+    foreach headerType [dict get $serviceData -inheaders] {
         $definition appendChild [$reply createElement wsdl:message header]
         $header setAttribute name $headerType
         $header appendChild [$reply createElement wsdl:part part]
@@ -556,7 +557,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     }
 
     ## Output headers
-    foreach headerType $serviceData(-outheaders) {
+    foreach headerType [dict get $serviceData -outheaders] {
         $definition appendChild [$reply createElement wsdl:message header]
         $header setAttribute name $headerType
         $header appendChild [$reply createElement wsdl:part part]
@@ -578,7 +579,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     $service setAttribute name $serviceName
 
     $service appendChild [$reply createElement wsdl:documentation documentation]
-    $documentation appendChild [$reply createTextNode $serviceData(-description)]
+    $documentation appendChild [$reply createTextNode [dict get $serviceData -description]]
 
     $service appendChild [$reply createElement wsdl:port port]
     $port setAttribute \
@@ -588,7 +589,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     $port appendChild [$reply createElement soap:address address]
 
     $address setAttribute  \
-        location "$urlPrefix$serviceData(-prefix)/op"
+        location "$urlPrefix[dict get $serviceData -prefix]/op"
 
 
     ##
@@ -613,7 +614,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
         $operNode appendChild [$reply createElement wsdl:input input]
         $input appendChild [$reply createElement soap:body tmp]
         $tmp setAttribute use literal
-        foreach headerType $serviceData(-inheaders) {
+        foreach headerType [dict get $serviceData -inheaders] {
             $operNode appendChild [$reply createElement wsdl:header header]
             $header appendChild [$reply createElement soap:header tmp]
             $tmp setAttribute \
@@ -625,7 +626,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
         $operNode appendChild [$reply createElement wsdl:output output]
         $output appendChild [$reply createElement soap:body tmp]
         $tmp setAttribute use literal
-        foreach headerType $serviceData(-outheaders) {
+        foreach headerType [dict get $serviceData -outheaders] {
             $operNode appendChild [$reply createElement wsdl:header header]
             $header appendChild [$reply createElement soap:header tmp]
             $tmp setAttribute \
@@ -713,7 +714,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
     variable procInfo
     variable mode
 
-    array set serviceData $serviceArr($serviceName)
+    set serviceData $serviceArr($serviceName)
 
     set operList [lsort -dictionary [dict get $procInfo $serviceName operationList]]
     ::log::logsubst debug {Generating WSDL for $serviceName on $sock with {$args}}
@@ -765,14 +766,14 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
     }
 
     # Default URL prefix
-    set urlPrefix "http://$serviceData(-host)"
+    set urlPrefix "http://[dict get $serviceData -host]"
 
     switch -exact -- $mode {
         tclhttpd {
             upvar #0 ::Httpd$sock s
 
             catch {
-                set urlPrefix [lindex $s(self) 0]://$serviceData(-host)
+                set urlPrefix [lindex $s(self) 0]://[dict get $serviceData -host]
                 set urlPrefix [lindex $s(self) 0]://$s(mime,host)
             }
             set xml [GetWsdl $serviceName $urlPrefix]
@@ -786,7 +787,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             # For https, change the URL prefix
             set port [lindex $args 0]
             if {[::WS::Embeded::GetValue isHTTPS $port]} {
-                set urlPrefix "https://$serviceData(-host)"
+                set urlPrefix "https://[dict get $serviceData -host]"
             }
             set xml [GetWsdl $serviceName $urlPrefix]
             ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
@@ -855,8 +856,8 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
 proc ::WS::Server::GenerateScheme {mode serviceName doc parent} {
     variable serviceArr
 
-    array set serviceData $serviceArr($serviceName)
-    set targetNamespace "http://$serviceData(-host)$serviceData(-prefix)"
+    set serviceData $serviceArr($serviceName)
+    set targetNamespace "http://[dict get $serviceData -host][dict get $serviceData -prefix]"
     return [::WS::Utils::GenerateScheme $mode $serviceName $doc $parent $targetNamespace]
 
 }
@@ -910,9 +911,8 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
     variable procInfo
 
     ::log::logsubst debug {Generating JSON Documentation for $service on $sock with {$args}}
-    set serviceInfo $serviceArr($service)
-    array set serviceData $serviceInfo
-    set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
+    set serviceData $serviceArr($service)
+    set doc [yajl create #auto -beautify [dict get $serviceData -beautifyJson]]
 
     $doc map_open
 
@@ -1291,21 +1291,21 @@ proc ::WS::Server::callOperation {service sock args} {
     }
 
     ::log::logsubst debug {In ::WS::Server::callOperation {$service $sock $args}}
-    array set serviceInfo $serviceArr($service)
+    set serviceData $serviceArr($service)
     ::log::logsubst debug {\tDocument is {$inXML}}
 
     set ::errorInfo {}
     set ::errorCode {}
     set ns $service
 
-    set inTransform $serviceInfo(-intransform)
-    set outTransform $serviceInfo(-outtransform)
+    set inTransform [dict get $serviceData -intransform]
+    set outTransform [dict get $serviceData -outtransform]
     if {$inTransform ne {}} {
         set inXML [$inTransform REQUEST $inXML]
     }
 
     # Get a reference to the error callback
-    set errorCallback $serviceInfo(-errorCallback)
+    set errorCallback [dict get $serviceData -errorCallback]
 
     ##
     ## Parse the input and determine the name of the method being invoked.
@@ -1338,10 +1338,10 @@ proc ::WS::Server::callOperation {service sock args} {
             $doc documentElement top
             ::log::logsubst debug {$doc selectNodesNamespaces \
                     [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-                    $service http://$serviceInfo(-host)$serviceInfo(-prefix)]}
+                    $service http://[dict get $serviceData -host][dict get $serviceData -prefix]]}
             $doc selectNodesNamespaces \
                 [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-                     $service http://$serviceInfo(-host)$serviceInfo(-prefix)]
+                     $service http://[dict get $serviceData -host][dict get $serviceData -prefix]]
             $doc documentElement rootNode
             
             # extract the name of the method
@@ -1381,7 +1381,7 @@ proc ::WS::Server::callOperation {service sock args} {
         set ::errorInfo {}
         set ::errorCode [list Server UNKNOWN_METHOD $operation]
         set response [generateError \
-                    $serviceInfo(-traceEnabled) \
+                    [dict get $serviceData -traceEnabled] \
                     CLIENT \
                     $msg \
                     [list "errorCode" $::errorCode "stackTrace" $::errorInfo] \
@@ -1431,7 +1431,7 @@ proc ::WS::Server::callOperation {service sock args} {
     if {[catch {
         # Check that all supplied arguments are valid
         set methodArgs [dict get $procInfo $ns $cmdName argOrder]
-        if {$serviceInfo(-verifyUserArgs)} {
+        if {[dict get $serviceData -verifyUserArgs]} {
             foreach {key value} [array get rawargs] {
                 if {[lsearch -exact $methodArgs $key] == -1} {
                     error "Invalid argument '$key' supplied"
@@ -1558,7 +1558,7 @@ proc ::WS::Server::callOperation {service sock args} {
         set localerrorCode $::errorCode
         set localerrorInfo $::errorInfo
         set response [generateError \
-                    $serviceInfo(-traceEnabled) \
+                    [dict get $serviceData -traceEnabled] \
                     CLIENT \
                     "Error Parsing Arguments -- $errMsg" \
                     [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo] \
@@ -1604,8 +1604,8 @@ proc ::WS::Server::callOperation {service sock args} {
     ##
     ## Run the premonitor hook, if necessary.
     ##
-    if {[info exists serviceInfo(-premonitor)] && [string length $serviceInfo(-premonitor)]} {
-        set precmd $serviceInfo(-premonitor)
+    if {[dict exists $serviceData -premonitor] && "" ne [dict get $serviceData -premonitor]} {
+        set precmd [dict get $serviceData -premonitor]
         lappend precmd PRE $service $operation $tclArgList
         catch $precmd
     }
@@ -1614,7 +1614,7 @@ proc ::WS::Server::callOperation {service sock args} {
     ## Convert the HTTP request headers.
     ##
     set headerList {}
-    foreach headerType $serviceInfo(-inheaders) {
+    foreach headerType [dict get $serviceData -inheaders] {
         if {[string equal $headerType {}]} {
             continue
         }
@@ -1627,7 +1627,7 @@ proc ::WS::Server::callOperation {service sock args} {
     ## Actually execute the method.
     ##
     if {[catch {
-        set cmd $serviceInfo(-checkheader)
+        set cmd [dict get $serviceData -checkheader]
         switch -exact -- $mode {
             wibble  {
                 lappend cmd \
@@ -1664,9 +1664,9 @@ proc ::WS::Server::callOperation {service sock args} {
         if {![string equal $outTransform  {}]} {
             set response [$outTransform REPLY $response $operation $results]
         }
-        if {[info exists serviceInfo(-postmonitor)] &&
-            [string length $serviceInfo(-postmonitor)]} {
-            set precmd $serviceInfo(-postmonitor)
+        if {[dict exists $serviceData -postmonitor] &&
+            "" ne [dict get $serviceData -postmonitor]} {
+            set precmd [dict get $serviceData -postmonitor]
             lappend precmd POST $service $operation OK $results
             catch $precmd
         }
@@ -1702,14 +1702,14 @@ proc ::WS::Server::callOperation {service sock args} {
         ##
         set localerrorCode $::errorCode
         set localerrorInfo $::errorInfo
-        if {[info exists serviceInfo(-postmonitor)] &&
-            [string length $serviceInfo(-postmonitor)]} {
-            set precmd $serviceInfo(-postmonitor)
+        if {[dict exists $serviceData -postmonitor] &&
+            "" ne [dict get $serviceData -postmonitor]} {
+            set precmd [dict get $serviceData -postmonitor]
             lappend precmd POST $service $operation ERROR $msg
             catch $precmd
         }
         set response [generateError \
-                    $serviceInfo(-traceEnabled) \
+                    [dict get $serviceData -traceEnabled] \
                     CLIENT \
                     $msg \
                     [list "errorCode" $localerrorCode "stackTrace" $localerrorInfo] \
@@ -1915,15 +1915,15 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
 
     variable serviceArr
 
-    array set serviceData $serviceArr($serviceName)
+    set serviceData $serviceArr($serviceName)
 
 
     switch -exact -- $flavor {
         rest {
-            set doc [yajl create #auto -beautify $serviceData(-beautifyJson)]
+            set doc [yajl create #auto -beautify [dict get $serviceData -beautifyJson]]
 
             $doc map_open
-            ::WS::Utils::convertDictToJson Server $serviceName $doc $results ${serviceName}:${operation}Results $serviceData(-enforceRequired)
+            ::WS::Utils::convertDictToJson Server $serviceName $doc $results ${serviceName}:${operation}Results [dict get $serviceData -enforceRequired]
             $doc map_close
 
             set output [$doc get]
@@ -1932,7 +1932,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
         soap {
             if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
                 set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
-                                     $serviceData(-host) \
+                                     [dict get $serviceData -host] \
                                      $serviceName \
                                      $operation]
                 append replaceText "\n"
@@ -1947,19 +1947,19 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
                 "xmlns:xsi"      "http://www.w3.org/1999/XMLSchema-instance" \
                 "xmlns:xsd"      "http://www.w3.org/1999/XMLSchema" \
                 "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
-                xmlns:$serviceName "http://$serviceData(-host)$serviceData(-prefix)"
-            if {[llength $serviceData(-outheaders)]} {
+                xmlns:$serviceName "http://[dict get $serviceData -host][dict get $serviceData -prefix]"
+            if {0 != [llength [dict get $serviceData -outheaders]]} {
                 $env appendChild [$doc createElement "SOAP-ENV:Header" header]
-                foreach headerType $serviceData(-outheaders) {
+                foreach headerType [dict get $serviceData -outheaders] {
                     #$header appendChild [$doc createElement ${serviceName}:${headerType} part]
                     #::WS::Utils::convertDictToType Server $serviceName $doc $part $results $headerType
-                    ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType 0 $serviceData(-enforceRequired)
+                    ::WS::Utils::convertDictToType Server $serviceName $doc $header $results $headerType 0 [dict get $serviceData -enforceRequired]
                 }
             }
             $env appendChild [$doc createElement "SOAP-ENV:Body" body]
             $body appendChild [$doc createElement ${serviceName}:${operation}Results reply]
 
-            ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results 0 $serviceData(-enforceRequired)
+            ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results 0 [dict get $serviceData -enforceRequired]
 
             append output  \
                 {<?xml version="1.0"  encoding="utf-8"?>} \
@@ -2034,9 +2034,8 @@ proc ::WS::Server::ok {args} {
 #               and all applicable type definitions.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       sock            - The socket to return the WSDL on
-#       args            - not used
+#       serviceData      -- Service information dict
+#       menuList         -- html menu
 #
 # Returns :
 #       1 - On error
@@ -2062,40 +2061,39 @@ proc ::WS::Server::ok {args} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
+proc ::WS::Server::generateGeneralInfo {serviceData menuList} {
     variable procInfo
 
     ::log::log debug "\tDisplay Service General Information"
-    array set serviceData $serviceInfo
-    set service [dict get $serviceInfo -service]
+    set service [dict get $serviceData -service]
 
     ::html::init
-    ::html::author $serviceData(-author)
-    if {[string equal $serviceData(-description) {}]} {
+    ::html::author [dict get $serviceData -author]
+    if {"" eq [dict get $serviceData -description]} {
         ::html::description  "Automatically generated human readable documentation for '$service'"
     } else {
-        ::html::description $serviceData(-description)
+        ::html::description [dict get $serviceData -description]
     }
-    if {$serviceData(-stylesheet) != ""} {
-        ::html::headTag "link rel=\"stylesheet\" type=\"text/css\" href=\"$serviceData(-stylesheet)\""
+    if {[dict get $serviceData -stylesheet] ne ""} {
+        ::html::headTag "link rel=\"stylesheet\" type=\"text/css\" href=\"[dict get $serviceData -stylesheet]\""
     }
-    set head $serviceData(-htmlhead)
+    set head [dict get $serviceData -htmlhead]
     set msg [::html::head $head]
     append msg [::html::bodyTag]
 
-    array unset serviceData -service
-    if {[info exists serviceData(-description)]} {
-        set serviceData(-description) [::html::nl2br $serviceData(-description)]
+    dict unset serviceData -service
+    if {[dict exists $serviceData -description]} {
+        dict set serviceData -description [::html::nl2br [dict get $serviceData -description]]
     }
-    set wsdl [format {<a href="%s/%s">WSDL(xml)</a>} $serviceData(-prefix) wsdl]
+    set wsdl [format {<a href="%s/%s">WSDL(xml)</a>} [dict get $serviceData -prefix] wsdl]
     append msg [::html::openTag center] [::html::h1 "$head -- $wsdl"] [::html::closeTag] \
                [::html::openTag table {border="2"}]
 
-    foreach key [lsort -dictionary [array names serviceData]] {
-        if {[string equal $serviceData($key) {}]} {
+    foreach key [lsort -dictionary [dict keys $serviceData]] {
+        if {"" eq [dict get $serviceData $key]} {
             append msg [::html::row [string range $key 1 end] {<i>N/A</i>}]
         } else {
-            append msg [::html::row [string range $key 1 end] $serviceData($key)]
+            append msg [::html::row [string range $key 1 end] [dict get $serviceData $key]]
         }
     }
     append msg [::html::closeTag] \
@@ -2117,9 +2115,8 @@ proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
 #               and all applicable type definitions.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       sock            - The socket to return the WSDL on
-#       args            - not used
+#       serviceData      -- Service option dict
+#       menuList         -- html menu
 #
 # Returns :
 #       1 - On error
@@ -2145,14 +2142,14 @@ proc ::WS::Server::generateGeneralInfo {serviceInfo menuList} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateTocInfo {serviceInfo menuList} {
+proc ::WS::Server::generateTocInfo {serviceData menuList} {
     variable procInfo
 
     ##
     ## Display TOC
     ##
     ::log::log debug "\tTOC"
-    set service [dict get $serviceInfo -service]
+    set service [dict get $serviceData -service]
     append msg [::html::h2 {<a id='TOC'>List of Operations</a>}]
 
     set operList {}
@@ -2180,9 +2177,8 @@ proc ::WS::Server::generateTocInfo {serviceInfo menuList} {
 #               and all applicable type definitions.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       sock            - The socket to return the WSDL on
-#       args            - not used
+#       serviceData      -- Service option dict
+#       menuList         -- html menu
 #
 # Returns :
 #       1 - On error
@@ -2208,21 +2204,21 @@ proc ::WS::Server::generateTocInfo {serviceInfo menuList} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
+proc ::WS::Server::generateOperationInfo {serviceData menuList} {
     variable procInfo
 
     ##
     ## Display Operations
     ##
     ::log::log debug "\tDisplay Operations"
-    set service [dict get $serviceInfo -service]
+    set service [dict get $serviceData -service]
     set operList {}
     foreach oper [lsort -dictionary [dict get $procInfo $service operationList]] {
         lappend operList $oper "#op_$oper"
     }
     append msg [::html::h2 {<a id='OperDetails'>Operation Details</a>}]
 
-    set docFormat [dict get $serviceInfo -docFormat]
+    set docFormat [dict get $serviceData -docFormat]
     foreach {oper anchor} $operList {
         ::log::logsubst debug {\t\tDisplaying '$oper'}
         append msg [::html::h3 "<a id='op_$oper'>$oper</a>"]
@@ -2313,9 +2309,8 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
 #               and all applicable type definitions.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       sock            - The socket to return the WSDL on
-#       args            - not used
+#       serviceData      -- Service option dict
+#       menuList         -- html menu
 #
 # Returns :
 #       1 - On error
@@ -2341,14 +2336,14 @@ proc ::WS::Server::generateOperationInfo {serviceInfo menuList} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
+proc ::WS::Server::generateCustomTypeInfo {serviceData menuList} {
     variable procInfo
 
     ##
     ## Display custom types
     ##
     ::log::log debug "\tDisplay custom types"
-    set service [dict get $serviceInfo -service]
+    set service [dict get $serviceData -service]
     append msg [::html::h2 {<a id='CustomTypeDetails'>Custom Types</a>}]
 
     set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
@@ -2389,15 +2384,14 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Server::generateInfo
+# Procedure Name : ::WS::Server::generateSimpleTypeInfo
 #
 # Description : Generate an HTML description of the service, the operations
 #               and all applicable type definitions.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       sock            - The socket to return the WSDL on
-#       args            - not used
+#       serviceData      -- Service option dict
+#       menuList         -- html menu
 #
 # Returns :
 #       1 - On error
@@ -2423,14 +2417,14 @@ proc ::WS::Server::generateCustomTypeInfo {serviceInfo menuList} {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateSimpleTypeInfo {serviceInfo menuList} {
+proc ::WS::Server::generateSimpleTypeInfo {serviceData menuList} {
     variable procInfo
 
     ##
     ## Display list of simple types
     ##
     ::log::log debug "\tDisplay list of simply types"
-    set service [dict get $serviceInfo -service]
+    set service [dict get $serviceData -service]
     append msg [::html::h2 {<a id='SimpleTypeDetails'>Simple Types</a>}]
 
     append msg "\n<br/>\n<center>" [::html::minorMenu $menuList] "</center>"
