@@ -40,7 +40,7 @@
 ###############################################################################
 
 package require Tcl 8.4
-package require WS::Utils 2.4 ; # provides dict
+package require WS::Utils
 package require html
 package require log
 package require tdom

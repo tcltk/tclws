@@ -479,6 +479,10 @@ Then, a list of options for both functions are given, with remarks, if they are 
 	only put namespace prefix when namespaces change</li>
 <li><pre>parseInAttr</pre>
 	parse attributes on inbound tags, see <A HREF="Using_Options.html#parseInAttr">here</A> for details</li>
+<li><pre>queryTimeout</pre>
+	Timeout to any network query in ms. Default value: 60000 (1 minuite).
+	The <A HREF="Using_Options.html#queryTimeout">utility package</a> has an option with the same functionality, which is used, when there is no call option context.
+	</li>
 <li><pre>skipHeaderLevel</pre>
 	boolean indicating the first level of the XML in a request header <i><b>shall be</b></i> skipped.  Derived from options.  Default is 0 (do not skip). <i>(Introduced in 2.2.8)</i></li>
 <li><pre>skipLevelOnReply</pre>

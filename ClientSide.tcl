@@ -40,14 +40,14 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.4
-package require WS::Utils 2.4 ; # dict, lassign, logsubst
+package require Tcl 8.6
+package require WS::Utils ; # logsubst
 package require tdom 0.8
 package require http 2
 package require log
 package require uri
 
-package provide WS::Client 2.6.3
+package provide WS::Client 3.0.0
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -118,6 +118,7 @@ namespace eval ::WS::Client {
         noTargetNs 0
         errorOnRedefine 0
         inlineElementNS 1
+        queryTimeout 60000
     }
     ##
     ## List of options which are copied to the service array
@@ -137,8 +138,13 @@ namespace eval ::WS::Client {
         useTypeNs
         nsOnChangeOnly
         noTargetNs
+        queryTimeout
     }
 
+    ##
+    ## List of options which are set and restored in the Utilities module
+    ## when we do a call into the module
+    ##
     set ::WS::Client::utilsOptionsList {
         UseNS
         parseInAttr
@@ -656,15 +662,17 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  01/30/2009  G.Lester     Initial version
-# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
+#   2.4.1  2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
+#   3.0.0  2020-10-26  H.Oehlmann   Add geturl timeout
 #
 #
 ###########################################################################
 proc ::WS::Client::ImportNamespace {serviceName url} {
     variable serviceArr
 
+    set serviceInfo $serviceArr($serviceName)
     switch -exact -- [dict get [::uri::split $url] scheme] {
         file {
             upvar #0 [::uri::geturl $url] token
@@ -673,7 +681,8 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
         }
         http -
         https {
-            set xml [::WS::Utils::geturl_fetchbody $url]
+            set xml [::WS::Utils::geturl_fetchbody $url\
+                    -timeout [dict get $serviceInfo queryTimeout]]
         }
         default {
             return \
@@ -683,7 +692,6 @@ proc ::WS::Client::ImportNamespace {serviceName url} {
         }
     }
     set tnsCount [expr {[llength [dict get $serviceArr($serviceName) targetNamespace]]/2}]
-    set serviceInfo $serviceArr($serviceName)
     dict lappend serviceInfo imports $url
     ::WS::Utils::ProcessImportXml Client $url $xml $serviceName serviceInfo tnsCount
     set serviceArr($serviceName) $serviceInfo
@@ -1042,10 +1050,12 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 #   2.4.1  2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #   2.4.6  2017-12-07  H.Oehlmann   Added argument "serviceNumber".
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 ###########################################################################
 proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}} {serviceNumber 1}} {
     variable currentBaseUrl
+    variable options
 
     set currentBaseUrl $url
     switch -exact -- [dict get [::uri::split $url] scheme] {
@@ -1056,11 +1066,12 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}} {serviceN
         }
         http -
         https {
+            set largs {}
             if {[llength $headers]} {
-                set body [::WS::Utils::geturl_fetchbody $url -headers $headers]
-            } else {
-                set body [::WS::Utils::geturl_fetchbody $url]
+                lappend largs -headers $headers
             }
+            set body [::WS::Utils::geturl_fetchbody $url\
+                    -timeout $options(queryTimeout) {*}$largs]
             set wsdlInfo [ParseWsdl $body -headers $headers -serviceAlias $serviceAlias -serviceNumber $serviceNumber]
         }
         default {
@@ -1462,6 +1473,7 @@ proc ::WS::Client::CreateStubs {serviceName} {
 # 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -1506,11 +1518,15 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
     ## do http call
     ##
 
+    set largs {}
     if {[llength $headers]} {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-    } else {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
+        lappend largs -headers $headers
     }
+    set body [::WS::Utils::geturl_fetchbody $url\
+            -query $query\
+            -type [dict get $serviceInfo contentType]\
+            -timeout [dict get $serviceInfo queryTimeout]\
+            {*}$largs]
 
     ::log::logsubst debug {Leaving ::WS::Client::DoRawCall with {$body}}
     return $body
@@ -1566,6 +1582,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
 # 2.4.1    2017-08-30  H.Oehlmann   Use ::WS::Utils::geturl_fetchbody to do
 #                                   http call. This automates a lot and follows
 #                                   redirects.
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -1611,11 +1628,15 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
     ##
     # This will directly return with correct error
     # side effect: sets the variable httpCode
+    set largs {}
     if {[llength $headers]} {
-        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-    } else {
-        set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url -query $query -type [dict get $serviceInfo contentType] ]
+        lappend largs -headers $headers
     }
+    set body [::WS::Utils::geturl_fetchbody -codeok {200 500} -codevar httpCode $url\
+            -query $query\
+            -type [dict get $serviceInfo contentType]\
+            -headers $headers\
+            {*}$largs]
     # numerical http code was saved in variable httpCode
 
     ##
@@ -1804,27 +1825,22 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     } else {
         RestoreSavedOptions $serviceName
     }
+    set largs {}
     if {[llength $headers]} {
-        ::log::logsubst info {::http::geturl $url \
-                -query $query \
-                -type [dict get $serviceInfo contentType] \
-                -headers $headers \
-                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]}
-        ::http::geturl $url \
-            -query $query \
-            -type [dict get $serviceInfo contentType] \
-            -headers $headers \
-            -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
-    } else {
-        ::log::logsubst info {::http::geturl $url \
-                -query $query \
-                -type [dict get $serviceInfo contentType] \
-                -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]}
-        ::http::geturl $url \
-            -query $query \
-            -type [dict get $serviceInfo contentType] \
-            -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]
+        lappend largs -headers $headers
     }
+    ::log::logsubst info {::http::geturl $url \
+            -query $query \
+            -type [dict get $serviceInfo contentType] \
+            -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd]\
+            -timeout [dict get $serviceInfo queryTimeout] \
+            {*}$largs}
+    ::http::geturl $url \
+        -query $query \
+        -type [dict get $serviceInfo contentType] \
+        -command [list ::WS::Client::asyncCallDone $serviceName $operationName $succesCmd $errorCmd] \
+        -timeout [dict get $serviceInfo queryTimeout] \
+        {*}$largs
     ::log::logsubst debug {Leaving ::WS::Client::DoAsyncCall}
     return;
 }
@@ -3477,6 +3493,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -3528,11 +3545,15 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
     ## do http call
     ##
 
+    set largs {}
     if {[llength $headers]} {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-    } else {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
+        lappend largs -headers $headers
     }
+    set body [::WS::Utils::geturl_fetchbody $url\
+            -query $query\
+            -type [dict get $serviceInfo contentType]\
+            -timeout [dict get $serviceInfo queryTimeout]\
+            {*}$largs]
 
     ::log::logsubst debug {Leaving ::WS::Client::DoRawRestCall with {$body}}
     return $body
@@ -3588,6 +3609,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -3638,11 +3660,15 @@ proc ::WS::Client::DoRestCall {serviceName objectName operationName argList {hea
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
+    set largs {}
     if {[llength $headers]} {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType] -headers $headers]
-    } else {
-        set body [::WS::Utils::geturl_fetchbody $url -query $query -type [dict get $serviceInfo contentType]]
+        lappend largs -headers $headers
     }
+    set body [::WS::Utils::geturl_fetchbody $url\
+            -query $query\
+            -type [dict get $serviceInfo contentType]\
+            -timeout [dict get $serviceInfo queryTimeout]\
+            {*}$largs]
 
     ##
     ## Parse results
@@ -3749,27 +3775,23 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
     } else {
         RestoreSavedOptions $serviceName
     }
+    set largs {}
     if {[llength $headers]} {
-        ::log::logsubst info {::http::geturl $url \
-                -query $query \
-                -type [dict get $serviceInfo contentType] \
-                -headers $headers \
-                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]}
-        ::http::geturl $url \
+        lappend largs -headers $headers
+    }
+    ::log::logsubst info {::http::geturl $url \
+            -query $query \
+            -type [dict get $serviceInfo contentType] \
+            -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
+            -timeout [dict get $serviceInfo queryTimeout]\
+            {*}$largs}
+    ::http::geturl $url \
             -query $query \
             -type [dict get $serviceInfo contentType] \
             -headers $headers \
-            -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
-    } else {
-        ::log::logsubst info {::http::geturl $url \
-                -query $query \
-                -type [dict get $serviceInfo contentType] \
-                -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]}
-        ::http::geturl $url \
-            -query $query \
-            -type [dict get $serviceInfo contentType] \
-            -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd]
-    }
+            -command [list ::WS::Client::asyncRestCallDone $serviceName $operationName $succesCmd $errorCmd] \
+            -timeout [dict get $serviceInfo queryTimeout]\
+            {*}$largs
     ::log::log debug "Leaving ::WS::Client::DoAsyncRestCall"
     return;
 }

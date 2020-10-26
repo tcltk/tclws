@@ -39,21 +39,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.4
-if {![llength [info command dict]]} {
-    package require dict
-}
-if {![llength [info command lassign]]} {
-    proc lassign {inList args} {
-        set numArgs [llength $args]
-        set i -1
-        foreach var $args {
-            incr i
-            uplevel 1 [list set $var [lindex $inList $i]]
-        }
-        return [lrange $inList $numArgs end]
-    }
-}
+package require Tcl 8.6
 
 package require log
 
@@ -70,7 +56,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 2.6.2
+package provide WS::Utils 3.0.0
 
 namespace eval ::WS {}
 
@@ -163,6 +149,7 @@ namespace eval ::WS::Utils {
         useTypeNs 0
         nsOnChangeOnly 0
         anyType string
+		queryTimeout 60000
     }
 
     set ::WS::Utils::standardAttributes {
@@ -884,9 +871,9 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
             http {
                 set ncode -1
                 catch {
-                    ::log::logsubst info {[list ::http::geturl $url]}
-                    set token [::http::geturl $url]
-                    ::http::wait $token
+                    ::log::logsubst info {[list ::http::geturl $url\
+                            -timeout $options(queryTimeout)]}
+                    set token [::http::geturl $url -timeout $options(queryTimeout)]
                     set ncode [::http::ncode $token]
                     set xml [::http::data $token]
                     ::log::logsubst info {Received Ncode = ($ncode), $xml}
@@ -3172,6 +3159,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -3252,9 +3240,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
         http {
             ::log::log debug "In http/https processor"
             set ncode -1
-            set token [geturl_followRedirects $url]
-            #parray $token
-            ::http::wait $token
+            set token [geturl_followRedirects $url -timeout $options(queryTimeout)]
             set ncode [::http::ncode $token]
             ::log::log debug "returned code {$ncode}"
             set xml [::http::data $token]
@@ -4879,22 +4865,8 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
 #       1  02/24/2011  G. Lester    Initial version
 #
 ###########################################################################
-if {[package vcompare [info patchlevel] 8.5] == -1} {
-    ##
-    ## 8.4, so can not use {*} expansion
-    ##
-    proc ::WS::Utils::setAttr {node attrList} {
-        foreach {name value} $attrList {
-            $node setAttribute $name $value
-        }
-    }
-} else {
-    ##
-    ## 8.5 or later, so use {*} expansion
-    ##
-    proc ::WS::Utils::setAttr {node attrList} {
-        $node setAttribute {*}$attrList
-    }
+proc ::WS::Utils::setAttr {node attrList} {
+    $node setAttribute {*}$attrList
 }
 
 ###########################################################################
@@ -4942,13 +4914,8 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
     set finalUrl $url
     array set URI [::uri::split $url] ;# Need host info from here
     for {set loop 1} {$loop <=5} {incr loop} {
-        if {[llength $args]} {
-            ::log::logsubst info {[concat [list ::http::geturl $url] $args]}
-            set token [eval [list http::geturl $url] $args]
-        } else {
-            ::log::logsubst info {::http::geturl $url}
-            set token [::http::geturl $url]
-        }
+        ::log::logsubst info {[concat [list ::http::geturl $url] $args]}
+        set token [http::geturl $url {*}$args]
         set ncode [::http::ncode $token]
         ::log::logsubst info {ncode = $ncode}
         if {![string match {30[12378]} $ncode]} {
@@ -5027,6 +4994,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  11/08/2015  H.Oehlmann   Initial version
+#   3.0.0  2020-10-26  H.Oehlmann   Honor timeout and eof status
 #
 ###########################################################################
 proc ::WS::Utils::geturl_fetchbody {args} {
@@ -5048,33 +5016,46 @@ proc ::WS::Utils::geturl_fetchbody {args} {
     }
 
     set token [eval ::WS::Utils::geturl_followRedirects $args]
-    ::http::wait $token
-    if {[::http::status $token] eq {ok}} {
-        if {[::http::size $token] == 0} {
-            ::log::log debug "\tHTTP error: no data"
+    switch -exact -- [::http::status $token] {
+        ok {
+            if {[::http::size $token] == 0} {
+                ::log::log debug "\tHTTP error: no data"
+                ::http::cleanup $token
+                return -errorcode [list WS CLIENT NODATA [lindex $args 0]]\
+                        -code error "HTTP failure socket closed"
+            }
+            if {$codeVar ne ""} {
+                upvar 1 $codeVar ncode
+            }
+            set ncode [::http::ncode $token]
+            set body [::http::data $token]
             ::http::cleanup $token
-            return -errorcode [list WS CLIENT NODATA [lindex $args 0]]\
-                    -code error "HTTP failure socket closed"
+            if {$bodyAlwaysOk && ![string equal $body ""]
+                || -1 != [lsearch $codeOkList $ncode]
+            } {
+                # >> Fetch ok
+                ::log::logsubst debug {\tReceived: $body}
+                return $body
+            }
+            ::log::logsubst debug {\tHTTP error: Wrong code $ncode or no data}
+            return -code error -errorcode [list WS CLIENT HTTPERROR $ncode]\
+                    "HTTP failure code $ncode"
         }
-        if {$codeVar ne ""} {
-            upvar 1 $codeVar ncode
+        eof {
+            set error "socket closed by server"
         }
-        set ncode [::http::ncode $token]
-        set body [::http::data $token]
-        ::http::cleanup $token
-        if {$bodyAlwaysOk && ![string equal $body ""]
-            || -1 != [lsearch $codeOkList $ncode]
-        } {
-            # >> Fetch ok
-            ::log::logsubst debug {\tReceived: $body}
-            return $body
+        error {
+            set error [::http::error $token]
         }
-        ::log::logsubst debug {\tHTTP error: Wrong code $ncode or no data}
-        return -code error -errorcode [list WS CLIENT HTTPERROR $ncode]\
-                "HTTP failure code $ncode"
+        timeout {
+            set error "timeout"
+        }
+        default {
+            set error "unknown http::status: [::http::status $token]"
+        }
     }
     ::log::logsubst debug {\tHTTP error [array get $token]}
-    set error [::http::error $token]
+    
     ::http::cleanup $token
     return -errorcode [list WS CLIENT HTTPERROR $error]\
             -code error "HTTP error: $error"

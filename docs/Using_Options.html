@@ -15,18 +15,19 @@
       <UL>
         <li class="toclevel-1"><a href="#Overview"><span class="toctext">Overview</span></a>
         </li><li class="toclevel-1"><a href="#Loading_the_Webservices_Utilities_Package"><span class="toctext">Loading the Webservices Utilities Package</span></a>
+        </li><li class="toclevel-1"><a href="#SetOption"> <span class="toctext">Access Routine</span></a>
         </li><li class="toclevel-1"><a href="#Options"> <span class="toctext">Options</span></a>
         <ul>
-            <li class="toclevel-2"><a href="#UseNS"> <span class="toctext">UseNS - put namespaces on field tags</span></a>
-            </li><li class="toclevel-2"><a href="#StrictMode"> <span class="toctext">StrictMode - WSDL processing mode</span></a>
-            </li><li class="toclevel-2"><a href="#parseInAttr"><span class="toctext">parseInAttr - parse attributes on inbound tags</span></a>
             </li><li class="toclevel-2"><a href="#genOutAttr"> <span class="toctext">genOutAttr - generate attributes on outbound tags</span></a>
-            </li><li class="toclevel-2"><a href="#useTypeNs"> <span class="toctext">useTypeNs - use type's namespace prefix as prefix of elements</span></a>
-            </li><li class="toclevel-2"><a href="#nsOnChangeOnly"> <span class="toctext">nsOnChangeOnly - only put namespace prefix when namespaces change</span></a>
-            </li><li class="toclevel-2"><a href="#suppressNS"> <span class="toctext">suppressNS - do not put a particular namespace prefix</span></a>
             </li><li class="toclevel-2"><a href="#includeDirectory"> <span class="toctext">includeDirectory - disk directory to use for XSD includes when they can not be accessed via the Web.</span></a>
+            </li><li class="toclevel-2"><a href="#nsOnChangeOnly"> <span class="toctext">nsOnChangeOnly - only put namespace prefix when namespaces change</span></a>
+            </li><li class="toclevel-2"><a href="#parseInAttr"><span class="toctext">parseInAttr - parse attributes on inbound tags</span></a>
+            </li><li class="toclevel-2"><a href="#queryTimeout"> <span class="toctext">queryTimeout - set http(s) fetch timeout.</span></a>
+            </li><li class="toclevel-2"><a href="#StrictMode"> <span class="toctext">StrictMode - WSDL processing mode</span></a>
+            <li class="toclevel-2"><a href="#UseNS"> <span class="toctext">UseNS - put namespaces on field tags</span></a>
+            </li><li class="toclevel-2"><a href="#useTypeNs"> <span class="toctext">useTypeNs - use type's namespace prefix as prefix of elements</span></a>
+            </li><li class="toclevel-2"><a href="#suppressNS"> <span class="toctext">suppressNS - do not put a particular namespace prefix</span></a>
         </li></ul>
-        </li><li class="toclevel-1"><a href="#SetOption"> <span class="toctext">Access Routine</span></a>
     </li></ul>
 <P>
 
@@ -51,6 +52,19 @@
 
 <P>The attributes can be retrieved and set using <A href="#SetOption">::WS::Utils::SetOption</A>.</P>
 
+<p>If called by the client side, the following options are overwritten and restored on any call:
+<ul>
+	<li>genOutAttr</li>
+	<li>nsOnChangeOnly</li>
+	<li>parseInAttr</li>
+	<li>suppressNS</li>
+	<li>UseNS</li>
+	<li>useTypeNs</li>
+	<li>valueAttrCompatiblityMode</li>
+</ul>
+
+</p>
+
 <HR>
 <A name=Loading_the_Webservices_Utilities_Package></A>
 <H2>Loading the Webservices Utilities Package </H2>
@@ -60,17 +74,82 @@
 causes no ill effects to put this in each file using the utilties. </P>
 <HR>
 
+<A name=SetOption></A>
+<H2>Access Routine </H2>
+<P><B>Procedure Name&nbsp;: <I>::WS::Utils::SetOption</I></B> </P>
+<P><B>Description&nbsp;: </B> Retrieve or set an option </P>
+<P><B>Arguments&nbsp;:</B> </P>
+<PRE>
+    <I>option</I> - name of the option
+    <I>value</I> - value of the option (optional)
+</PRE>
+<P><B>Returns&nbsp;: The value of the option</B> </P>
+<P><B>Side-Effects&nbsp;: None</B> </P>
+<P><B>Exception Conditions&nbsp;:None</B> </P>
+<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
+<HR>
 
-<A name=UseNS></A>
-<H2>UseNS - put namespaces on field tags </H2>
+<A name=genOutAttr></A>
+<H2>genOutAttr - generate attributes on outbound tags </H2>
 <P>
-    The <I>UseNS</I> option, if set to a "true" value, will put a namespace alias on all field tags.
+    The <I>genOutAttr</I> option, if set to a "true" value,
+    will convert all dictionary keys of the entry for a given field tag to attribute value pairs
+    of the tag in the outbound XML.
+    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
+    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
+    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
 </P>
 <P>
-    The default value, "1", is for this option to be turned on.
+    The default value, "0", is for this option to be turned off.
 </P>
 <HR>
 
+<p><a name="includeDirectory"></a>
+</p><h2>includeDirectory - disk directory to use for XSD includes when they can not be accessed via the Web. </h2>
+<p>
+    The <i>includeDirectory</i> option, if set, instructs TclWs to look in the specified directory for any XSD includes that can not be found via the web.
+</p>
+<p>
+    The default value, "{}", is for this option to be turned off.
+</p>
+<hr />
+
+<p><a name="nsOnChangeOnly"></a>
+</p><h2>nsOnChangeOnly - only put namespace prefix when namespaces change </h2>
+<p>
+    The <i>nsOnChangeOnly</i> option, if set to a "true" value,
+    will only place namespace prefixes when the namespaces change.
+</p>
+<p>
+	This option is only relevant, if the option <a href="#UseNS">UseNS</a> is set.
+</p>
+<p>
+    The default value, "0", is for this option to be turned off.
+</p>
+<hr />
+
+<A name=parseInAttr></A>
+<H2>parseInAttr - parse attributes on inbound tags </H2>
+<P>
+    The <I>parseInAttr</I> option, if set to a "true" value,
+    will convert all attributes of inbound field tags to dictionary entries for that tag.
+    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
+    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
+    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
+</P>
+<P>
+    The default value, "0", is for this option to be turned off.
+</P>
+<HR />
+
+<p><a name="queryTimeout"></a></p>
+<h2>queryTimeout - set http(s) query timeout</h2>
+<p>
+	Timeout to any network query in ms.
+	The <A HREF="Calling_a_Web_Service.html#Config">client side package</a> has an option with the same functionality, which is used, when there is a call option context.
+</p>
+<p>Default value: 60000 (1 minuite).</p>
+<HR />
 
 <A name=StrictMode></A>
 <H2>StrictMode - WSDL processing mode </H2>
@@ -96,44 +175,31 @@ causes no ill effects to put this in each file using the utilties. </P>
 <P>
     A major use of this is to ignore namespace imports in a WDSL that do not actually import any definitions.
 </P>
-<HR>
+<HR />
 
-
-<A name=parseInAttr></A>
-<H2>parseInAttr - parse attributes on inbound tags </H2>
+<A name=UseNS></A>
+<H2>UseNS - put namespaces on field tags </H2>
 <P>
-    The <I>parseInAttr</I> option, if set to a "true" value,
-    will convert all attributes of inbound field tags to dictionary entries for that tag.
-    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
-    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
-    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
+    The <I>UseNS</I> option, if set to a "true" value, will put a namespace alias on all field tags.
 </P>
 <P>
-    The default value, "0", is for this option to be turned off.
+    The default value, "1", is for this option to be turned on.
 </P>
 <HR>
 
- <p><a name="useTypeNs"></a>
+<p><a name="useTypeNs"></a>
 </p><h2>useTypeNs - use type's namespace prefix as prefix of elements </h2>
 <p>
     The <i>useTypeNs</i> option, if set to a "true" value,
     will use the prefix of the type's namespace instead of the prefix of the element's namespace.
 </p>
 <p>
-    The default value, "0", is for this option to be turned off.
-</p>
-<hr>
-
-<p><a name="nsOnChangeOnly"></a>
-</p><h2>nsOnChangeOnly - only put namespace prefix when namespaces change </h2>
-<p>
-    The <i>nsOnChangeOnly</i> option, if set to a "true" value,
-    will only place namespace prefixes when the namespaces change.
+	This option is only relevant, if the option <a href="#UseNS">UseNS</a> is set.
 </p>
 <p>
     The default value, "0", is for this option to be turned off.
 </p>
-<hr>
+<hr />
 
 <p><a name="suppressNS"></a>
 </p><h2>suppressNS - do not put a given namespace prefix. </h2>
@@ -143,24 +209,12 @@ causes no ill effects to put this in each file using the utilties. </P>
 the given prefix will not have any prefix).
 </p>
 <p>
+	This option is only relevant, if the option <a href="#UseNS">UseNS</a> is set.
+</p>
+<p>
     The default value, "{}", is for this option to be turned off.
 </p>
-<hr>
-
-<A name=genOutAttr></A>
-<H2>genOutAttr - generate attributes on outbound tags </H2>
-<P>
-    The <I>genOutAttr</I> option, if set to a "true" value,
-    will convert all dictionary keys of the entry for a given field tag to attribute value pairs
-    of the tag in the outbound XML.
-    For attributes in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name prepended with two colons (e.g. <B>::type</B>) and the value will be the value of the attribute.
-    For attributes other than those in the "http://www.w3.org/2001/XMLSchema-instance" url, the key will be the attribute name and the value will be the value of the attribute.
-    The value of the tag will have a key determined by the <a href="#valueAttrCompatiblityMode"><I>valueAttrCompatiblityMode</I></a>.
-</P>
-<P>
-    The default value, "0", is for this option to be turned off.
-</P>
-<HR>
+<hr />
 
 <A name=valueAttrCompatiblityMode></A>
 <H2>valueAttrCompatiblityMode - specify dictionary key for value when attributes are in use</H2>
@@ -173,31 +227,6 @@ the given prefix will not have any prefix).
 <P>
     The default value, "0", is for this option to be turned off.
 </P>
-<HR>
-
-<p><a name="includeDirectory"></a>
-</p><h2>includeDirectory - disk directory to use for XSD includes when they can not be accessed via the Web. </h2>
-<p>
-    The <i>includeDirectory</i> option, if set, instructs TclWs to look in the specified directory for any XSD includes that can not be found via the web.
-</p>
-<p>
-    The default value, "{}", is for this option to be turned off.
-</p>
-<hr>
-
-<A name=SetOption></A>
-<H2>Access Routine </H2>
-<P><B>Procedure Name&nbsp;: <I>::WS::Utils::SetOption</I></B> </P>
-<P><B>Description&nbsp;: </B> Retrieve or set an option </P>
-<P><B>Arguments&nbsp;:</B> </P>
-<PRE>
-    <I>option</I> - name of the option
-    <I>value</I> - value of the option (optional)
-</PRE>
-<P><B>Returns&nbsp;: The value of the option</B> </P>
-<P><B>Side-Effects&nbsp;: None</B> </P>
-<P><B>Exception Conditions&nbsp;:None</B> </P>
-<P><B>Pre-requisite Conditions&nbsp;: None</B> </P>
 <HR>
 
 </BODY>
