@@ -1,5 +1,6 @@
 ###############################################################################
 ##                                                                           ##
+##  Copyright (c) 2016-2020, Harald Oehlmann                                 ##
 ##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
@@ -44,7 +45,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 2.6.0
+package provide WS::Server 2.7.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -156,6 +157,7 @@ namespace eval ::WS::Server {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#   2.7.0  2020-10-26  H.Oehlmann   Embedded server: Do not add port 443 to default url
 #
 #
 ###########################################################################
@@ -214,7 +216,9 @@ proc ::WS::Server::Service {args} {
                 set me [socket -server garbage_word -myaddr [info hostname] 0]
                 set defaults(-host) [lindex [fconfigure $me -sockname] 0]
                 close $me
-                if {0 !=[llength $defaults(-ports)] && 80 != [lindex $defaults(-ports) 0]} {
+                if { 0 !=[llength $defaults(-ports)] &&
+                        ( 80 != [lindex $defaults(-ports) 0] ||
+                        433 != [lindex $defaults(-ports) 0] ) } {
                     append defaults(-host) ":[lindex $defaults(-ports) 0]"
                 }
             }
@@ -458,8 +462,8 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
 # Description : Generates a WSDL for a registered service.
 #
 # Arguments :
-#       serviceName     - The name of the service
-#       urlPrefix       - (optional) Prefix to use for location; defaults to http://<host>
+#       serviceName     -- The name of the service
+#       urlPrefix       -- Prefix to use for location.
 #
 # Returns :
 #       XML for the WSDL
@@ -483,10 +487,12 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #       2  12/12/2009  W.Kocjan     Support for services over SSL in Tclhttpd
+#   2.7.0  2020-10-26  H.Oehlmann   urlPrefix is a mandatory parameter.
+#                                   The caller has to think about it.
 #
 #
 ###########################################################################
-proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
+proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
     variable serviceArr
     variable procInfo
 
@@ -581,10 +587,6 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 
     $port appendChild [$reply createElement soap:address address]
 
-    if {$urlPrefix == ""} {
-        set urlPrefix "http://$serviceData(-host)"
-    }
-
     $address setAttribute  \
         location "$urlPrefix$serviceData(-prefix)/op"
 
@@ -678,7 +680,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 # Arguments :
 #       serviceName     - The name of the service
 #       sock            - The socket to return the WSDL on
-#       args            - not used
+#       args            - port for embedded server
 #
 # Returns :
 #       1 - On error
@@ -702,6 +704,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""}} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #       2  12/12/2009  W.Kocjan     Support for services over SSL in Tclhttpd
+#   2.7.0  2020-10-26  H.Oehlmann   Support httpd for embedded server.
 #
 #
 ###########################################################################
@@ -761,12 +764,13 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         return 1
     }
 
+    # Default URL prefix
+    set urlPrefix "http://$serviceData(-host)"
 
     switch -exact -- $mode {
         tclhttpd {
             upvar #0 ::Httpd$sock s
 
-            set urlPrefix ""
             catch {
                 set urlPrefix [lindex $s(self) 0]://$serviceData(-host)
                 set urlPrefix [lindex $s(self) 0]://$s(mime,host)
@@ -775,25 +779,30 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         channel {
-            set xml [GetWsdl $serviceName]
+            set xml [GetWsdl $serviceName $urlPrefix]
             ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         embedded {
-            set xml [GetWsdl $serviceName]
+            # For https, change the URL prefix
+            set port [lindex $args 0]
+            if {[::WS::Embeded::GetValue isHTTPS $port]} {
+                set urlPrefix "https://$serviceData(-host)"
+            }
+            set xml [GetWsdl $serviceName $urlPrefix]
             ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         rivet {
-            set xml [GetWsdl $serviceName]
+            set xml [GetWsdl $serviceName $urlPrefix]
             headers type "text/xml; charset=UTF-8"
             headers numeric 200
             puts $xml
         }
         aolserver {
-            set xml [GetWsdl $serviceName]
+            set xml [GetWsdl $serviceName $urlPrefix]
             ::WS::AOLserver::ReturnData $sock text/xml $xml 200
         }
         wibble  {
-            set xml [GetWsdl $serviceName]
+            set xml [GetWsdl $serviceName $urlPrefix]
             upvar 1 [lindex $args 0] responseDict
             ::WS::Wibble::ReturnData responseDict text/xml $xml 200
         }
@@ -1012,7 +1021,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
 # Arguments :
 #       serviceName     - The name of the service
 #       sock            - The socket to return the WSDL on
-#       args            - not used
+#       args            - port for embedded server
 #
 # Returns :
 #       1 - On error
@@ -1227,7 +1236,7 @@ proc ::WS::Server::displayType {serviceName type} {
 #       serviceName     - The name of the service
 #       sock            - The socket to return the WSDL on
 #       -rest           - Use Rest flavor call instead of SOAP
-#       args            - not used
+#       args            - port for embedded server
 #
 # Returns :
 #       1 - On error

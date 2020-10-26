@@ -1,5 +1,6 @@
 ###############################################################################
 ##                                                                           ##
+##  Copyright (c) 2016-2020, Harald Oehlmann                                 ##
 ##  Copyright (c) 2008, Gerald W. Lester                                     ##
 ##  All rights reserved.                                                     ##
 ##                                                                           ##
@@ -123,6 +124,55 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 #
 #>>BEGIN PUBLIC<<
 #
+# Procedure Name : ::WS::Embeded::GetValue
+#
+# Description : Get a value found in this module
+#
+# Arguments :
+#       index    -- type of value to get. Possible values:
+#                    -- isHTTPS : true, if https protocol is used.
+#       sock     -- concerned socket. May be ommitted, if not relevant for value.
+#
+# Returns :     the distinct value
+#
+# Side-Effects :
+#       None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : ::WS::Embeded::Listen must have been called for the port
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#   2.7.0  2020-10-26  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::GetValue {index {sock ""}} {
+    variable portInfo
+
+    switch -exact -- $index {
+        isHTTPS { return $portInfo($sock,$index) }
+        default {return -code error "Unknown index '$index'"}
+    }
+}
+
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
 # Procedure Name : ::WS::Embeded::AddHandlerAllPorts
 #
 # Description : Register a handler for a url on all "defined" ports.
@@ -228,6 +278,12 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
     foreach up $userpwds {
         lappend portInfo($port,auths) [base64::encode $up]
     }
+    
+    ##
+    ## Check if HTTPS protocol is used
+    ##
+    
+    set portInfo($port,isHTTPS) [expr {$certfile ne ""}]
 
     if {$certfile ne "" } {
         if { [string is list $keyfile] && [lindex $keyfile 0] eq "-twapi"} {
@@ -575,6 +631,8 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #                                   The corresponding value is found in global
 #                                   array anyway.
 #                                   Use charset handler of request decoding.
+#   2.7.0  2020-10-26  H.Oehlmann   Pass additional port parameter to handle functions.
+#                                   This helps to get isHTTPS status for WSDL.
 #
 #
 ###########################################################################
@@ -590,7 +648,7 @@ proc ::WS::Embeded::handler {port sock ip auth} {
     set path "/[string trim $dataArray(path) /]"
     if {[dict exists $portInfo($port,handlers) $path]} {
         set cmd [dict get $portInfo($port,handlers) $path]
-        lappend cmd $sock {}
+        lappend cmd $sock $port
         # ::WS::Server::callOperation is called (for operations).
         # This routine reads our data by:
         #   upvar #0 ::WS::Embeded::Httpd$sock data
