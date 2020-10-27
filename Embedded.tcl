@@ -55,7 +55,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.7.0
+package provide WS::Embeded 2.7.1
 
 namespace eval ::WS::Embeded {
 
@@ -730,7 +730,6 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
     upvar #0 ::WS::Embeded::Httpd$sock dataArray
     ::log::logsubst info {Receviced request on $port for $ip:$clientport}
 
-    array unset dataArray reply
     chan configure $sock -translation crlf
     if {1 == [catch {
         gets $sock line
@@ -808,6 +807,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 
     catch {flush $sock}
     catch {close $sock}
+    array unset dataArray
     return
 }
 
