@@ -1269,8 +1269,8 @@ proc ::WS::Server::callOperation {service sock args} {
 
     switch -exact -- $mode {
         embedded {
-            upvar #0 ::WS::Embeded::Httpd$sock data
-            set inXML $data(query)
+            upvar #0 ::WS::Embeded::Httpd$sock embeddedServerDataDict
+            set inXML [dict get $embeddedServerDataDict query]
             #parray data
         }
         wibble {
@@ -1638,7 +1638,7 @@ proc ::WS::Server::callOperation {service sock args} {
                     $headerList
             }
             embedded {
-                lappend cmd $ns $baseName $data(ipaddr) $data(headers) $headerList
+                lappend cmd $ns $baseName [dict get $embeddedServerDataDict ipaddr] [dict get $embeddedServerDataDict headers] $headerList
             }
             default {
                 lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList

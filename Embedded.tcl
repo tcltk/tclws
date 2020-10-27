@@ -422,10 +422,10 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 #
 ###########################################################################
 proc ::WS::Embeded::ReturnData {sock type data code} {
-    upvar #0 ::WS::Embeded::Httpd$sock dataArray
+    upvar #0 ::WS::Embeded::Httpd$sock dataDict
 
     foreach var {type data code} {
-        dict set dataArray(reply) $var [set $var]
+        dict set dataDict reply $var [set $var]
     }
     return;
 }
@@ -638,14 +638,14 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 ###########################################################################
 proc ::WS::Embeded::handler {port sock ip auth} {
     variable portInfo
-    upvar #0 ::WS::Embeded::Httpd$sock dataArray
+    upvar #0 ::WS::Embeded::Httpd$sock dataDict
 
     if {[catch {checkauth $port $sock $ip $auth}]} {
         ::log::log warning {Auth Failed}
         return
     }
 
-    set path "/[string trim $dataArray(path) /]"
+    set path "/[string trim [dict get $dataDict path] /]"
     if {[dict exists $portInfo $port handlers $path]} {
         set cmd [dict get $portInfo $port handlers $path]
         lappend cmd $sock $port
@@ -657,11 +657,11 @@ proc ::WS::Embeded::handler {port sock ip auth} {
             ::log::log error "Return 404 due to eval error: $msg"
             respond $sock 404 "Error: $msg"
         } else {
-            set type [dict get $dataArray(reply) type]
+            set type [dict get $dataDict reply type]
             # This may modify the type variable, if encoding is not found
             set encoding [contentTypeParse 0 type]
-            set data [encoding convertto $encoding [dict get $dataArray(reply) data]]
-            set reply "[httpreturncode [dict get $dataArray(reply) code]]\n"
+            set data [encoding convertto $encoding [dict get $dataDict reply data]]
+            set reply "[httpreturncode [dict get $dataDict reply code]]\n"
             append reply "Content-Type: $type\n"
             append reply "Connection: close\n"
             append reply "Content-length: [string length $data]\n"
@@ -726,10 +726,9 @@ proc ::WS::Embeded::handler {port sock ip auth} {
 ###########################################################################
 proc ::WS::Embeded::accept {port sock ip clientport} {
 
-    upvar #0 ::WS::Embeded::Httpd$sock dataArray
+    upvar #0 ::WS::Embeded::Httpd$sock dataDict
     ::log::logsubst info {Receviced request on $port for $ip:$clientport}
 
-    array unset dataArray reply
     chan configure $sock -translation crlf
     if {1 == [catch {
         gets $sock line
@@ -778,20 +777,20 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                     set data [read $sock [dict get $request header content-length]]
                     chan configure $sock -translation crlf
                 }
-                array set dataArray [uri::split $url]
+                set dataDict [uri::split $url]
                 if {![dict exists $request header content-type]} {
                     ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
                     return
                 }
                 set contentType [dict get $request header content-type]
                 set requestEncoding [contentTypeParse 1 contentType]
-                set dataArray(query) [encoding convertfrom $requestEncoding $data]
-                set dataArray(headers) $request
-                set dataArray(ipaddr) $ip
+                dict set dataDict query [encoding convertfrom $requestEncoding $data]
+                dict set dataDict headers $request
+                dict set dataDict ipaddr $ip
                 handler $port $sock $ip $auth
             }
             GET {
-                array set dataArray [uri::split $url]
+                set dataDict [uri::split $url]
                 handler $port $sock $ip $auth
             }
             default {
@@ -807,6 +806,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 
     catch {flush $sock}
     catch {close $sock}
+    unset -nocomplain dataDict
     return
 }
 
