@@ -55,9 +55,16 @@ namespace eval ::WS::Client {
         # not registered -> register on my own
         if {[catch {
             package require tls
-            http::register https 443 [list ::tls::socket -ssl2 no -ssl3 no -tls1 yes]
+            http::register https 443 ::tls::socket
         } err]} {
-            log::log warning "No https support: $err"
+            log::log warning "No TLS package: $err"
+            if { [catch {
+                package require twapi_crypto
+                http::register https 443 ::twapi::tls_socket
+                
+            } Err] } {
+                log::log warning "No https support. No TWAPI package: $err"
+            }
         }
     } else {
         # Ok, was registered - reregister
