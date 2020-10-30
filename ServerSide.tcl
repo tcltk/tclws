@@ -75,6 +75,12 @@ namespace eval ::WS::Server {
 #               -host           - The host name for this service.
 #                                 Defaults to "ip:port" in embedded mode,
 #                                 and to "localhost" otherwise.
+#               -hostProtocol   - Define the host protocol (http, https) for the
+#                                 WSDL location URL. The special value "server"
+#                                 (default) follows the TCP/IP server specification.
+#                                 This is implemented for Embedded server
+#                                 (switching to https if TLS is used) or tclhttpd,
+#                                 where protocol and host is taken.
 #               -description    - The HTML description for this service
 #               -service        - The service name (this will also be used for
 #                                 the Tcl namespace of the procedures that implement
@@ -158,6 +164,7 @@ namespace eval ::WS::Server {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #   2.7.0  2020-10-26  H.Oehlmann   Embedded server: Do not add port 443 to default url
+#   3.0.0  2020-10-30  H.Oehlmann   New option -hostProtocol
 #
 #
 ###########################################################################
@@ -185,7 +192,8 @@ proc ::WS::Server::Service {args} {
         -beautifyJson   {N}\
         -errorCallback  {}\
         -verifyUserArgs {N}\
-        -enforceRequired {N} ]
+        -enforceRequired {N}\
+        -hostProtocol   {server}]
 
     set defaults [dict merge $defaults $args]
     
@@ -765,16 +773,34 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         return 1
     }
 
-    # Default URL prefix
-    set urlPrefix "http://[dict get $serviceData -host]"
+    ##
+    ## Check if the server protocol (and host) should be used
+    ##
+    
+    set protocol [dict get $serviceData -hostProtocol]
+    if {$protocol eq "server"} {
+        set serverprotocol 1
+        set protocol http
+    }
+    
+    ##
+    ## Prepare default URL prefix
+    ##
+    
+    set urlPrefix "$protocol://[dict get $serviceData -host]"
+
+    ##
+    ## Return the WSDL
+    ##
 
     switch -exact -- $mode {
         tclhttpd {
-            upvar #0 ::Httpd$sock s
-
-            catch {
-                set urlPrefix [lindex $s(self) 0]://[dict get $serviceData -host]
-                set urlPrefix [lindex $s(self) 0]://$s(mime,host)
+            if {[info exists serverprotocol]} {
+                upvar #0 ::Httpd$sock s
+                catch {
+                    set urlPrefix [lindex $s(self) 0]://[dict get $serviceData -host]
+                    set urlPrefix [lindex $s(self) 0]://$s(mime,host)
+                }
             }
             set xml [GetWsdl $serviceName $urlPrefix]
             ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
@@ -784,10 +810,12 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         embedded {
-            # For https, change the URL prefix
-            set port [lindex $args 0]
-            if {[::WS::Embeded::GetValue isHTTPS $port]} {
-                set urlPrefix "https://[dict get $serviceData -host]"
+            if {[info exists serverprotocol]} {
+                # For https, change the URL prefix
+                set port [lindex $args 0]
+                if {[::WS::Embeded::GetValue isHTTPS $port]} {
+                    set urlPrefix "https://[dict get $serviceData -host]"
+                }
             }
             set xml [GetWsdl $serviceName $urlPrefix]
             ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200

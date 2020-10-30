@@ -108,6 +108,12 @@ exist </p><PRE>               /service/&lt;ServiceName&gt;
 they are: </p><pre>             -host           - The host name for this service.
                                Defaults to "ip:port" in embedded mode,
                                and to "localhost" otherwise."
+             -hostProtocol   - Define the host protocol (http, https) for the
+                               WSDL location URL. The special value "server"
+                               (default) follows the TCP/IP server specification.
+                               This is implemented for Embedded server
+                               (switching to https if TLS is used) or tclhttpd,
+                               where protocol and host is taken.
              -description    - The HTML description for this service
              -htmlhead       - The title string of the service description
              -author         - The author property in the service description
