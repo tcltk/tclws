@@ -955,12 +955,14 @@ proc ::WS::Client::GetParsedWsdl {serviceName} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#   3.0.0  2020-10-30  H.Oehlmann   Smooth option migration.
 #
 #
 ###########################################################################
 proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
     variable serviceArr
     variable options
+    variable serviceLocalOptionsList
 
     if {[string length $serviceAlias]} {
         set serviceName $serviceAlias
@@ -977,6 +979,18 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
         dict set serviceInfo headers $headers
     }
     set serviceArr($serviceName) $serviceInfo
+
+    ##
+    ## Copy any not present options from the default values
+    ## This allows smooth migration, if a new version of the package define
+    ## new options and the preparsed service of the old version was stored.
+    ##
+    
+    foreach item $serviceLocalOptionsList {
+        if {![dict exists $serviceArr($serviceName) $item]} {
+            dict set serviceArr($serviceName) $item $options($item)
+        }
+    }
 
     if {[dict exists $serviceInfo types]} {
         foreach {typeName partList} [dict get $serviceInfo types] {
