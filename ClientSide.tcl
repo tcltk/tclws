@@ -47,7 +47,7 @@ package require http 2
 package require log
 package require uri
 
-package provide WS::Client 3.0.0
+package provide WS::Client 3.0.1
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -207,7 +207,7 @@ namespace eval ::WS::Client {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  04/272009   G.Lester     Initial version
-#   2.4.5  2017-12-04  H.Oehlmann   Return all current options if no argument
+# 2.4.5    2017-12-04  H.Oehlmann   Return all current options if no argument
 #                                   given. Options -globalonly or -defaultonly
 #                                   limit this to options which are (not)
 #                                   copied to the service.
@@ -404,7 +404,7 @@ proc ::WS::Client::CreateService {serviceName type url target args} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  04/14/2009  G.Lester     Initial version
-#   2.4.5  2017-12-04  H.Oehlmann   Allow to set an option to the empty string.
+# 2.4.5    2017-12-04  H.Oehlmann   Allow to set an option to the empty string.
 #                                   Return all option/values, if called without
 #                                   item. Return default items/values if no
 #                                   service given.
@@ -514,7 +514,7 @@ proc ::WS::Client::SetServiceTransforms {serviceName {inTransform {}} {outTransf
     dict set serviceArr($serviceName) inTransform $inTransform
     dict set serviceArr($serviceName) outTransform $outTransform
 
-    return;
+    return
 }
 
 ###########################################################################
@@ -669,10 +669,10 @@ proc ::WS::Client::DefineRestMethod {serviceName objectName operationName inputA
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  01/30/2009  G.Lester     Initial version
-#   2.4.1  2017-08-31  H.Oehlmann   Use utility function
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
-#   3.0.0  2020-10-26  H.Oehlmann   Add geturl timeout
+# 3.0.0    2020-10-26  H.Oehlmann   Add geturl timeout
 #
 #
 ###########################################################################
@@ -806,7 +806,7 @@ proc ::WS::Client::AddInputHeader {serviceName operationName headerType {attrLis
     lappend soapRequestHeader [list $headerType $attrList]
     dict set serviceInfo operation $operationName soapRequestHeader $soapRequestHeader
     set serviceArr($serviceName) $serviceInfo
-    return ;
+    return
 
 }
 
@@ -1068,10 +1068,10 @@ proc ::WS::Client::LoadParsedWsdl {serviceInfo {headers {}} {serviceAlias {}}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#   2.4.1  2017-08-31  H.Oehlmann   Use utility function
+# 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
-#   2.4.6  2017-12-07  H.Oehlmann   Added argument "serviceNumber".
-#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
+# 2.4.6    2017-12-07  H.Oehlmann   Added argument "serviceNumber".
+# 3.0.0    2020-10-26  H.Oehlmann   Added query timeout
 #
 ###########################################################################
 proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}} {serviceNumber 1}} {
@@ -1158,7 +1158,7 @@ proc ::WS::Client::GetAndParseWsdl {url {headers {}} {serviceAlias {}} {serviceN
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-# 2.4.4    2017-11-03  H.Oehlmann  Included ticket [dcce437d7a] with
+# 2.4.4    2017-11-03  H.Oehlmann   Included ticket [dcce437d7a] with
 #                                   solution by Wolfgang Winkler:
 #                                   Search namespace prfix also in element
 #                                   nodes and not only in definition node
@@ -1863,7 +1863,7 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
         -timeout [dict get $serviceInfo queryTimeout] \
         {*}$largs
     ::log::logsubst debug {Leaving ::WS::Client::DoAsyncCall}
-    return;
+    return
 }
 
 ###########################################################################
@@ -2116,7 +2116,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
     if {$cmd ne ""} {
         lappend cmd $results
         if {[catch $cmd cmdErr]} {
-            ::log::log error "Error invoking callback '$cmd': $cmdErr" 
+            ::log::log error "Error invoking callback '$cmd': $cmdErr"
         }
     }
     ##
@@ -2149,7 +2149,7 @@ proc ::WS::Client::asyncCallDone {serviceName operationName succesCmd errorCmd t
 #       WS CLIENT REMERR         - The remote end raised an exception, the third element of
 #                                 the error code is the remote fault code.
 #                                 Error info is set to the remote fault details.
-#                                 The error message is the remote fault string;
+#                                 The error message is the remote fault string.
 #       WS CLIENT BADREPLY       - Badly formatted reply, the third element is a list of
 #                                 what message type was received vs what was expected.
 #
@@ -2460,7 +2460,7 @@ proc ::WS::Client::buildCallquery {serviceName operationName url argList} {
         }
         default {
             return \
-                -code error
+                -code error \
                 "Unsupported Style '$style'"
         }
     }
@@ -2532,7 +2532,7 @@ proc ::WS::Client::buildDocLiteralCallquery {serviceName operationName url argLi
         "xmlns:SOAP-ENV" "http://schemas.xmlsoap.org/soap/envelope/" \
         "xmlns:SOAP-ENC" "http://schemas.xmlsoap.org/soap/encoding/" \
         "xmlns:xsi"      "http://www.w3.org/2001/XMLSchema-instance" \
-        "xmlns:xs"      "http://www.w3.org/2001/XMLSchema"
+        "xmlns:xs"       "http://www.w3.org/2001/XMLSchema"
     if {[dict exists $serviceInfo noTargetNs] && ![dict get $serviceInfo noTargetNs]} {
         $env setAttribute "xmlns" [dict get $xnsList tns1]
     }
@@ -2673,7 +2673,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
     $env setAttribute \
         xmlns:SOAP-ENV "http://schemas.xmlsoap.org/soap/envelope/" \
         xmlns:xsi      "http://www.w3.org/2001/XMLSchema-instance" \
-        xmlns:xs      "http://www.w3.org/2001/XMLSchema"
+        xmlns:xs       "http://www.w3.org/2001/XMLSchema"
 
     foreach {tns target} $xnsList {
         $env setAttribute xmlns:$tns $target
@@ -2758,7 +2758,7 @@ proc ::WS::Client::buildRpcEncodedCallquery {serviceName operationName url argLi
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#   2.4.6  2017-12-07  H.Oehlmann   Added argument "serviceNumber"
+# 2.4.6    2017-12-07  H.Oehlmann   Added argument "serviceNumber"
 #
 #
 ###########################################################################
@@ -3158,7 +3158,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
-                        "Mixed usageage not supported!'"
+                        "Mixed usage not supported!'"
                 }
                 set msgName [$inHeader getAttribute message]
                 ::log::log debug [list messageToType $wsdlNode $serviceName $baseName $msgName serviceInfo $style]
@@ -3182,7 +3182,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
-                        "Mixed usageage not supported!'"
+                        "Mixed usage not supported!'"
                 }
                 set messagePath [$outHeader getAttribute message]
                 set msgName [lindex [split $messagePath {:}] end]
@@ -3205,7 +3205,7 @@ proc ::WS::Client::parseBinding {wsdlNode serviceName bindingName serviceInfoVar
                     return \
                         -code error \
                         -errorcode [list WS CLIENT MIXUSE $use $tmp] \
-                        "Mixed usageage not supported!'"
+                        "Mixed usage not supported!'"
                 }
             }
             ::log::log debug "\t Input/Output types and names are {$typeNameList}"
@@ -3514,7 +3514,7 @@ proc ::WS::Client::messageToType {wsdlNode serviceName operName msgName serviceI
 # 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
-#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
+# 3.0.0    2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -3630,7 +3630,7 @@ proc ::WS::Client::DoRawRestCall {serviceName objectName operationName argList {
 # 2.4.1    2017-08-31  H.Oehlmann   Use utility function
 #                                   ::WS::Utils::geturl_fetchbody for http call
 #                                   which also follows redirects.
-#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
+# 3.0.0    2020-10-26  H.Oehlmann   Added query timeout
 #
 #
 ###########################################################################
@@ -3814,7 +3814,7 @@ proc ::WS::Client::DoRestAsyncCall {serviceName objectName operationName argList
             -timeout [dict get $serviceInfo queryTimeout]\
             {*}$largs
     ::log::log debug "Leaving ::WS::Client::DoAsyncRestCall"
-    return;
+    return
 }
 
 ###########################################################################
@@ -3930,7 +3930,7 @@ proc ::WS::Client::buildRestCallquery {serviceName objectName operationName url 
 #       WS CLIENT REMERR         - The remote end raised an exception, the third element of
 #                                 the error code is the remote fault code.
 #                                 Error info is set to the remote fault details.
-#                                 The error message is the remote fault string;
+#                                 The error message is the remote fault string.
 #       WS CLIENT BADREPLY       - Badly formatted reply, the third element is a list of
 #                                 what message type was received vs what was expected.
 #
@@ -4108,7 +4108,7 @@ proc ::WS::Client::asyncRestCallDone {serviceName objectName operationName succe
     ## All done
     ##
     ::http::cleanup $token
-    return;
+    return
 }
 
 
@@ -4168,7 +4168,7 @@ proc ::WS::Client::SaveAndSetOptions {serviceName} {
         }
     }
     dict set serviceArr($serviceName) UtilsSavedOptions $savedDict
-    return;
+    return
 }
 
 ###########################################################################
@@ -4222,5 +4222,5 @@ proc ::WS::Client::RestoreSavedOptions {serviceName} {
         ::WS::Utils::SetOption $item $value
     }
     dict set serviceArr($serviceName) UtilsSavedOptions {}
-    return;
+    return
 }

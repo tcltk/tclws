@@ -56,7 +56,7 @@ if {![llength [info command ::log::logsubst]]} {
 package require tdom 0.8
 package require struct::set
 
-package provide WS::Utils 3.0.0
+package provide WS::Utils 3.1.0
 
 namespace eval ::WS {}
 
@@ -328,7 +328,7 @@ proc ::WS::Utils::SetOption {args} {
             -errorcode [list WS CLIENT INVARGCNT $args] \
             "Invalid argument count'$args'"
     }
-    return;
+    return
 }
 
 ###########################################################################
@@ -354,6 +354,7 @@ proc ::WS::Utils::SetOption {args} {
 #                           commentString is a quoted string describing the field.
 #       xns             - The namespace
 #       abstract        - Boolean indicating if this is an abstract, and hence mutable type
+#       version         - Version code for the custom type
 #
 # Returns : Nothing
 #
@@ -374,10 +375,11 @@ proc ::WS::Utils::SetOption {args} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#       2  11/13/2018  J.Cone       Version support
 #
 #
 ###########################################################################
-proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}} {abstract {false}}} {
+proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}} {abstract {false}} {version {}}} {
     ::log::logsubst debug {Entering [info level 0]}
     variable typeInfo
 
@@ -390,7 +392,10 @@ proc ::WS::Utils::ServiceTypeDef {mode service type definition {xns {}} {abstrac
     dict set typeInfo $mode $service $type definition $definition
     dict set typeInfo $mode $service $type xns $xns
     dict set typeInfo $mode $service $type abstract $abstract
-    return;
+    if {$version ne {}} {
+        dict set typeInfo $mode $service $type version $version
+    }
+    return
 }
 
 ###########################################################################
@@ -448,7 +453,7 @@ proc ::WS::Utils::MutableTypeDef {mode service type fromSwitchCmd toSwitchCmd {x
     }
     set mutableTypeInfo([list $mode $service $type]) \
         [list $fromSwitchCmd $toSwitchCmd]
-    return;
+    return
 }
 
 ###########################################################################
@@ -520,7 +525,7 @@ proc ::WS::Utils::ServiceSimpleTypeDef {mode service type definition {xns {tns1}
         ::log::logsubst debug {\t Was [dict get $typeInfo $mode $service $type]}
         dict unset typeInfo $mode $service $type
     }
-    return;
+    return
 }
 
 ###########################################################################
@@ -837,6 +842,7 @@ proc ::WS::Utils::ProcessIncludes {rootNode baseUrl {includePath {}}} {
     set includeNodeList [concat \
                             [$rootNode selectNodes -namespaces $nsList descendant::xs:include] \
                             [$rootNode selectNodes -namespaces $nsList descendant::w:include] \
+                            [$rootNode selectNodes -namespaces $nsList descendant::w:import] \
     ]
     set inXml [$rootNode asXML]
     set included 0
@@ -1197,6 +1203,7 @@ proc ::WS::Utils::GenerateXsd {mode serviceName targetNamespace} {
 #       doc             - The document to add the scheme to
 #       parent          - The parent node of the scheme
 #       targetNamespace - Target namespace
+#       version         - Requested service version
 #
 # Returns :     nothing
 #
@@ -1218,9 +1225,10 @@ proc ::WS::Utils::GenerateXsd {mode serviceName targetNamespace} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  02/15/2008  G.Lester     Made Scheme generation a utility
 #       2  02/03/2008  G.Lester     Moved scheme generation into WS::Utils namespace
+#       3  11/13/2018  J.Cone       Version support
 #
 ###########################################################################
-proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
+proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace {version {}}} {
 
     set localTypeInfo [GetServiceTypeDef $mode $serviceName]
     array set typeArr {}
@@ -1239,6 +1247,11 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
         targetNamespace $targetNamespace
 
     foreach baseType [lsort -dictionary [array names typeArr]] {
+        if {$version ne {} && [dict exists $localTypeInfo $baseType version]} {
+            if {![check_version [dict get $localTypeInfo $baseType version] $version]} {
+                continue
+            }
+        }
         ::log::logsubst debug {Outputing $baseType}
         $schema appendChild [$doc createElement xs:element elem]
         set name [lindex [split $baseType {:}] end]
@@ -1250,6 +1263,11 @@ proc ::WS::Utils::GenerateScheme {mode serviceName doc parent targetNamespace} {
         set baseTypeInfo [dict get $localTypeInfo $baseType definition]
         ::log::logsubst debug {\t parts {$baseTypeInfo}}
         foreach {field tmpTypeInfo} $baseTypeInfo {
+            if {$version ne {} && [dict exists $tmpTypeInfo version]} {
+                if {![check_version [dict get $tmpTypeInfo version] $version]} {
+                    continue
+                }
+            }
             $seq appendChild  [$doc createElement xs:element tmp]
             set tmpType [dict get $tmpTypeInfo type]
             ::log::logsubst debug {Field $field of $tmpType}
@@ -1607,7 +1625,7 @@ proc ::WS::Utils::convertTypeToDict {
                     ## xnsDistantToLocalDict
                     if {$isAbstract && [$item hasAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]} {
                         # partType is now tns::EnvelopeN
-                        set partType [XNSDistantToLocal $xnsDistantToLocalDict\
+                        set partType [XNSDistantToLocal $xnsDistantToLocalDict \
                                 [$item getAttributeNS {http://www.w3.org/2001/XMLSchema-instance} type]]
 
                         # Remove this type attribute from the snippet.
@@ -1797,6 +1815,9 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 #    doc         - The document
 #    dict        - The dictionary to convert
 #    type        - The name of the type
+#    forceNs     - Force the response to use a namespace
+#    enforceRequired - Boolean setting for enforcing required vars be set
+#    version     - Requested service version
 #
 # Returns : None
 #
@@ -1817,10 +1838,11 @@ proc ::WS::Utils::GetReferenceNode {root id} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#       2  11/13/2018  J.Cone       Version support
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0} {enforceRequired 0}} {
+proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 0} {enforceRequired 0} {version {}}} {
     ::log::logsubst debug {Entering [info level 0]}
     # ::log::logsubst debug {  Parent xml: [$parent asXML]}
     variable typeInfo
@@ -1830,7 +1852,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     variable currentNs
 
     if {!$options(UseNS)} {
-        return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type $enforceRequired]
+        return [::WS::Utils::convertDictToTypeNoNs $mode $service $doc $parent $dict $type $enforceRequired $version]
     }
 
     if {$options(valueAttrCompatiblityMode)} {
@@ -1845,6 +1867,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
         set typeName $service:$type
     } else {
         set typeName $type
+    }
+    if {$version ne {} && [dict exists $typeInfo $mode $service $typeName version]} {
+        if {![check_version [dict get $typeInfo $mode $service $typeName version] $version]} {
+            return
+        }
     }
     set itemList {}
     if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
@@ -1884,6 +1911,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     }
     set fieldList {}
     foreach {itemName itemDef} $itemList {
+        if {[dict exists $itemDef version] && ![check_version [dict get $itemDef version] $version]} {
+            continue
+        }
         set baseName [lindex [split $itemName {:}] end]
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
@@ -2041,9 +2071,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                 if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
                     set tmpNs $currentNs
                     set currentNs $itemXns
-                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired $version
                 } else {
-                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired
+                    convertDictToType $mode $service $doc $retNode $resultValue $itemType $forceNs $enforceRequired $version
                 }
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
@@ -2091,9 +2121,9 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
                     if {![string equal $currentNs $itemXns] && ![string equal $itemXns {}]} {
                         set tmpNs $currentNs
                         set currentNs $itemXns
-                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired $version
                     } else {
-                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired
+                        convertDictToType $mode $service $doc $retNode $resultValue $tmpType $forceNs $enforceRequired $version
                     }
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
@@ -2115,7 +2145,7 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
     }
     set currentNs $entryNs
     ::log::logsubst debug {Leaving ::WS::Utils::convertDictToType with xml: [$parent asXML]}
-    return;
+    return
 }
 
 ###########################################################################
@@ -2135,6 +2165,8 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
 #    doc         - The document (yajltcl)
 #    dict        - The dictionary to convert
 #    type        - The name of the type
+#    enforceRequired - Boolean setting for enforcing required vars be set
+#    version     - The requested service version
 #
 # Returns : None
 #
@@ -2155,10 +2187,11 @@ proc ::WS::Utils::convertDictToType {mode service doc parent dict type {forceNs 
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/23/2011  J.Lawson     Initial version
+#       2  11/13/2018  J.Cone       Version support
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired 0}} {
+proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired 0} {version {}}} {
     ::log::logsubst debug {Entering [info level 0]}
     variable typeInfo
     variable simpleTypes
@@ -2172,6 +2205,11 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
         set typeName $service:$type
     } else {
         set typeName $type
+    }
+    if {$version ne {} && [dict exists $typeInfo $mode $service $typeName version]} {
+        if {![check_version [dict get $typeInfo $mode $service $typeName version] $version]} {
+            return
+        }
     }
     set itemList {}
     if {[lindex $typeInfoList 0] && [dict exists $typeInfo $mode $service $typeName definition]} {
@@ -2193,6 +2231,9 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
     ::log::logsubst debug {\titemList is {$itemList}}
     set fieldList {}
     foreach {itemName itemDef} $itemList {
+        if {[dict exists $itemDef version] && ![check_version [dict get $itemDef version] $version]} {
+            continue
+        }
         lappend fieldList $itemName
         set itemType [dict get $itemDef type]
         ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef} itemType = {$itemType}}
@@ -2237,7 +2278,7 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
                 ##
                 $doc string $itemName map_open
                 set resultValue [dict get $dict $itemName]
-                convertDictToJson $mode $service $doc $resultValue $itemType $enforceRequired
+                convertDictToJson $mode $service $doc $resultValue $itemType $enforceRequired $version
                 $doc map_close
             }
             {1 1} {
@@ -2253,14 +2294,14 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
                 }
                 foreach row $dataList {
                     $doc map_open
-                    convertDictToJson $mode $service $doc $row $tmpType $enforceRequired
+                    convertDictToJson $mode $service $doc $row $tmpType $enforceRequired $version
                     $doc map_close
                 }
                 $doc array_close
             }
         }
     }
-    return;
+    return
 }
 
 ###########################################################################
@@ -2280,6 +2321,8 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
 #    parent      - The parent node of the type.
 #    dict        - The dictionary to convert
 #    type        - The name of the type
+#    enforceRequired - Boolean setting for enforcing required vars be set
+#    version     - The requested service version
 #
 # Returns : None
 #
@@ -2300,10 +2343,11 @@ proc ::WS::Utils::convertDictToJson {mode service doc dict type {enforceRequired
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+#       2  11/13/2018  J.Cone       Version support
 #
 #
 ###########################################################################
-proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enforceRequired 0}} {
+proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enforceRequired 0} {version {}}} {
     ::log::logsubst debug {Entering [info level 0]}
     # ::log::log debug "  Parent xml: [$parent asXML]"
     variable typeInfo
@@ -2312,6 +2356,11 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
     variable standardAttributes
     variable currentNs
 
+    if {$version ne {} && [dict exists $typeInfo $mode $service $type version]} {
+        if {![check_version [dict get $typeInfo $mode $service $type version] $version]} {
+            return
+        }
+    }
     if {$options(valueAttrCompatiblityMode)} {
         set valueAttr {}
     } else {
@@ -2333,6 +2382,9 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
     }
     ::log::logsubst debug {\titemList is {$itemList}}
     foreach {itemName itemDef} $itemList {
+        if {[dict exists $itemDef version] && ![check_version [dict get $itemDef version] $version]} {
+            continue
+        }
         ::log::logsubst debug {\t\titemName = {$itemName} itemDef = {$itemDef}}
         set itemType [dict get $itemDef type]
         set isAbstract false
@@ -2443,7 +2495,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                 if {[llength $attrList]} {
                     ::WS::Utils::setAttr $retNode $attrList
                 }
-                convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $itemType $enforceRequired
+                convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $itemType $enforceRequired $version
             }
             {1 1} {
                 ##
@@ -2476,7 +2528,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
                     if {[llength $attrList]} {
                         ::WS::Utils::setAttr $retNode $attrList
                     }
-                    convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $tmpType $enforceRequired
+                    convertDictToTypeNoNs $mode $service $doc $retNode $resultValue $tmpType $enforceRequired $version
                 }
             }
             default {
@@ -2487,7 +2539,7 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
         }
     }
     # ::log::log debug "Leaving ::WS::Utils::convertDictToTypeNoNs with xml: [$parent asXML]"
-    return;
+    return
 }
 
 ###########################################################################
@@ -2666,7 +2718,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
             }
         }
     }
-    return;
+    return
 }
 
 ###########################################################################
@@ -2753,7 +2805,7 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
     ##
     ## All done
     ##
-    return;
+    return
 }
 
 ###########################################################################
@@ -3207,7 +3259,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
         http://schemas.xmlsoap.org/wsdl/ -
         http://schemas.xmlsoap.org/wsdl/soap/ -
         http://www.w3.org/2001/XMLSchema {
-            return;
+            return
         }
         default {
             ##
@@ -3673,7 +3725,7 @@ proc ::WS::Utils::partList {mode node serviceName dictVar tns {occurs {}}} {
                 if {[llength $baseInfo] == 0} {
                     ::log::logsubst debug {\t Unknown reference '$baseName'}
                     set unknownRef($baseName) 1
-                    return;
+                    return
                 }
                 catch {set partList [concat $partList [dict get $baseInfo definition]]}
             } else {
@@ -4594,6 +4646,7 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns {node {}}} {
                     ::log::log error $errMsg
                     return -code error $errMsg
                 }
+                # fail later if namespace not found
             }
         }
         if {[dict exists $serviceInfo tnsList tns $tmpTns]} {
@@ -4603,7 +4656,7 @@ proc ::WS::Utils::getQualifiedType {serviceInfo type tns {node {}}} {
         } else {
             ::log::log error $serviceInfo
             ::log::logsubst error {Could not find tns '$tmpTns' in '[dict get $serviceInfo tnsList tns]' for type {$type}}
-            return -code error "Namespace prefix of type '$Type' not found."
+            return -code error "Namespace prefix of type '$type' not found."
         }
     }
     return $result
@@ -4952,7 +5005,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
         set finalUrl $url
     }
     # > 5 redirects reached -> exit with error
-    return -errorcode [list WS CLIENT REDIRECTLIMIT $url]\
+    return -errorcode [list WS CLIENT REDIRECTLIMIT $url] \
             -code error "http redirect limit exceeded for $url"
 }
 ###########################################################################
@@ -5060,3 +5113,65 @@ proc ::WS::Utils::geturl_fetchbody {args} {
     return -errorcode [list WS CLIENT HTTPERROR $error]\
             -code error "HTTP error: $error"
 }
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                           that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Utils::check_version
+#
+# Description : for a particular version code, check if the requested version
+#   is allowd
+#
+# Arguments :
+#       version - The specified version for the type, proc, etc
+#       requestedVersion - The version being requested by the user
+#
+# Returns :     boolean - true if allowed, false if not
+#
+# Side-Effects :        None
+#
+# Exception Conditions :        None
+#
+# Pre-requisite Conditions :    None
+#
+# Original Author : Jonathan Cone
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+#       1  10/23/2018  J. Cone       Initial version
+#
+###########################################################################
+proc ::WS::Utils::check_version {version requestedVersion} {
+    if {$version eq {} || $requestedVersion eq {}} {
+        return 1
+    }
+    if {[regexp {^(\d+)([+-])?(\d+)?$} $version _ start modifier end]} {
+        if {$start ne {} && $end ne {}} {
+            return [expr {$requestedVersion >= $start && $requestedVersion <= $end}]
+        } elseif {$start ne {}} {
+            switch $modifier {
+                "+" {
+                    return [expr {$requestedVersion >= $start}]
+                }
+                "-" {
+                    return [expr {$requestedVersion <= $start}]
+                }
+                "" {
+                    return [expr {$requestedVersion == $start}]
+                }
+            }
+        }
+    }
+    return 0
+}
+

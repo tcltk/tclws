@@ -60,7 +60,7 @@ namespace eval ::WS::Embeded {
     set portList [list]
     set forever {}
 
-    variable returnCodeText [dict create 200 OK 404 "Not Found"\
+    variable returnCodeText [dict create 200 OK 404 "Not Found" \
 	    500 "Internal Server Error" 501 "Not Implemented"]
 }
 
@@ -109,7 +109,7 @@ proc ::WS::Embeded::AddHandler {port url callback} {
     variable portInfo
 
     dict set portInfo $port handlers $url $callback
-    return;
+    return
 }
 
 
@@ -208,7 +208,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
         AddHandler $port $url $callback
     }
 
-    return;
+    return
 }
 
 
@@ -285,13 +285,13 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 
     if {$certfile ne "" } {
         if { [string is list $keyfile] && [lindex $keyfile 0] eq "-twapi"} {
-            
+
             ##
             ## Use TWAPI TLS
             ##
-            
+
             package require twapi_crypto
-            
+
             # Decode parameters
             #
             # certfile is the pfx file name
@@ -312,15 +312,15 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             } else {
                 set pfxselection [list subject_substring $pfxsubject)]
             }
-            
+
             set hFile [open $certfile rb]
             set PFXCur [read $hFile]
             close $hFile
             # Set up the store containing the certificates
             # Import the PFX file and search the certificate.
-            set certstore [twapi::cert_temporary_store -pfx $PFXCur\
+            set certstore [twapi::cert_temporary_store -pfx $PFXCur \
                     -password $pfxpassword]
-            set servercert [twapi::cert_store_find_certificate $certstore\
+            set servercert [twapi::cert_store_find_certificate $certstore \
                     {*}$pfxselection]
             if {"" eq $servercert} {
                 # There was no certificate included in the pfx file
@@ -331,12 +331,12 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             if {![catch {
                 # Start the TLS socket with the credentials
                 set creds [twapi::sspi_schannel_credentials \
-                        -certificates [list $servercert]\
+                        -certificates [list $servercert] \
                         -protocols [list ssl3 tls1.1 tls1.2]]
                 set creds [twapi::sspi_acquire_credentials \
                         -credentials $creds -package unisp -role server]
-                set handle [::twapi::tls_socket\
-                        -server [list ::WS::Embeded::accept $port]\
+                set handle [::twapi::tls_socket \
+                        -server [list ::WS::Embeded::accept $port] \
                         -credentials $creds $port]
             } errormsg errordict]} {
                 # All ok, clear error flag
@@ -353,13 +353,13 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
                 return -options  $errordict $errormsg
             }
         } else {
-            
+
             ##
             ## Use TCL Package
             ##
-            
+
             package require tls
-    
+
             ::tls::init \
                 -certfile $certfile \
                 -keyfile  $keyfile \
@@ -368,11 +368,11 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             set handle [::tls::socket -server [list ::WS::Embeded::accept $port] $port]
         }
     } else {
-        
+
         ##
         ## Use http protocol without encryption
         ##
-        
+
         ::log::logsubst debug {socket -server [list ::WS::Embeded::accept $port] $port}
         set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
@@ -427,7 +427,7 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
     foreach var {type data code} {
         dict set dataDict reply $var [set $var]
     }
-    return;
+    return
 }
 
 
@@ -468,7 +468,7 @@ proc ::WS::Embeded::ReturnData {sock type data code} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
-#   2.3.0  11/06/2012  H.Oehlmann   Separate head and body,
+# 2.3.0    11/06/2012  H.Oehlmann   Separate head and body,
 #                                   correct Content-length
 #
 #
@@ -626,12 +626,12 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
-#   2.3.0  10/31/2012  G.Lester     bug fix for [68310fe3bd] -- correct encoding and data length
-#   2.6.1  2020-10-22  H.Oehlmann   Do not pass parameter reqstring.
+# 2.3.0    10/31/2012  G.Lester     bug fix for [68310fe3bd] -- correct encoding and data length
+# 2.6.1    2020-10-22  H.Oehlmann   Do not pass parameter reqstring.
 #                                   The corresponding value is found in global
 #                                   array anyway.
 #                                   Use charset handler of request decoding.
-#   2.7.0  2020-10-26  H.Oehlmann   Pass additional port parameter to handle functions.
+# 2.7.0    2020-10-26  H.Oehlmann   Pass additional port parameter to handle functions.
 #                                   This helps to get isHTTPS status for WSDL.
 #
 #
@@ -676,7 +676,7 @@ proc ::WS::Embeded::handler {port sock ip auth} {
         respond $sock 404 "URL not found"
     }
 
-    return;
+    return
 }
 
 
@@ -717,8 +717,8 @@ proc ::WS::Embeded::handler {port sock ip auth} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
-#   2.3.0  10/31/2012  G.Lester     Bug fix [66fb3aeef5] -- correct header parsing
-#   2.6.1  2020-10-22  H.Oehlmann   Honor received encoding.
+# 2.3.0    10/31/2012  G.Lester     Bug fix [66fb3aeef5] -- correct header parsing
+# 2.6.1    2020-10-22  H.Oehlmann   Honor received encoding.
 #                                   Only pass request data by global array
 #                                   to the handler.
 #
@@ -727,7 +727,7 @@ proc ::WS::Embeded::handler {port sock ip auth} {
 proc ::WS::Embeded::accept {port sock ip clientport} {
 
     upvar #0 ::WS::Embeded::Httpd$sock dataDict
-    ::log::logsubst info {Receviced request on $port for $ip:$clientport}
+    ::log::logsubst info {Received request on $port for $ip:$clientport}
 
     chan configure $sock -translation crlf
     if {1 == [catch {
@@ -745,18 +745,18 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
             return
         }
         if {[dict exists $request header authorization]} {
-            regexp -nocase {^basic +([^ ]+)$}\
+            regexp -nocase {^basic +([^ ]+)$} \
                 [dict get $request header authorization] -> auth
         }
         if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
             ::log::logsubst warning  {Wrong request: $line}
             return
         }
-        
+
         ##
         ## Process passed http method
         ##
-        
+
         switch -exact -- $method {
             POST {
                 ##
@@ -852,7 +852,7 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 #
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
-#   2.6.1  2020-10-22  H.Oehlmann   Initial version
+# 2.6.1    2020-10-22  H.Oehlmann   Initial version
 #
 #
 ###########################################################################
@@ -869,14 +869,14 @@ proc ::WS::Embeded::contentTypeParse {fReceiving contentTypeName} {
     foreach parameterCur $paramList {
         set parameterCur [string trim $parameterCur]
         # Check for 'charset="<data>', where data may contain '\"'
-        if {[regexp -nocase {^charset\s*=\s*\"((?:[^""]|\\\")*)\"$}\
+        if {[regexp -nocase {^charset\s*=\s*\"((?:[^""]|\\\")*)\"$} \
                 $parameterCur -> requestEncoding]
         } {
             set requestEncoding [string map {{\"} \"} $requestEncoding]
             break
         } else {
             # check for 'charset=<data>'
-            regexp -nocase {^charset\s*=\s*(\S+?)$}\
+            regexp -nocase {^charset\s*=\s*(\S+?)$} \
                     $parameterCur -> requestEncoding
             break
         }
@@ -922,7 +922,7 @@ proc ::WS::Embeded::contentTypeParse {fReceiving contentTypeName} {
         ::log::logsubst information {Use default encoding as content type header has missing/unknown charset in '$contentType'}
         return iso8859-1
     }
-    
+
     # When sending, be sure to cover all characters, so use utf-8
     # correct content-type string (upvar)
     ::log::logsubst information {Set send charset to utf-8 due missing/unknown charset in '$contentType'}

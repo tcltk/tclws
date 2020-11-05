@@ -45,7 +45,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 3.0.0
+package provide WS::Server 3.0.1
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -163,8 +163,8 @@ namespace eval ::WS::Server {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
-#   2.7.0  2020-10-26  H.Oehlmann   Embedded server: Do not add port 443 to default url
-#   3.0.0  2020-10-30  H.Oehlmann   New option -hostProtocol
+# 2.7.0    2020-10-26  H.Oehlmann   Embedded server: Do not add port 443 to default url
+# 3.0.0    2020-10-30  H.Oehlmann   New option -hostProtocol
 #
 #
 ###########################################################################
@@ -278,8 +278,7 @@ proc ::WS::Server::Service {args} {
             proc ::wibble::webservice {state} {
                 dict with state options {}
                 switch -exact -- $suffix {
-                    "" - \
-                    / {
+                    "" - / {
                         ::WS::Server::generateInfo $name 0 response
                         sendresponse $response
                     } /op {
@@ -371,7 +370,7 @@ proc ::WS::Server::Service {args} {
         }
     }
 
-    return;
+    return
 }
 
 ###########################################################################
@@ -596,7 +595,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
 
     $port appendChild [$reply createElement soap:address address]
 
-    $address setAttribute  \
+    $address setAttribute \
         location "$urlPrefix[dict get $serviceData -prefix]/op"
 
 
@@ -607,7 +606,7 @@ proc ::WS::Server::GetWsdl {serviceName urlPrefix} {
         name ${serviceName}Soap \
         type ${serviceName}:${serviceName}Soap
     $binding appendChild [$reply createElement soap:binding b2]
-    $b2 setAttribute\
+    $b2 setAttribute \
         style document \
         transport "http://schemas.xmlsoap.org/soap/http"
 
@@ -946,7 +945,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
 
     $doc string operations array_open
     ::log::log debug "\tDisplay Operations (json)"
-        
+
     foreach oper [lsort -dictionary [dict get $procInfo $service operationList]] {
         $doc map_open
 
@@ -960,7 +959,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         # parameters
         if {[llength [dict get $procInfo $service op$oper argOrder]]} {
             $doc string inputs array_open
-            
+
             foreach arg [dict get $procInfo $service op$oper argOrder] {
                 ::log::logsubst debug {\t\t\tDisplaying '$arg'}
                 if {[dict exists $procInfo $service op$oper argList $arg comment]} {
@@ -970,7 +969,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
                 }
 
                 set type [dict get $procInfo $service op$oper argList $arg type]
-                                
+
                 $doc map_open string name string $arg string type string $type string comment string $comment map_close
             }
 
@@ -978,7 +977,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         } else {
             $doc string inputs array_open array_close
         }
-        
+
         $doc string returns map_open
 
         if {[dict exists $procInfo $service op$oper returnInfo comment]} {
@@ -988,10 +987,10 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         }
 
         set type [dict get $procInfo $service op$oper returnInfo type]
-                
+
         $doc string comment string $comment string type string $type
         $doc map_close
-        
+
         $doc map_close
     }
 
@@ -1006,7 +1005,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         $doc map_open
         $doc string name string $type
         $doc string fields array_open
-        
+
         set typeDetails [dict get $localTypeInfo $type definition]
         foreach part [lsort -dictionary [dict keys $typeDetails]] {
             ::log::logsubst debug {\t\t\tDisplaying '$part'}
@@ -1023,7 +1022,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
     }
 
     $doc array_close
-        
+
     $doc map_close
 
     set contentType "application/json; charset=UTF-8"
@@ -1371,7 +1370,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
                      $service http://[dict get $serviceData -host][dict get $serviceData -prefix]]
             $doc documentElement rootNode
-            
+
             # extract the name of the method
             set top [$rootNode selectNodes /ENV:Envelope/ENV:Body/*]
             catch {$top localName} requestMessage
@@ -1446,7 +1445,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 ## Do nothing
             }
         }
-        return;
+        return
     }
     set baseName $operation
     set cmdName op$baseName
@@ -1626,7 +1625,7 @@ proc ::WS::Server::callOperation {service sock args} {
                 ## Do nothing
             }
         }
-        return;
+        return
     }
 
     ##
@@ -1781,9 +1780,9 @@ proc ::WS::Server::callOperation {service sock args} {
                 ## Do nothing
             }
         }
-        return;
+        return
     }
-    return;
+    return
 }
 
 ###########################################################################
@@ -1868,12 +1867,12 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flav
             $fcd appendChild [$doc createTextNode $faultcode]
             $flt appendChild [$doc createElement "faultstring" fst]
             $fst appendChild [$doc createTextNode $faultstring]
-            
+
             if { $detail != {} } {
                 $flt appendChild [$doc createElement "SOAP-ENV:detail" dtl0]
                 $dtl0 appendChild [$doc createElement "e:errorInfo" dtl]
                 $dtl setAttribute "xmlns:e" "urn:TclErrorInfo"
-                
+
                 foreach {detailName detailInfo} $detail {
                     if {!$includeTrace && $detailName == "stackTrace"} {
                         continue
@@ -1882,9 +1881,9 @@ proc ::WS::Server::generateError {includeTrace faultcode faultstring detail flav
                     $err appendChild [$doc createTextNode $detailInfo]
                 }
             }
-            
+
             # serialize the DOM document and return the XML text
-            append response  \
+            append response \
                 {<?xml version="1.0"  encoding="utf-8"?>} \
                 "\n" \
                 [$doc asXML -indent none -doctypeDeclaration 0]
@@ -1967,7 +1966,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
             } else {
                 set replaceText {}
             }
-            
+
             dom createDocument "SOAP-ENV:Envelope" doc
             $doc documentElement env
             $env setAttribute  \
@@ -1989,7 +1988,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
 
             ::WS::Utils::convertDictToType Server $serviceName $doc $reply $results ${serviceName}:${operation}Results 0 [dict get $serviceData -enforceRequired]
 
-            append output  \
+            append output \
                 {<?xml version="1.0"  encoding="utf-8"?>} \
                 "\n" \
                 [$doc asXML -indent none -doctypeDeclaration 0]
@@ -2046,7 +2045,7 @@ proc ::WS::Server::generateReply {serviceName operation results flavor} {
 #
 ###########################################################################
 proc ::WS::Server::ok {args} {
-    return;
+    return
 }
 
 ###########################################################################
@@ -2393,7 +2392,7 @@ proc ::WS::Server::generateCustomTypeInfo {serviceData menuList} {
             append msg [::html::row \
                             $part \
                             [displayType $service [dict get $typeDetails $part type]] \
-                            $comment
+                            $comment \
                        ]
         }
         append msg [::html::closeTag]
@@ -2468,7 +2467,7 @@ proc ::WS::Server::generateSimpleTypeInfo {serviceData menuList} {
             ::log::logsubst debug {\t\t\tDisplaying '$part'}
             append msg [::html::row \
                             $part \
-                            [dict get [lindex $typeDetails 1] $part]
+                            [dict get [lindex $typeDetails 1] $part] \
                        ]
         }
         append msg [::html::closeTag]
