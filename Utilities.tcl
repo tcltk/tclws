@@ -155,6 +155,7 @@ namespace eval ::WS::Utils {
     set ::WS::Utils::standardAttributes {
         baseType
         comment
+        example
         pattern
         length
         fixed
@@ -5083,8 +5084,8 @@ proc ::WS::Utils::geturl_fetchbody {args} {
             set ncode [::http::ncode $token]
             set body [::http::data $token]
             ::http::cleanup $token
-            if {$bodyAlwaysOk && ![string equal $body ""]
-                || -1 != [lsearch $codeOkList $ncode]
+            if {$bodyAlwaysOk && $body ne ""
+                || $ncode in $codeOkList
             } {
                 # >> Fetch ok
                 ::log::logsubst debug {\tReceived: $body}
