@@ -64,6 +64,8 @@ namespace eval ::WS::Utils {
     set ::WS::Utils::typeInfo {}
     set ::WS::Utils::currentSchema {}
     array set ::WS::Utils::importedXref {}
+	variable redirectArray
+	array set redirectArray {}
     set nsList {
         w http://schemas.xmlsoap.org/wsdl/
         d http://schemas.xmlsoap.org/wsdl/soap/
@@ -3212,7 +3214,9 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
-#   3.0.0  2020-10-26  H.Oehlmann   Added query timeout
+# 3.0.0    2020-10-26  H.Oehlmann   Added query timeout
+# 3.1.0    2020-11-06  H.Oehlmann   Access namespace variable redirectArray
+#                                   via variable command
 #
 #
 ###########################################################################
@@ -3222,6 +3226,7 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
     variable currentSchema
     variable importedXref
     variable options
+	variable redirectArray
 
     ::log::logsubst debug {Entering [info level 0]}
     ##
@@ -3244,8 +3249,8 @@ proc ::WS::Utils::processImport {mode baseUrl importNode serviceName serviceInfo
 
     set lastPos [string last / $url]
     set testUrl [string range $url 0 [expr {$lastPos - 1}]]
-    if { [info exists ::WS::Utils::redirectArray($testUrl)] } {
-        set newUrl $::WS::Utils::redirectArray($testUrl)
+    if { [info exists redirectArray($testUrl)] } {
+        set newUrl $redirectArray($testUrl)
         append newUrl [string range $url $lastPos end]
         ::log::logsubst debug {newUrl = $newUrl}
         set url $newUrl
@@ -4959,10 +4964,13 @@ proc ::WS::Utils::setAttr {node attrList} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  02/24/2011  G. Lester    Initial version
-#  2.3.10  11/09/2015  H. Oehlmann  Allow only 5 redirects (loop protection)
+# 2.3.10   11/09/2015  H. Oehlmann  Allow only 5 redirects (loop protection)
+# 3.1.0    2020-11-06  H.Oehlmann   Access namespace variable redirectArray
+#                                   via variable command
 #
 ###########################################################################
 proc ::WS::Utils::geturl_followRedirects {url args} {
+	variable redirectArray
     ::log::logsubst debug {[info level 0]}
     set initialUrl $url
     set finalUrl $url
@@ -4981,7 +4989,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
                 set lastPos [string last / $finalUrl]
                 set finalUrlDir [string range $finalUrl 0 [expr {$lastPos - 1}]]
                 ::log::logsubst debug {initialUrlDir = $initialUrlDir, finalUrlDir = $finalUrlDir}
-                set ::WS::Utils::redirectArray($initialUrlDir) $finalUrlDir
+                set redirectArray($initialUrlDir) $finalUrlDir
             }
             return $token
         } elseif {![string match {20[1237]} $ncode]} {
@@ -4997,7 +5005,7 @@ proc ::WS::Utils::geturl_followRedirects {url args} {
         unset meta
         array unset meta
         ::http::cleanup $token
-        if {[string equal $uri(host) {}]} {
+        if { $uri(host) eq "" } {
             set uri(host) $URI(host)
         }
         # problem w/ relative versus absolute paths
@@ -5160,7 +5168,7 @@ proc ::WS::Utils::check_version {version requestedVersion} {
         if {$start ne {} && $end ne {}} {
             return [expr {$requestedVersion >= $start && $requestedVersion <= $end}]
         } elseif {$start ne {}} {
-            switch $modifier {
+            switch -- $modifier {
                 "+" {
                     return [expr {$requestedVersion >= $start}]
                 }

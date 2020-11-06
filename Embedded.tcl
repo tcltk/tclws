@@ -51,7 +51,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 3.0.0
+package provide WS::Embeded 3.1.0
 
 namespace eval ::WS::Embeded {
 
@@ -631,9 +631,12 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #                                   The corresponding value is found in global
 #                                   array anyway.
 #                                   Use charset handler of request decoding.
-# 2.7.0    2020-10-26  H.Oehlmann   Pass additional port parameter to handle functions.
-#                                   This helps to get isHTTPS status for WSDL.
-#
+# 2.7.0    2020-10-26  H.Oehlmann   Pass additional port parameter to handle
+#                                   functions. This helps to get isHTTPS
+#                                   status for WSDL.
+# 3.1.0    2020-11-05  H.Oehlmann   Pass additional port parameter with leading
+#                                   -port specifier to avoid clash with
+#                                   other parameters.
 #
 ###########################################################################
 proc ::WS::Embeded::handler {port sock ip auth} {
@@ -648,7 +651,7 @@ proc ::WS::Embeded::handler {port sock ip auth} {
     set path "/[string trim [dict get $dataDict path] /]"
     if {[dict exists $portInfo $port handlers $path]} {
         set cmd [dict get $portInfo $port handlers $path]
-        lappend cmd $sock $port
+        lappend cmd $sock -port $port
         # ::WS::Server::callOperation is called (for operations).
         # This routine reads our data by:
         #   upvar #0 ::WS::Embeded::Httpd$sock data

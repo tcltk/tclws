@@ -45,7 +45,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 3.0.1
+package provide WS::Server 3.1.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -285,7 +285,7 @@ proc ::WS::Server::Service {args} {
                         ::WS::Server::callOperation $name 0 [dict get $state request] response
                         sendresponse $response
                     } /wsdl {
-                        ::WS::Server::generateWsdl $name 0 response
+                        ::WS::Server::generateWsdl $name 0 -responsename response
                         sendresponse $response
                     }
                     default {
@@ -709,8 +709,10 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
 # Arguments :
 #       serviceName     - The name of the service
 #       sock            - The socket to return the WSDL on
-#       args            - port for embedded server
-#                       - version number: -version 3
+#       args            - Multi-function depending on server:
+#                         embedded: -port number: embedded server port number
+#                         unknown server: -version number: version
+#                         wibble: -responsename name: response variable name
 #
 # Returns :
 #       1 - On error
@@ -736,7 +738,11 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
 #       2  12/12/2009  W.Kocjan     Support for services over SSL in Tclhttpd
 #       3  11/13/2018  J.Cone       Version support
 #   2.7.0  2020-10-26  H.Oehlmann   Support https for embedded server.
-#
+#   3.1.0  2020-11-06  H.Oehlmann   Pass port parameter from embedded server
+#                                   with prefix "-port" to be compatible with
+#                                   the -version parameter.
+#                                   Pass wibble responsename also with prefix
+#                                   "-responsename".
 #
 ###########################################################################
 proc ::WS::Server::generateWsdl {serviceName sock args} {
@@ -746,11 +752,13 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
 
     set operList [lsort -dictionary [dict get $procInfo $serviceName operationList]]
     ::log::logsubst debug {Generating WSDL for $serviceName on $sock with {$args}}
-    set version {}
-    set versionIdx [lsearch -exact $args "-version"]
-    if {$versionIdx != -1 && [llength $args] > $versionIdx + 1} {
-        set version [lindex $args [expr {$versionIdx + 1}]]
-        set args [lrange $args $versionIdx $versionIdx+1]
+    # ToDo HaO 2020-11-06: if confirmed, args may be interpreted as a dict
+    #   and the code may be simplified. It is not clear, if any server does not
+    #   pass any unused data not being a dict.
+    set version ""
+    set argsIdx [lsearch -exact $args "-version"]
+    if {$argsIdx != -1} {
+        set version [lindex $args [expr {$argsIdx + 1}]]
     }
     if {![info exists serviceArr($serviceName)]} {
         set msg "Unknown service '$serviceName'"
@@ -839,9 +847,18 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         }
         embedded {
             if {[info exists serverprotocol]} {
-                # For https, change the URL prefix
-                set port [lindex $args 0]
-                if {[::WS::Embeded::GetValue isHTTPS $port]} {
+                
+                ##
+                ## For https, change the URL prefix
+                ##
+                
+                set argsIdx [lsearch -exact $args "-port"]
+                if {$argsIdx == -1} {
+                    ::log::logsubst error {Parameter '-port' missing from\
+                            embedded server in arguments '$args'}
+                } elseif {  [::WS::Embeded::GetValue isHTTPS\
+                            [lindex $args [expr {$argsIdx + 1}]]]
+                } {
                     set urlPrefix "https://[dict get $serviceData -host]"
                 }
             }
@@ -860,8 +877,14 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
         }
         wibble  {
             set xml [GetWsdl $serviceName $urlPrefix $version]
-            upvar 1 [lindex $args 0] responseDict
-            ::WS::Wibble::ReturnData responseDict text/xml $xml 200
+            set argsIdx [lsearch -exact $args "-responsename"]
+            if {$argsIdx == -1} {
+                ::log::logsubst error {Parameter '-responsename' missing from\
+                        wibble server in arguments '$args'}
+            } else {
+                upvar 1 [lindex $args [expr {$argsIdx + 1}]] responseDict
+                ::WS::Wibble::ReturnData responseDict text/xml $xml 200
+            }
         }
         default {
             ## Do nothing
@@ -967,17 +990,17 @@ proc ::WS::Server::GenerateScheme {mode serviceName doc parent {version {}}} {
 ###########################################################################
 # NOTE: This proc only works with Rivet
 # TODO: Update to handle jsonp?
-proc ::WS::Server::generateJsonInfo { service sock args } {
+proc ::WS::Server::generateJsonInfo { serviceName sock args } {
     variable serviceArr
     variable procInfo
 
-    ::log::logsubst debug {Generating JSON Documentation for $service on $sock with {$args}}
+    ::log::logsubst debug {Generating JSON Documentation for $serviceName on $sock with {$args}}
     set version {}
     set versionIdx [lsearch -exact $args "-version"]
     if {$versionIdx != -1} {
         set version [lindex $args [expr {$versionIdx + 1}]]
     }
-    set serviceData $serviceArr($service)
+    set serviceData $serviceArr($serviceName)
     set doc [yajl create #auto -beautify [dict get $serviceData -beautifyJson]]
 
     $doc map_open
@@ -985,10 +1008,10 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
     $doc string operations array_open
     ::log::log debug "\tDisplay Operations (json)"
 
-    foreach oper [lsort -dictionary [dict get $procInfo $service operationList]] {
+    foreach oper [lsort -dictionary [dict get $procInfo $serviceName operationList]] {
         # version check
-        if {$version ne {} && [dict exists $procInfo $service op$oper version]
-                && ![::WS::Utils::check_version [dict get $procInfo $service op$oper version] $version]} {
+        if {$version ne {} && [dict exists $procInfo $serviceName op$oper version]
+                && ![::WS::Utils::check_version [dict get $procInfo $serviceName op$oper version] $version]} {
             continue
         }
 
@@ -998,29 +1021,29 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
         $doc string name string $oper
 
         # description
-        set description [dict get $procInfo $service op$oper docs]
+        set description [dict get $procInfo $serviceName op$oper docs]
         $doc string description string $description
 
         # parameters
-        if {[llength [dict get $procInfo $service op$oper argOrder]]} {
+        if {[llength [dict get $procInfo $serviceName op$oper argOrder]]} {
             $doc string inputs array_open
 
-            foreach arg [dict get $procInfo $service op$oper argOrder] {
+            foreach arg [dict get $procInfo $serviceName op$oper argOrder] {
                 # version check
-                if {$version ne {} && [dict exists $procInfo $service op$oper argList $arg version]
-                        && ![::WS::Utils::check_version [dict get $procInfo $service op$oper argList $arg version] $version]} {
+                if {$version ne {} && [dict exists $procInfo $serviceName op$oper argList $arg version]
+                        && ![::WS::Utils::check_version [dict get $procInfo $serviceName op$oper argList $arg version] $version]} {
                     continue
                 }
                 ::log::logsubst debug {\t\t\tDisplaying '$arg'}
                 set comment {}
-                if {[dict exists $procInfo $service op$oper argList $arg comment]} {
-                    set comment [dict get $procInfo $service op$oper argList $arg comment]
+                if {[dict exists $procInfo $serviceName op$oper argList $arg comment]} {
+                    set comment [dict get $procInfo $serviceName op$oper argList $arg comment]
                 }
                 set example {}
-                if {[dict exists $procInfo $service op$oper argList $arg example]} {
-                    set example [dict get $procInfo $service op$oper argList $arg example]
+                if {[dict exists $procInfo $serviceName op$oper argList $arg example]} {
+                    set example [dict get $procInfo $serviceName op$oper argList $arg example]
                 }
-                set type [dict get $procInfo $service op$oper argList $arg type]
+                set type [dict get $procInfo $serviceName op$oper argList $arg type]
 
                 $doc map_open \
                     string name string $arg \
@@ -1037,15 +1060,15 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
 
         $doc string returns map_open
         set comment {}
-        if {[dict exists $procInfo $service op$oper returnInfo comment]} {
-            set comment [dict get $procInfo $service op$oper returnInfo comment]
+        if {[dict exists $procInfo $serviceName op$oper returnInfo comment]} {
+            set comment [dict get $procInfo $serviceName op$oper returnInfo comment]
         }
         set example {}
-        if {[dict exists $procInfo $service op$oper returnInfo example]} {
-            set example [dict get $procInfo $service op$oper returnInfo example]
+        if {[dict exists $procInfo $serviceName op$oper returnInfo example]} {
+            set example [dict get $procInfo $serviceName op$oper returnInfo example]
         }
 
-        set type [dict get $procInfo $service op$oper returnInfo type]
+        set type [dict get $procInfo $serviceName op$oper returnInfo type]
 
         $doc string comment string $comment string type string $type string example string $example
         $doc map_close
@@ -1057,7 +1080,7 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
 
     ::log::log debug "\tDisplay custom types"
     $doc string types array_open
-    set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $service]
+    set localTypeInfo [::WS::Utils::GetServiceTypeDef Server $serviceName]
     foreach type [lsort -dictionary [dict keys $localTypeInfo]] {
         # version check
         if {$version ne {} && [dict exists $localTypeInfo $type version]
@@ -1154,20 +1177,20 @@ proc ::WS::Server::generateJsonInfo { service sock args } {
 #
 #
 ###########################################################################
-proc ::WS::Server::generateInfo {service sock args} {
+proc ::WS::Server::generateInfo {serviceName sock args} {
     variable serviceArr
     variable procInfo
     variable mode
 
-    ::log::logsubst debug {Generating HTML Documentation for $service on $sock with {$args}}
+    ::log::logsubst debug {Generating HTML Documentation for $serviceName on $sock with {$args}}
     set version {}
     if {$args ne {}} {
         if {[lindex $args 0] eq {-version}} {
             set version [lindex $args 1]
         }
     }
-    if {![info exists serviceArr($service)]} {
-        set msg "Unknown service '$service'"
+    if {![info exists serviceArr($serviceName)]} {
+        set msg "Unknown service '$serviceName'"
         switch -exact -- $mode {
             tclhttpd {
                 ::Httpd_ReturnData \
@@ -1226,30 +1249,30 @@ proc ::WS::Server::generateInfo {service sock args} {
     ##
     ## Display Service General Information
     ##
-    append msg [generateGeneralInfo $serviceArr($service) $menuList]
+    append msg [generateGeneralInfo $serviceArr($serviceName) $menuList]
 
     ##
     ## Display TOC
     ##
-    append msg [generateTocInfo $serviceArr($service) $menuList $version]
+    append msg [generateTocInfo $serviceArr($serviceName) $menuList $version]
 
     ##
     ## Display Operations
     ##
     ::log::log debug "\tDisplay Operations"
-    append msg [generateOperationInfo $serviceArr($service) $menuList $version]
+    append msg [generateOperationInfo $serviceArr($serviceName) $menuList $version]
 
     ##
     ## Display custom types
     ##
     ::log::log debug "\tDisplay custom types"
-    append msg [generateCustomTypeInfo $serviceArr($service) $menuList $version]
+    append msg [generateCustomTypeInfo $serviceArr($serviceName) $menuList $version]
 
     ##
     ## Display list of simple types
     ##
     ::log::log debug "\tDisplay list of simply types"
-    append msg [generateSimpleTypeInfo $serviceArr($service) $menuList]
+    append msg [generateSimpleTypeInfo $serviceArr($serviceName) $menuList]
 
     ##
     ## All Done
@@ -1374,10 +1397,12 @@ proc ::WS::Server::displayType {serviceName type} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #       2  11/13/2018  J.Cone       Version support
+# 3.1.0    2020-11-06  H.Oehlmann   Get global validHttpStatusCodes in this
+#                                   module, was deleted in Utilities.tcl.
 #
 #
 ###########################################################################
-proc ::WS::Server::callOperation {service sock args} {
+proc ::WS::Server::callOperation {serviceName sock args} {
     variable procInfo
     variable serviceArr
     variable mode
@@ -1412,13 +1437,13 @@ proc ::WS::Server::callOperation {service sock args} {
         set version [lindex $args [expr {$versionIdx + 1}]]
     }
 
-    ::log::logsubst debug {In ::WS::Server::callOperation {$service $sock $args}}
-    set serviceData $serviceArr($service)
+    ::log::logsubst debug {In ::WS::Server::callOperation {$serviceName $sock $args}}
+    set serviceData $serviceArr($serviceName)
     ::log::logsubst debug {\tDocument is {$inXML}}
 
     set ::errorInfo {}
     set ::errorCode {}
-    set ns $service
+    set ns $serviceName
 
     set inTransform [dict get $serviceData -intransform]
     set outTransform [dict get $serviceData -outtransform]
@@ -1460,10 +1485,10 @@ proc ::WS::Server::callOperation {service sock args} {
             $doc documentElement top
             ::log::logsubst debug {$doc selectNodesNamespaces \
                     [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-                    $service http://[dict get $serviceData -host][dict get $serviceData -prefix]]}
+                    $serviceName http://[dict get $serviceData -host][dict get $serviceData -prefix]]}
             $doc selectNodesNamespaces \
                 [list ENV http://schemas.xmlsoap.org/soap/envelope/ \
-                     $service http://[dict get $serviceData -host][dict get $serviceData -prefix]]
+                     $serviceName http://[dict get $serviceData -host][dict get $serviceData -prefix]]
             $doc documentElement rootNode
 
             # extract the name of the method
@@ -1497,9 +1522,9 @@ proc ::WS::Server::callOperation {service sock args} {
     ##
     ## Check that the method exists and version checks out.
     ##
-    if {![dict exists $procInfo $service op$operation argList] ||
-            ([dict exists $procInfo $service op$operation version] &&
-            ![::WS::Utils::check_version [dict get $procInfo $service op$operation version] $version])} {
+    if {![dict exists $procInfo $serviceName op$operation argList] ||
+            ([dict exists $procInfo $serviceName op$operation version] &&
+            ![::WS::Utils::check_version [dict get $procInfo $serviceName op$operation version] $version])} {
         set msg "Method $operation not found"
         ::log::log error $msg
         set ::errorInfo {}
@@ -1576,7 +1601,7 @@ proc ::WS::Server::callOperation {service sock args} {
                         continue
                     }
                     set argType [string trim [dict get $argInfo $argName type]]
-                    set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+                    set typeInfoList [::WS::Utils::TypeInfo Server $serviceName $argType]
 
                     if {[dict exists $procInfo $ns $cmdName argList $argName version] &&
                         ![::WS::Utils::check_version [dict get $procInfo $ns $cmdName argList $argName version] $version]} {
@@ -1602,7 +1627,7 @@ proc ::WS::Server::callOperation {service sock args} {
                         {1 0} {
                             ## Non-simple non-array
                             error "TODO JSON"
-                            #lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
+                            #lappend tclArgList [::WS::Utils::convertTypeToDict Server $serviceName $node $argType $top]
                         }
                         {1 1} {
                             ## Non-simple array
@@ -1610,7 +1635,7 @@ proc ::WS::Server::callOperation {service sock args} {
                             #set tmp {}
                             #set argType [string trimright $argType {()?}]
                             #foreach row $node {
-                            #    lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                            #    lappend tmp [::WS::Utils::convertTypeToDict Server $serviceName $row $argType $top]
                             #}
                             #lappend tclArgList $tmp
                         }
@@ -1628,10 +1653,10 @@ proc ::WS::Server::callOperation {service sock args} {
                     set argIndex 0
                     foreach argName $methodArgs {
                         set argType [string trim [dict get $argInfo $argName type]]
-                        set typeInfoList [::WS::Utils::TypeInfo Server $service $argType]
+                        set typeInfoList [::WS::Utils::TypeInfo Server $serviceName $argType]
                         if {$pass == 1} {
                             # access arguments by name using full namespace
-                            set path $service:$argName
+                            set path $serviceName:$argName
                             set node [$top selectNodes $path]
                         } elseif {$pass == 2} {
                             # legacyRpcMode only, access arguments by unqualified name
@@ -1672,14 +1697,14 @@ proc ::WS::Server::callOperation {service sock args} {
                             {1 0} {
                                 ## Non-simple non-array
                                 set argType [string trimright $argType {?}]
-                                lappend tclArgList [::WS::Utils::convertTypeToDict Server $service $node $argType $top]
+                                lappend tclArgList [::WS::Utils::convertTypeToDict Server $serviceName $node $argType $top]
                             }
                             {1 1} {
                                 ## Non-simple array
                                 set tmp {}
                                 set argType [string trimright $argType {()?}]
                                 foreach row $node {
-                                    lappend tmp [::WS::Utils::convertTypeToDict Server $service $row $argType $top]
+                                    lappend tmp [::WS::Utils::convertTypeToDict Server $serviceName $row $argType $top]
                                 }
                                 lappend tclArgList $tmp
                             }
@@ -1756,7 +1781,7 @@ proc ::WS::Server::callOperation {service sock args} {
     ##
     if {[dict exists $serviceData -premonitor] && "" ne [dict get $serviceData -premonitor]} {
         set precmd [dict get $serviceData -premonitor]
-        lappend precmd PRE $service $operation $tclArgList
+        lappend precmd PRE $serviceName $operation $tclArgList
         catch $precmd
     }
 
@@ -1769,7 +1794,7 @@ proc ::WS::Server::callOperation {service sock args} {
             continue
         }
         foreach node [$top selectNodes data:$headerType] {
-            lappend headerList [::WS::Utils::convertTypeToDict Server $service $node $headerType $top]
+            lappend headerList [::WS::Utils::convertTypeToDict Server $serviceName $node $headerType $top]
         }
     }
 
@@ -1817,7 +1842,7 @@ proc ::WS::Server::callOperation {service sock args} {
         if {[dict exists $serviceData -postmonitor] &&
             "" ne [dict get $serviceData -postmonitor]} {
             set precmd [dict get $serviceData -postmonitor]
-            lappend precmd POST $service $operation OK $results
+            lappend precmd POST $serviceName $operation OK $results
             catch $precmd
         }
         ::log::logsubst debug {Leaving ::WS::Server::callOperation $response}
@@ -1855,7 +1880,7 @@ proc ::WS::Server::callOperation {service sock args} {
         if {[dict exists $serviceData -postmonitor] &&
             "" ne [dict get $serviceData -postmonitor]} {
             set precmd [dict get $serviceData -postmonitor]
-            lappend precmd POST $service $operation ERROR $msg
+            lappend precmd POST $serviceName $operation ERROR $msg
             catch $precmd
         }
         catch {$doc delete}
@@ -1870,7 +1895,13 @@ proc ::WS::Server::callOperation {service sock args} {
         ::log::logsubst debug {Leaving @ error 2::WS::Server::callOperation $response}
 
         # Check if the localerrorCode is a valid http status code
-        if {[lsearch -exact $::WS::Utils::validHttpStatusCodes $localerrorCode] > -1} {
+        set validHttpStatusCodes {100 101 102
+                200 201 202 203 204 205 206 207 208 226
+                300 301 302 303 304 305 306 307 308
+                400 401 402 403 404 405 406 407 408 409 410 411 412 413 414 415 416 417 421 422 423 424 425 426 427 428 429 430 431 451
+                500 501 502 503 504 505 506 507 508 509 510 511
+            }
+        if {[lsearch -exact $validHttpStatusCodes $localerrorCode] > -1} {
             set httpStatus $localerrorCode
         }
 
