@@ -45,7 +45,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 3.1.0
+package provide WS::Server 3.2.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -165,6 +165,9 @@ namespace eval ::WS::Server {
 #       1  07/06/2006  G.Lester     Initial version
 # 2.7.0    2020-10-26  H.Oehlmann   Embedded server: Do not add port 443 to default url
 # 3.0.0    2020-10-30  H.Oehlmann   New option -hostProtocol
+# 3.2.0    2021-03-17  H.Oehlmann   Add HTTP method to embedded registration.
+#                                   Change default of -checkheader from
+#                                   ::WS::Server::ok to the empty string.
 #
 #
 ###########################################################################
@@ -176,7 +179,7 @@ proc ::WS::Server::Service {args} {
     ::log::logsubst debug {Defining Service as $args}
 
     set defaults [dict create\
-        -checkheader    {::WS::Server::ok}\
+        -checkheader    {}\
         -inheaders      {}\
         -outheaders     {}\
         -intransform    {}\
@@ -255,7 +258,7 @@ proc ::WS::Server::Service {args} {
         embedded {
             package require WS::Embeded
             foreach port [dict get $defaults -ports] {
-                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix] ::WS::Server::generateInfo_${service}
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix] GET ::WS::Server::generateInfo_${service}
             }
         }
         tclhttpd {
@@ -329,7 +332,7 @@ proc ::WS::Server::Service {args} {
     switch -exact -- $mode {
         embedded {
             foreach port [dict get $defaults -ports] {
-                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/wsdl ::WS::Server::generateWsdl_${service}
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/wsdl GET ::WS::Server::generateWsdl_${service}
             }
         }
         channel {
@@ -354,7 +357,7 @@ proc ::WS::Server::Service {args} {
     switch -exact -- $mode {
         embedded {
             foreach port [dict get $defaults -ports] {
-                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/op ::WS::Server::callOperation_${service}
+                ::WS::Embeded::AddHandler $port [dict get $defaults -prefix]/op POST ::WS::Server::callOperation_${service}
             }
         }
         channel {
@@ -715,8 +718,8 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
 #                         wibble: -responsename name: response variable name
 #
 # Returns :
-#       1 - On error
-#       0 - On success
+#       Embedded mode: return list of contentType, message, httpcode
+#       Other modes: 1 - On error, 0 - On success
 #
 # Side-Effects : None
 #
@@ -743,6 +746,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
 #                                   the -version parameter.
 #                                   Pass wibble responsename also with prefix
 #                                   "-responsename".
+# 3.2.0    2021-03-17  H.Oehlmann   In embedded mode, directly return the data
 #
 ###########################################################################
 proc ::WS::Server::generateWsdl {serviceName sock args} {
@@ -771,11 +775,10 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                     404
             }
             embedded {
-                ::WS::Embeded::ReturnData \
-                    $sock \
+                return [list\
                     "text/html; charset=UTF-8" \
                     "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
-                    404
+                    404]
             }
             channel {
                 ::WS::Channel::ReturnData \
@@ -863,7 +866,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                 }
             }
             set xml [GetWsdl $serviceName $urlPrefix $version]
-            ::WS::Embeded::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
+            return [list "text/xml; charset=UTF-8" $xml 200]
         }
         rivet {
             set xml [GetWsdl $serviceName $urlPrefix $version]
@@ -890,6 +893,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             ## Do nothing
         }
     }
+    return 0
 }
 
 
@@ -1153,8 +1157,8 @@ proc ::WS::Server::generateJsonInfo { serviceName sock args } {
 #                             service version.  Eg: -version 3
 #
 # Returns :
-#       1 - On error
-#       0 - On success
+#       Embedded mode: return list of contentType, message, httpcode
+#       Other modes: 1 - On error, 0 - On success
 #
 # Side-Effects : None
 #
@@ -1174,6 +1178,7 @@ proc ::WS::Server::generateJsonInfo { serviceName sock args } {
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
 #       2  11/13/2018  J.Cone       Version support
+# 3.2.0    2021-03-17  H.Oehlmann   In embedded mode, directly return the data
 #
 #
 ###########################################################################
@@ -1200,11 +1205,10 @@ proc ::WS::Server::generateInfo {serviceName sock args} {
                     404
             }
             embedded {
-                ::WS::Embeded::ReturnData \
-                    $sock \
-                    "text/html; charset=UTF-8" \
-                    "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
-                    404
+                return [list\
+                        "text/html; charset=UTF-8" \
+                        "<html><head><title>Webservice Error</title></head><body><h2>$msg</h2></body></html>" \
+                        404]
             }
             channel {
                 ::WS::Channel::ReturnData \
@@ -1283,7 +1287,7 @@ proc ::WS::Server::generateInfo {serviceName sock args} {
             ::Httpd_ReturnData $sock "text/html; charset=UTF-8" $msg 200
         }
         embedded {
-            ::WS::Embeded::ReturnData $sock "text/html; charset=UTF-8" $msg 200
+            return [list "text/html; charset=UTF-8" $msg 200]
         }
         channel {
             ::WS::Channel::ReturnData $sock "text/html; charset=UTF-8" $msg 200
@@ -1304,7 +1308,7 @@ proc ::WS::Server::generateInfo {serviceName sock args} {
             ## Do nothing
         }
     }
-
+    return 0
 }
 
 ###########################################################################
@@ -1373,11 +1377,16 @@ proc ::WS::Server::displayType {serviceName type} {
 #       sock            - The socket to return the WSDL on
 #       -rest           - Use Rest flavor call instead of SOAP
 #       -version        - specify service version
-#       args            - port for embedded server
+#       args            - additional arguments and flags:
+#                           -rest: choose rest flavor instead soap
+#                           -version num: choose a version number
+#                           -data dict: data dict in embedded mode.
+#                               Used keys are: query, ipaddr, headers.
+#                           first element: response dict name in wibble mode
 #
 # Returns :
-#       1 - On error
-#       0 - On success
+#       Embedded mode: return list of contentType, message, httpcode
+#       Other modes: 1 - On error, 0 - On success
 #
 # Side-Effects : None
 #
@@ -1399,6 +1408,11 @@ proc ::WS::Server::displayType {serviceName type} {
 #       2  11/13/2018  J.Cone       Version support
 # 3.1.0    2020-11-06  H.Oehlmann   Get global validHttpStatusCodes in this
 #                                   module, was deleted in Utilities.tcl.
+# 3.2.0    2021-03-17  H.Oehlmann   Embedded mode: directly return data.
+#                                   Embedded mode: directly receive data via
+#                                   argument -data dict.
+#                                   The result return is not protected any more
+#                                   by a catch to allow direct return.
 #
 #
 ###########################################################################
@@ -1409,9 +1423,10 @@ proc ::WS::Server::callOperation {serviceName sock args} {
 
     switch -exact -- $mode {
         embedded {
-            upvar #0 ::WS::Embeded::Httpd$sock embeddedServerDataDict
+            # Get the data dict as argument behind call flag "-data"
+            set embeddedServerDataDict [lindex $args\
+                    [lsearch -exact $args "-data"]+1]
             set inXML [dict get $embeddedServerDataDict query]
-            #parray data
         }
         wibble {
             set requestDict [lindex $args 0]
@@ -1550,7 +1565,7 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
+                return [list "$contentType; charset=UTF-8" $response $httpStatus]
             }
             rivet {
                 headers type "$contentType; charset=UTF-8"
@@ -1567,7 +1582,7 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ## Do nothing
             }
         }
-        return
+        return 1
     }
     set baseName $operation
     set cmdName op$baseName
@@ -1753,7 +1768,7 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
+                return [list "$contentType; charset=UTF-8" $response $httpStatus]
             }
             channel {
                 ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
@@ -1773,7 +1788,7 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ## Do nothing
             }
         }
-        return
+        return 1
     }
 
     ##
@@ -1803,23 +1818,26 @@ proc ::WS::Server::callOperation {serviceName sock args} {
     ##
     if {[catch {
         set cmd [dict get $serviceData -checkheader]
-        switch -exact -- $mode {
-            wibble  {
-                lappend cmd \
-                    $ns \
-                    $baseName \
-                    [dict get $requestDict peerhost] \
-                    [dict keys [dict get $requestDict header]] \
-                    $headerList
+        if {$cmd ne ""} {
+            switch -exact -- $mode {
+                wibble  {
+                    lappend cmd \
+                        $ns \
+                        $baseName \
+                        [dict get $requestDict peerhost] \
+                        [dict keys [dict get $requestDict header]] \
+                        $headerList
+                }
+                embedded {
+                    lappend cmd $ns $baseName [dict get $embeddedServerDataDict ipaddr] [dict get $embeddedServerDataDict headers] $headerList
+                }
+                default {
+                    lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList
+                }
             }
-            embedded {
-                lappend cmd $ns $baseName [dict get $embeddedServerDataDict ipaddr] [dict get $embeddedServerDataDict headers] $headerList
-            }
-            default {
-                lappend cmd $ns $baseName $data(ipaddr) $data(headerlist) $headerList
-            }
+            # This will return with error, if the header is not ok
+            eval $cmd
         }
-        eval $cmd
         set results [eval \$methodName $tclArgList]
         # generate a reply packet
         set response [generateReply $ns $baseName $results $flavor]
@@ -1844,32 +1862,6 @@ proc ::WS::Server::callOperation {serviceName sock args} {
             set precmd [dict get $serviceData -postmonitor]
             lappend precmd POST $serviceName $operation OK $results
             catch $precmd
-        }
-        ::log::logsubst debug {Leaving ::WS::Server::callOperation $response}
-        switch -exact -- $mode {
-            tclhttpd {
-                ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response 200
-            }
-            embedded {
-                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response 200
-            }
-            channel {
-                ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response 200
-            }
-            rivet {
-                headers type "$contentType; charset=UTF-8"
-                headers numeric 200
-                puts $response
-            }
-            aolserver {
-                ::WS::AOLserver::ReturnData $sock "$contentType; charset=UTF-8" $response 200
-            }
-            wibble  {
-                ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response 200
-            }
-            default {
-                ## Do nothing
-            }
         }
     } msg]} {
         ##
@@ -1915,7 +1907,7 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
             }
             embedded {
-                ::WS::Embeded::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
+                return [list "$contentType; charset=UTF-8" $response $httpStatus]
             }
             channel {
                 ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response $httpStatus
@@ -1939,9 +1931,41 @@ proc ::WS::Server::callOperation {serviceName sock args} {
                 ## Do nothing
             }
         }
-        return
+        return 1
     }
-    return
+    
+    ##
+    ## Return result
+    ##
+
+    ::log::logsubst debug {Leaving ::WS::Server::callOperation $response}
+    switch -exact -- $mode {
+        tclhttpd {
+            ::Httpd_ReturnData $sock "$contentType; charset=UTF-8" $response 200
+        }
+        embedded {
+            return [list "$contentType; charset=UTF-8" $response 200]
+        }
+        channel {
+            ::WS::Channel::ReturnData $sock "$contentType; charset=UTF-8" $response 200
+        }
+        rivet {
+            headers type "$contentType; charset=UTF-8"
+            headers numeric 200
+            puts $response
+        }
+        aolserver {
+            ::WS::AOLserver::ReturnData $sock "$contentType; charset=UTF-8" $response 200
+        }
+        wibble  {
+            ::WS::Wibble::ReturnData responseDict "$contentType; charset=UTF-8" $response 200
+        }
+        default {
+            ## Do nothing
+        }
+    }
+    
+    return 0
 }
 
 ###########################################################################
@@ -2164,49 +2188,6 @@ proc ::WS::Server::generateReply {serviceName operation results flavor {version 
     ::log::logsubst debug {Leaving ::WS::Server::generateReply $output}
     return $output
 
-}
-
-###########################################################################
-#
-# Private Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PRIVATE<<
-#
-# Procedure Name : :WS::Server::ok
-#
-# Description : Stub for header check
-#
-# Arguments :
-#    serviceName         - The name of the service
-#    operation           - The name of the operation
-#    results             - The results as a dictionary object
-#
-#
-# Returns : The results as an XML formatted packet.
-#
-# Side-Effects : None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : None
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PRIVATE<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  07/06/2006  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Server::ok {args} {
-    return
 }
 
 ###########################################################################

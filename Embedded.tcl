@@ -51,7 +51,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 3.1.0
+package provide WS::Embeded 3.2.0
 
 namespace eval ::WS::Embeded {
 
@@ -79,6 +79,7 @@ namespace eval ::WS::Embeded {
 # Arguments :
 #       port     -- The port to register the callback on
 #       url      -- The URL to register the callback for
+#       method   -- HTTP method: GET or POST
 #       callback -- The callback prefix, two additionally arguments are lappended
 #                   the callback: (1) the socket (2) the null string
 #
@@ -102,13 +103,14 @@ namespace eval ::WS::Embeded {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+# 3.2.0    2021-03-17  H.Oehlmann   Also pass method
 #
 #
 ###########################################################################
-proc ::WS::Embeded::AddHandler {port url callback} {
+proc ::WS::Embeded::AddHandler {port url method callback} {
     variable portInfo
 
-    dict set portInfo $port handlers $url $callback
+    dict set portInfo $port handlers $url $method $callback
     return
 }
 
@@ -127,7 +129,7 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 # Arguments :
 #       index    -- type of value to get. Possible values:
 #                    -- isHTTPS : true, if https protocol is used.
-#       sock     -- concerned socket. May be ommitted, if not relevant for value.
+#       port     -- concerned port. May be ommitted, if not relevant for value.
 #
 # Returns :     the distinct value
 #
@@ -152,63 +154,13 @@ proc ::WS::Embeded::AddHandler {port url callback} {
 #
 #
 ###########################################################################
-proc ::WS::Embeded::GetValue {index {sock ""}} {
+proc ::WS::Embeded::GetValue {index {port ""}} {
     variable portInfo
 
     switch -exact -- $index {
-        isHTTPS { return [dict get $portInfo $sock $index] }
+        isHTTPS { return [dict get $portInfo $port $index] }
         default {return -code error "Unknown index '$index'"}
     }
-}
-
-
-###########################################################################
-#
-# Public Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PUBLIC<<
-#
-# Procedure Name : ::WS::Embeded::AddHandlerAllPorts
-#
-# Description : Register a handler for a url on all "defined" ports.
-#
-# Arguments :
-#       url      -- List of three elements:
-#       callback -- The callback prefix, two additionally argumens are lappended
-#                   the callback: (1) the socket (2) the null string
-#
-# Returns :     Nothing
-#
-# Side-Effects :
-#       None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : ::WS::Embeded::Listen must have been called for the port
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PUBLIC<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
-    variable portList
-
-    foreach port $portList {
-        AddHandler $port $url $callback
-    }
-
-    return
 }
 
 
@@ -383,56 +335,6 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 
 ###########################################################################
 #
-# Public Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PUBLIC<<
-#
-# Procedure Name : ::WS::Embeded::ReturnData
-#
-# Description : Store the information to be returned.
-#
-# Arguments :
-#       socket  -- Socket data is for
-#       type    -- Mime type of data
-#       data    -- Data
-#       code    -- Status code
-#
-# Returns :     Nothing
-#
-# Side-Effects :
-#       None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : A callback on the socket should be pending
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PUBLIC<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-#
-#
-###########################################################################
-proc ::WS::Embeded::ReturnData {sock type data code} {
-    upvar #0 ::WS::Embeded::Httpd$sock dataDict
-
-    foreach var {type data code} {
-        dict set dataDict reply $var [set $var]
-    }
-    return
-}
-
-
-###########################################################################
-#
 # Private Procedure Header - as this procedure is modified, please be sure
 #                            that you update this header block. Thanks.
 #
@@ -553,7 +455,7 @@ proc ::WS::Embeded::httpreturncode {code} {
 #       auth -- Authentication information
 #
 # Returns :
-#       Nothing
+#       True if authentication ok
 #
 # Side-Effects : None
 #
@@ -572,6 +474,9 @@ proc ::WS::Embeded::httpreturncode {code} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+# 3.2.0    2021-3-17   H.Oehlmann   Change return value to true/false instead
+#                                   Error.
+#
 #
 #
 ###########################################################################
@@ -584,8 +489,9 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
         set realm [dict get $portInfo $port realm]
         respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
         ::log::logsubst warning {Unauthorized from $ip}
-        return -code error
+        return 0
     }
+    return 1
 }
 
 
@@ -602,9 +508,12 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 #
 # Arguments :
 #       port        -- Port number
+#       method      -- HTTP method: GET or POST
+#       url         -- Requested URL
 #       sock        -- Incoming socket
 #       ip          -- Requester's IP address
 #       auth        -- Authentication information
+#       dataDict    -- Call data of the post method
 #
 # Returns :
 #       Nothing
@@ -637,48 +546,51 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 # 3.1.0    2020-11-05  H.Oehlmann   Pass additional port parameter with leading
 #                                   -port specifier to avoid clash with
 #                                   other parameters.
+# 3.2.0    2021-03-17  H.Oehlmann   Return the result directly by the call.
+#                                   Replace global parameter dict by parameter
+#                                   url and dataDict (for POST method).
 #
 ###########################################################################
-proc ::WS::Embeded::handler {port sock ip auth} {
+proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
     variable portInfo
-    upvar #0 ::WS::Embeded::Httpd$sock dataDict
 
-    if {[catch {checkauth $port $sock $ip $auth}]} {
+    if {![checkauth $port $sock $ip $auth]} {
         ::log::log warning {Auth Failed}
         return
     }
 
-    set path "/[string trim [dict get $dataDict path] /]"
-    if {[dict exists $portInfo $port handlers $path]} {
-        set cmd [dict get $portInfo $port handlers $path]
-        lappend cmd $sock -port $port
-        # ::WS::Server::callOperation is called (for operations).
-        # This routine reads our data by:
-        #   upvar #0 ::WS::Embeded::Httpd$sock data
-        # while only the array index (query) is used
-        if {[catch {eval $cmd} msg]} {
-            ::log::log error "Return 404 due to eval error: $msg"
-            respond $sock 404 "Error: $msg"
-        } else {
-            set type [dict get $dataDict reply type]
-            # This may modify the type variable, if encoding is not found
-            set encoding [contentTypeParse 0 type]
-            set data [encoding convertto $encoding [dict get $dataDict reply data]]
-            set reply "[httpreturncode [dict get $dataDict reply code]]\n"
-            append reply "Content-Type: $type\n"
-            append reply "Connection: close\n"
-            append reply "Content-length: [string length $data]\n"
-            chan configure $sock -translation crlf
-            puts $sock $reply
-            chan configure $sock -translation binary
-            puts -nonewline $sock $data
-            ::log::log debug ok
-        }
-    } else {
+    set path "/[string trim [dict get [uri::split $url] path] /]"
+    if {![dict exists $portInfo $port handlers $path $method]} {
         ::log::log warning "404 Error: URL not found"
         respond $sock 404 "URL not found"
+        return
     }
-
+    set cmd [dict get $portInfo $port handlers $path $method]
+    if {[catch {
+        if {$method eq "POST"} {
+            # The following dict keys are attended:
+            # query, ipaddr, headers
+            lassign [$cmd $sock -data $dataDict] type data code
+        } else {
+            lassign [$cmd $sock -port $port] type data code
+        }
+    } msg]} {
+        ::log::log error "Return 404 due to eval error: $msg"
+        respond $sock 404 "Error: $msg"
+        return
+    }
+    # This may modify the type variable, if encoding is not found
+    set encoding [contentTypeParse 0 type]
+    set data [encoding convertto $encoding $data]
+    set reply "[httpreturncode $code]\n"
+    append reply "Content-Type: $type\n"
+    append reply "Connection: close\n"
+    append reply "Content-length: [string length $data]\n"
+    chan configure $sock -translation crlf
+    puts $sock $reply
+    chan configure $sock -translation binary
+    puts -nonewline $sock $data
+    ::log::log debug ok
     return
 }
 
@@ -724,12 +636,13 @@ proc ::WS::Embeded::handler {port sock ip auth} {
 # 2.6.1    2020-10-22  H.Oehlmann   Honor received encoding.
 #                                   Only pass request data by global array
 #                                   to the handler.
+# 3.2.0    2021-03-17  H.Oehlmann   Replace global communication dict by
+#                                   command line parameters to handler.
 #
 #
 ###########################################################################
 proc ::WS::Embeded::accept {port sock ip clientport} {
 
-    upvar #0 ::WS::Embeded::Httpd$sock dataDict
     ::log::logsubst info {Received request on $port for $ip:$clientport}
 
     chan configure $sock -translation crlf
@@ -762,9 +675,11 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 
         switch -exact -- $method {
             POST {
+
                 ##
-                ## This is all broken and needs to be fixed
+                ## Receive the post body
                 ##
+
                 set data ""
                 if {[dict exists $request header transfer-encoding]
                     && [dict get $request header transfer-encoding] eq "chunked"} {
@@ -780,21 +695,33 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
                     set data [read $sock [dict get $request header content-length]]
                     chan configure $sock -translation crlf
                 }
-                set dataDict [uri::split $url]
+
+                ##
+                ## Find request encoding from content type and recode data
+                ##
+
                 if {![dict exists $request header content-type]} {
                     ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
                     return
                 }
                 set contentType [dict get $request header content-type]
                 set requestEncoding [contentTypeParse 1 contentType]
-                dict set dataDict query [encoding convertfrom $requestEncoding $data]
-                dict set dataDict headers $request
-                dict set dataDict ipaddr $ip
-                handler $port $sock $ip $auth
+                set data [encoding convertfrom $requestEncoding $data]
+
+                ##
+                ## Call handler with POST data
+                ##
+
+                handler $port $method $url $sock $ip $auth\
+                        [dict create query $data headers $request ipaddr $ip]
             }
             GET {
-                set dataDict [uri::split $url]
-                handler $port $sock $ip $auth
+
+                ##
+                ## Call GET handler with url only
+                ##
+
+                handler $port $method $url $sock $ip $auth
             }
             default {
                 ::log::logsubst warning {Unsupported method '$method' from $ip}
@@ -809,7 +736,6 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 
     catch {flush $sock}
     catch {close $sock}
-    unset -nocomplain dataDict
     return
 }
 
