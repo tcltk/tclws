@@ -852,7 +852,7 @@ proc ::WS::Embeded::receive {sock} {
                     tailcall cleanup $sock
                 }
                 if {$method ni {"GET" "POST"}} {
-                    ::log::logsubst warning {Unsupported method '$method' from $ip}
+                    ::log::logsubst warning {Unsupported method '$method'}
                     tailcall respond $sock 501 "Method not implemented"
                 }
 
