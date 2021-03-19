@@ -14,24 +14,26 @@
       <DIV id=toctitle>
       <H2>Contents</H2></DIV>
       <UL>
-        <LI class=toclevel-1><A href="#Loading_the_Webservices_Embedded_Package"><SPAN
+        <LI class=toclevel-1><A href="#Loading_the_Webservices_Embeded_Package"><SPAN
         class=tocnumber>1</SPAN> <SPAN class=toctext>Loading the Webservices
-        Embedded Package</SPAN></A>
+        Embeded Package</SPAN></A>
         <LI class=toclevel-1><A href="#Listen"><SPAN
         class=tocnumber>2</SPAN> <SPAN class=toctext>Specify a Port to Receive Request on</SPAN></A>
         <LI class=toclevel-1><A href="#EventQueue"><SPAN
-        class=tocnumber>3</SPAN> <SPAN class=toctext>Enter the event queue</SPAN></A>
-        <LI class=toclevel-1><A href="#Stop"><SPAN
-        class=tocnumber>4</SPAN> <SPAN class=toctext>Shutdown server</SPAN></A>
+        class=tocnumber>3</SPAN> <SPAN class=toctext>Run the event queue</SPAN></A>
+        <LI class=toclevel-1><A href="#Close"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Close a port</SPAN></A>
+        <LI class=toclevel-1><A href="#CloseAll"><SPAN
+        class=tocnumber>4</SPAN> <SPAN class=toctext>Close all ports</SPAN></A>
       </UL>
     </TD>
   </TR>
 </TABLE>
 
-<A name=Loading_the_Webservices_Embedded_Package></A>
+<A name=Loading_the_Webservices_Embeded_Package></A>
 <H2>Loading the Webservices Server Package </H2>
 
-<P>To load the webservices server package, do: </P><PRE> package require WS::Embedded
+<P>To load the webservices server package, do: </P><PRE> package require WS::Embeded
 </PRE>
 <P>This command will only load the server the first time it is used, so it
 causes no ill effects to put this in each file declaring a service or service
@@ -42,26 +44,32 @@ procedure. </P>
 <A name=Listen></A>
 <H2>Specify a Port to Receive Request on</H2>
 
+<P>The following command opens a listener socket in the specified port.
+The webservice functionality may be added by a call to <I>::WS::Server::Service</I> with the <I>-mode</I> parameter set to <I>embedded</I>.
+
 <P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Listen</I></B> </P>
 <P><B>Description</B>&nbsp;: Instruct the module to listen on a Port, security information.
 <P><B>Arguments</B>&nbsp;: this procedure uses position dependent arguments,
 they are: </P>
 <PRE>
      <I>port    </I> -- Port number to listen on.
-     <I>certfile</I> -- Name of the certificate pem file for the tcltls package,
-                 or a pfx certificate archive file for twapi TLS.
-                 Defaults to {} (no TLS).
-     <I>keyfile </I> -- Name of the key pem file for the tcltls package.
+     <I>certfile</I> -- Name of the certificate file or a pfx archive for twapi.
                  Defaults to {}.
+     <I>keyfile </I> -- Name of the key file. Defaults to {}.
                  To use twapi TLS, specify a list with the following elements:
-                    <I>-twapi</I>: fix flag, that TWAPI TLS should be used
-                    <I>password</I>: password of PFX file passed by
-                        [::twapi::conceal]. The concealing makes sure that the
-                        password is not readable in the error stack trace
-                    <I>?subject?</I>: optional search string in pfx file, if
-                        multiple certificates are included.
+                 -- "-twapi": Flag, that TWAPI TLS should be used
+                 -- password: password of PFX file passed by
+                    [::twapi::conceal]. The concealing makes sure that the
+                    password is not readable in the error stack trace
+                 -- ?subject?: optional search string in pfx file, if
+                    multiple certificates are included.
      <I>userpwds</I> -- A list of username:password. Defaults to {}.
      <I>realm   </I> -- The seucrity realm. Defaults to {}.
+     <I>timeout </I> -- A time in ms the sender may use to send the request.
+                 If a sender sends wrong data (Example: TLS if no TLS is
+                 used), the process will just stand and a timeout is required
+                 to clear the connection. Set to 0 to not use a timeout.
+                 Default: 60000 (1 Minuit).
 </PRE>
 <P><B>Returns</B>&nbsp;: Handle of socket </P>
 <P><B>Side-Effects</B>&nbsp;: None </P>
@@ -70,23 +78,45 @@ they are: </P>
 <HR />
 
 <A name=EventQueue></A>
-<H2>Enter the event queue</H2>
+<H2>Run the event queue</H2>
 
-<P>To serve any requests, the interpreter must enter the event queue using, for example:</P>
+<P>To serve any requests, the interpreter must run the event queue using.
+If this is not anyway the case (Tk present etc.), one may call:</P>
 <PRE>
      vwait waitVariable
 </PRE>
-<HR />
 
-<A name=Stop></A>
-<H2>Stop the server</H2>
-
-<P>To stop serving requests, the server socket may be closed.
-The socket handle was returned by <I>::WS::Embeded::Listen</I>.
-Optionally, the event queue may be stopped as follows:</P>
+<P>To stop the event queue after server shutdown, one may execute:</P>
 <PRE>
-     close $handle
      set waitVariable 1
 </PRE>
+<HR />
+
+<A name=Close></A>
+<H2>Close a port</H2>
+
+<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::Close</I></B> </P>
+<P><B>Description</B>&nbsp;: Close a formerly opened listener port and stop all running requests on this port.
+<P><B>Arguments</B>&nbsp;: this procedure uses position dependent arguments,
+they are: </P>
+<PRE>
+     <I>port    </I> -- Port number to close.
+</PRE>
+<P><B>Returns</B>&nbsp;: None </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: &nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
+<HR />
+
+<A name=CloseAll></A>
+<H2>Close all ports</H2>
+
+<P><B>Procedure Name&nbsp;: <I>::WS::Embeded::CloseAll</I></B> </P>
+<P><B>Description</B>&nbsp;: Close all formerly opened listener port and stop all running requests.
+<P><B>Arguments</B>&nbsp;: this procedure uses no arguments</P>
+<P><B>Returns</B>&nbsp;: None </P>
+<P><B>Side-Effects</B>&nbsp;: None </P>
+<P><B>Exception Conditions</B>&nbsp;: &nbsp;: None </P>
+<P><B>Pre-requisite Conditions</B>&nbsp;: None </P>
 </BODY>
 </HTML>

@@ -43,25 +43,27 @@ package require log
 
 # Emulate the log::logsubst command introduced in log 1.4
 if {![llength [info command ::log::logsubst]]} {
-	proc ::log::logsubst {level text} {
-		if {[::log::lvIsSuppressed $level]} {
-			return
-		}
-		::log::log $level [uplevel 1 [list subst $text]]
-	}
+    proc ::log::logsubst {level text} {
+        if {[::log::lvIsSuppressed $level]} {
+            return
+        }
+        ::log::log $level [uplevel 1 [list subst $text]]
+    }
 }
 
-package provide WS::Embeded 3.2.0
+package provide WS::Embeded 3.3.0
 
 namespace eval ::WS::Embeded {
 
-    set portInfo {}
-
-    set portList [list]
-    set forever {}
+    variable portInfo {}
+    
+    variable handlerInfoDict {}
 
     variable returnCodeText [dict create 200 OK 404 "Not Found" \
-	    500 "Internal Server Error" 501 "Not Implemented"]
+            500 "Internal Server Error" 501 "Not Implemented"]
+
+    variable socketStateArray
+
 }
 
 
@@ -78,7 +80,7 @@ namespace eval ::WS::Embeded {
 #
 # Arguments :
 #       port     -- The port to register the callback on
-#       url      -- The URL to register the callback for
+#       urlPath  -- The URL path to register the callback for
 #       method   -- HTTP method: GET or POST
 #       callback -- The callback prefix, two additionally arguments are lappended
 #                   the callback: (1) the socket (2) the null string
@@ -103,14 +105,16 @@ namespace eval ::WS::Embeded {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
-# 3.2.0    2021-03-17  H.Oehlmann   Also pass method
+# 3.2.0    2021-03-17  H.Oehlmann   Also pass method.
+# 3.3.0    2021-03-19  H.Oehlmann   Put handler info to own dict, so order of
+#                                   Listen and AddHandler call is not important.
 #
 #
 ###########################################################################
-proc ::WS::Embeded::AddHandler {port url method callback} {
-    variable portInfo
+proc ::WS::Embeded::AddHandler {port urlPath method callback} {
+    variable handlerInfoDict
 
-    dict set portInfo $port handlers $url $method $callback
+    dict set handlerInfoDict $port $urlPath $method $callback
     return
 }
 
@@ -177,8 +181,9 @@ proc ::WS::Embeded::GetValue {index {port ""}} {
 #
 # Arguments :
 #       port     -- Port number to listen on
-#       certfile -- Name of the certificate file or a pfx archive for twapi
-#       keyfile  -- Name of the key file
+#       certfile -- Name of the certificate file or a pfx archive for twapi.
+#                   Defaults to {}.
+#       keyfile  -- Name of the key file. Defaults to {}.
 #                   To use twapi TLS, specify a list with the following elements:
 #                    -- "-twapi": Flag, that TWAPI TLS should be used
 #                    -- password: password of PFX file passed by
@@ -186,8 +191,13 @@ proc ::WS::Embeded::GetValue {index {port ""}} {
 #                       password is not readable in the error stack trace
 #                    -- ?subject?: optional search string in pfx file, if
 #                       multiple certificates are included.
-#       userpwds -- A list of username:password
-#       realm    -- The security realm
+#       userpwds -- A list of username:password. Defaults to {}.
+#       realm    -- The security realm. Defaults to {}.
+#       timeout  -- A time in ms the sender may use to send the request.
+#                   If a sender sends wrong data (Example: TLS if no TLS is
+#                   used), the process will just stand and a timeout is required
+#                   to clear the connection. Set to 0 to not use a timeout.
+#                   Default: 60000 (1 Minuit).
 #
 # Returns :     socket handle
 #
@@ -209,33 +219,29 @@ proc ::WS::Embeded::GetValue {index {port ""}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+# 3.0.0    2020-10-30  H.Oehlmann   Add twapi tls support
+# 3.3.0    2021-03-18  H.Oehlmann   Add timeout option. Remove unused portList.
+#                                   Call Close, if we use the port already.
+#                                   Do not leave portInfo data, if open fails.
 #
 #
 ###########################################################################
-proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}}} {
+proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm {}} {timeout 600000}} {
     variable portInfo
-    variable portList
-
-    lappend portList $port
-    foreach key {port userpwds realm} {
-        dict set portInfo $port $key [set $key]
+    
+    ##
+    ## Check if port already used by us. If yes, close it.
+    ##
+    if {[dict exists $portInfo $port]} {
+        Close $port
     }
-    if {![dict exists $portInfo $port handlers]} {
-        dict set portInfo $port handlers {}
-    }
-    set authlist {}
-	foreach up $userpwds {
-        lappend authlist [base64::encode $up]
-    }
-	dict set portInfo $port auths $authlist
     
     ##
     ## Check if HTTPS protocol is used
     ##
+    set isHTTPS [expr {$certfile ne ""}]
     
-    dict set portInfo $port isHTTPS [expr {$certfile ne ""}]
-
-    if {$certfile ne "" } {
+    if {$isHTTPS } {
         if { [string is list $keyfile] && [lindex $keyfile 0] eq "-twapi"} {
 
             ##
@@ -328,8 +334,135 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
         ::log::logsubst debug {socket -server [list ::WS::Embeded::accept $port] $port}
         set handle [socket -server [list ::WS::Embeded::accept $port] $port]
     }
+    
+    ##
+    ## Prepare basic authentication
+    ##
+    set authlist {}
+    foreach up $userpwds {
+        lappend authlist [base64::encode $up]
+    }
+
+    ##
+    ## Save the port information dict entry
+    ##
+    dict set portInfo $port [dict create\
+            port $port\
+            realm $realm\
+            timeout $timeout\
+            auths $authlist\
+            isHTTPS $isHTTPS\
+            handle $handle]
 
     return $handle
+}
+
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Embeded::Close
+#
+# Description : End listening, close the port.
+#
+# Arguments :
+#       port     -- Port number to listen on
+#
+# Returns :     none
+#
+# Side-Effects :
+#       None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::Close {port} {
+    variable socketStateArray
+    variable portInfo
+    
+    # Check, if port exists
+    if {![dict exists $portInfo $port handle]} {return}
+    
+    ::log::log info "closing server socket for port $port"
+    # close server port
+    if {[catch {close [dict get $portInfo $port handle]} msg]} {
+        ::log::log error "error closing server socket for port $port: $msg"
+    }
+    
+    # close existing connections
+    foreach sock [array names socketStateArray] {
+        if {[dict get $socketStateArray($sock) port] eq $port} {
+                cleanup $sock
+        }
+    }
+    
+    # remove registered data
+    dict unset portInfo $port
+    return
+}
+
+
+###########################################################################
+#
+# Public Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PUBLIC<<
+#
+# Procedure Name : ::WS::Embeded::CloseAll
+#
+# Description : End listening, close all ports.
+#
+# Arguments :
+#       port     -- Port number to listen on
+#
+# Returns :     none
+#
+# Side-Effects :
+#       None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PUBLIC<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::CloseAll {} {
+    variable portInfo
+    foreach port [dict keys $portInfo] {
+        Close $port
+    }
 }
 
 
@@ -377,15 +510,23 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
 ###########################################################################
 proc ::WS::Embeded::respond {sock code body {head ""}} {
     set body [encoding convertto iso8859-1 $body\r\n]
-    chan configure $sock -translation crlf
-    puts $sock "[httpreturncode $code]\nContent-Type: text/html; charset=ISO-8859-1\nConnection: close\nContent-length: [string length $body]"
-    if {"" ne $head} {
-	puts -nonewline $sock $head
+    if {[catch {
+        chan configure $sock -translation crlf
+        puts $sock "[httpreturncode $code]\nContent-Type: text/html; charset=ISO-8859-1\nConnection: close\nContent-length: [string length $body]"
+        if {"" ne $head} {
+            puts -nonewline $sock $head
+        }
+        # Separator head and body
+        puts $sock ""
+        chan configure $sock -translation binary
+        puts -nonewline $sock $body
+        close $sock
+    } msg]} {
+        log::log error "Error sending response: $msg"
+        cleanup $sock
+    } else {
+        cleanup $sock 1
     }
-    # Separator head and body
-    puts $sock ""
-    chan configure $sock -translation binary
-    puts -nonewline $sock $body
 }
 
 
@@ -444,76 +585,12 @@ proc ::WS::Embeded::httpreturncode {code} {
 #
 #>>BEGIN PRIVATE<<
 #
-# Procedure Name : ::WS::Embeded::checkauth
-#
-# Description : Check to see if the user is allowed.
-#
-# Arguments :
-#       port -- Port number
-#       sock -- Incoming socket
-#       ip   -- Requester's IP address
-#       auth -- Authentication information
-#
-# Returns :
-#       True if authentication ok
-#
-# Side-Effects : None
-#
-# Exception Conditions : None
-#
-# Pre-requisite Conditions : None
-#
-# Original Author : Gerald W. Lester
-#
-#>>END PRIVATE<<
-#
-# Maintenance History - as this file is modified, please be sure that you
-#                       update this segment of the file header block by
-#                       adding a complete entry at the bottom of the list.
-#
-# Version     Date     Programmer   Comments / Changes / Reasons
-# -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-# 3.2.0    2021-3-17   H.Oehlmann   Change return value to true/false instead
-#                                   Error.
-#
-#
-#
-###########################################################################
-proc ::WS::Embeded::checkauth {port sock ip auth} {
-    variable portInfo
-
-    if { [dict exists $portInfo $port auths] &&
-            0 != [llength [dict get $portInfo $port auths]] &&
-            $auth ni [dict get $portInfo $port auths] } {
-        set realm [dict get $portInfo $port realm]
-        respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
-        ::log::logsubst warning {Unauthorized from $ip}
-        return 0
-    }
-    return 1
-}
-
-
-###########################################################################
-#
-# Private Procedure Header - as this procedure is modified, please be sure
-#                            that you update this header block. Thanks.
-#
-#>>BEGIN PRIVATE<<
-#
 # Procedure Name : ::WS::Embeded::handler
 #
 # Description : Handle a request.
 #
 # Arguments :
-#       port        -- Port number
-#       method      -- HTTP method: GET or POST
-#       url         -- Requested URL
 #       sock        -- Incoming socket
-#       ip          -- Requester's IP address
-#       auth        -- Authentication information
-#       dataDict    -- Call data of the post method
 #
 # Returns :
 #       Nothing
@@ -549,35 +626,34 @@ proc ::WS::Embeded::checkauth {port sock ip auth} {
 # 3.2.0    2021-03-17  H.Oehlmann   Return the result directly by the call.
 #                                   Replace global parameter dict by parameter
 #                                   url and dataDict (for POST method).
+# 3.3.0    2021-03-18  H.Oehlmann   Use state array, move checks to Receive,
+#                                   do query recode here.
 #
 ###########################################################################
-proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
-    variable portInfo
+proc ::WS::Embeded::handler {sock} {
+    variable socketStateArray
 
-    if {![checkauth $port $sock $ip $auth]} {
-        ::log::log warning {Auth Failed}
-        return
-    }
+    set cmd [dict get $socketStateArray($sock) cmd]
+    if {[dict get $socketStateArray($sock) method] eq "POST"} {
+        # Recode the query data
+        dict set socketStateArray($sock) query [encoding convertfrom\
+                [dict get $socketStateArray($sock) requestEncoding]\
+                [dict get $socketStateArray($sock) query]]
 
-    set path "/[string trim [dict get [uri::split $url] path] /]"
-    if {![dict exists $portInfo $port handlers $path $method]} {
-        ::log::log warning "404 Error: URL not found"
-        respond $sock 404 "URL not found"
-        return
-    }
-    set cmd [dict get $portInfo $port handlers $path $method]
-    if {[catch {
-        if {$method eq "POST"} {
-            # The following dict keys are attended:
-            # query, ipaddr, headers
-            lassign [$cmd $sock -data $dataDict] type data code
-        } else {
-            lassign [$cmd $sock -port $port] type data code
+        # The following dict keys are attended: query, ipaddr, headers
+        if {[catch {
+            lassign [$cmd $sock -data $socketStateArray($sock)] type data code
+        } msg]} {
+            ::log::log error "Return 404 due to post eval error: $msg"
+            tailcall respond $sock 404 "Error: $msg"
         }
-    } msg]} {
-        ::log::log error "Return 404 due to eval error: $msg"
-        respond $sock 404 "Error: $msg"
-        return
+    } else {
+        if {[catch {
+            lassign [$cmd $sock -port [dict get $socketStateArray($sock) port]] type data code
+        } msg]} {
+            ::log::log error "Return 404 due to get eval error: $msg"
+            tailcall respond $sock 404 "Error: $msg"
+        }
     }
     # This may modify the type variable, if encoding is not found
     set encoding [contentTypeParse 0 type]
@@ -586,12 +662,24 @@ proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
     append reply "Content-Type: $type\n"
     append reply "Connection: close\n"
     append reply "Content-length: [string length $data]\n"
-    chan configure $sock -translation crlf
-    puts $sock $reply
-    chan configure $sock -translation binary
-    puts -nonewline $sock $data
+
+    # Note: to avoid delay, full buffering is used on the channel.
+    # In consequence, the data is sent in the background after the close.
+    # Socket errors may not be detected, but the event queue is free.
+    # This is specially important with the Edge browser, which sometimes delays
+    # data reception.
+    if {[catch {
+        chan configure $sock -translation crlf
+        puts $sock $reply
+        chan configure $sock -translation binary
+        puts -nonewline $sock $data
+        close $sock
+    } msg]} {
+        ::log::log error "Error sending reply: $msg"
+        tailcall cleanup $sock
+    }
     ::log::log debug ok
-    return
+    tailcall cleanup $sock 1
 }
 
 
@@ -604,7 +692,7 @@ proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
 #
 # Procedure Name : ::WS::Embeded::accept
 #
-# Description : Accept an incoming connection.
+# Description : Accept an incoming connection and register callback.
 #
 # Arguments :
 #       port        -- Port number
@@ -621,7 +709,7 @@ proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
 #
 # Pre-requisite Conditions : None
 #
-# Original Author : Gerald W. Lester
+# Original Author : Harald Oehlmann
 #
 #>>END PRIVATE<<
 #
@@ -631,115 +719,383 @@ proc ::WS::Embeded::handler {port method url sock ip auth {dataDict ""}} {
 #
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
-#       1  03/28/2008  G.Lester     Initial version
-# 2.3.0    10/31/2012  G.Lester     Bug fix [66fb3aeef5] -- correct header parsing
-# 2.6.1    2020-10-22  H.Oehlmann   Honor received encoding.
-#                                   Only pass request data by global array
-#                                   to the handler.
-# 3.2.0    2021-03-17  H.Oehlmann   Replace global communication dict by
-#                                   command line parameters to handler.
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
 #
 #
 ###########################################################################
 proc ::WS::Embeded::accept {port sock ip clientport} {
-
+    variable portInfo
+    variable socketStateArray
+    
     ::log::logsubst info {Received request on $port for $ip:$clientport}
 
-    chan configure $sock -translation crlf
-    if {1 == [catch {
-        gets $sock line
-        ::log::logsubst debug {Request is: $line}
-        set auth {}
-        set request {}
-        while {[gets $sock temp] > 0 && ![eof $sock]} {
-            if {[regexp {^([^:]*):(.*)$} $temp -> key data]} {
-                dict set request header [string tolower $key] [string trim $data]
-            }
-        }
-        if {[eof $sock]} {
-            ::log::logsubst warning  {Connection closed from $ip}
-            return
-        }
-        if {[dict exists $request header authorization]} {
-            regexp -nocase {^basic +([^ ]+)$} \
-                [dict get $request header authorization] -> auth
-        }
-        if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
-            ::log::logsubst warning  {Wrong request: $line}
-            return
-        }
-
-        ##
-        ## Process passed http method
-        ##
-
-        switch -exact -- $method {
-            POST {
-
-                ##
-                ## Receive the post body
-                ##
-
-                set data ""
-                if {[dict exists $request header transfer-encoding]
-                    && [dict get $request header transfer-encoding] eq "chunked"} {
-                    # Receive chunked request body.
-                    while {[scan [gets $sock line] %x length] == 1 && $length > 0} {
-                        chan configure $sock -translation binary
-                        append data [read $sock $length]
-                        chan configure $sock -translation crlf
-                    }
-                } else {
-                    # Receive non-chunked request body.
-                    chan configure $sock -translation binary
-                    set data [read $sock [dict get $request header content-length]]
-                    chan configure $sock -translation crlf
-                }
-
-                ##
-                ## Find request encoding from content type and recode data
-                ##
-
-                if {![dict exists $request header content-type]} {
-                    ::log::logsubst warning  {Header missing: 'Content-Type' from $ip}
-                    return
-                }
-                set contentType [dict get $request header content-type]
-                set requestEncoding [contentTypeParse 1 contentType]
-                set data [encoding convertfrom $requestEncoding $data]
-
-                ##
-                ## Call handler with POST data
-                ##
-
-                handler $port $method $url $sock $ip $auth\
-                        [dict create query $data headers $request ipaddr $ip]
-            }
-            GET {
-
-                ##
-                ## Call GET handler with url only
-                ##
-
-                handler $port $method $url $sock $ip $auth
-            }
-            default {
-                ::log::logsubst warning {Unsupported method '$method' from $ip}
-                respond $sock 501 "Method not implemented"
-            }
-        }
+    # Setup events
+    if {[catch {
+        chan configure $sock -blocking 0 -translation crlf
+        chan event $sock readable [list ::WS::Embeded::receive $sock]
     } msg]} {
-        ::log::log error "Error: $msg"
-        # catch this against an eventual closed socket
-        catch {respond $sock 500 "Server Error"}
+        catch {chan close $sock}
+        ::log::log error "Error installing accepted socket on ip '$ip': $msg"
+        return
     }
-
-    catch {flush $sock}
-    catch {close $sock}
-    return
+    # Prepare socket state dict
+    set stateDict [dict create port $port ip $ip phase request]
+    # Install timeout
+    if {0 < [dict get $portInfo $port timeout]} {
+        dict set stateDict timeoutHandle [after\
+                [dict get $portInfo $port timeout]\
+                [list ::WS::Embeded::timeout $sock]]
+    }
+    # Save state dict
+    set socketStateArray($sock) $stateDict
 }
 
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Embeded::receive
+#
+# Description : handle a readable socket
+#
+# Arguments :
+#       sock        -- Incoming socket
+#
+# Returns :
+#       Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::receive {sock} {
+    variable socketStateArray
+    variable portInfo
+    variable handlerInfoDict
 
+    ##
+    ## Make data read attempts in this read loop.
+    ##
+    while 1 {
+
+        ::log::logsubst debug {Top of loop with dict: $socketStateArray($sock)}
+        
+        ##
+        ## Read data
+        ##
+        if {[catch {
+            if {[dict get $socketStateArray($sock) phase] eq "body"} {
+                # Read binary data
+                set line [chan read $sock [dict get $socketStateArray($sock) readMax]]
+            } else {
+                # read line data
+                set line [chan gets $sock]
+            }
+        } msg]} {
+            ::log::log error "Data read error: $msg"
+            tailcall cleanup $sock
+        }
+        ::log::logsubst debug {Read: len [string length $line] eof [eof $sock] block [chan blocked $sock] data '$line'}
+
+        ##
+        ## Check for early EOF
+        ##
+        if { [eof $sock] } {
+            ::log::log warning  {Connection closed from client}
+            tailcall cleanup $sock
+        }
+
+        ##
+        ## Check for no new data, so wait for next file event.
+        ##
+        ## For gets:
+        ## This makes also the difference between empty data read (crlf
+        ## terminated line) and no read (true).
+        ## For read with limit:
+        ## If not all characters could be read, block is flagged with data.
+        ## So check the data length to 0 for this case.
+        ##
+        if {[string length $line] == 0 && [chan blocked $sock]} {
+            return
+        }
+        
+        ##
+        ## Handle the received data
+        ##
+        switch -exact -- [dict get $socketStateArray($sock) phase] {
+            request {
+                ##
+                ## Handle Request line
+                ##
+                if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
+                    ::log::logsubst warning  {Wrong request: $line}
+                    return
+                }
+                if {$method ni {"GET" "POST"}} {
+                    ::log::logsubst warning {Unsupported method '$method' from $ip}
+                    respond $sock 501 "Method not implemented"
+                    return
+                }
+
+                # Check if we have a handler for this method and URL path
+                set urlPath "/[string trim [dict get [uri::split $url] path] /]"
+                set port [dict get $socketStateArray($sock) port]
+                if {![dict exists $handlerInfoDict $port $urlPath $method]} {
+                    ::log::log warning "404 Error: URL path '$urlPath' not found"
+                    tailcall respond $sock 404 "URL not found"
+                }
+                # Save data and pass to header phase
+                dict set socketStateArray($sock) cmd [dict get $handlerInfoDict $port $urlPath $method]
+                dict set socketStateArray($sock) phase header
+                dict set socketStateArray($sock) method $method
+                dict set socketStateArray($sock) header ""
+            }
+            header {
+                ##
+                ## Handle Header lines
+                ##
+                if {[string length $line] > 0} {
+                    if {[regexp {^([^:]*):(.*)$} $line -> key data]} {
+                        dict set socketStateArray($sock) header [string tolower $key] [string trim $data]
+                    }
+                } else {
+                    # End of header by empty line
+
+                    ##
+                    ## Get authorization failure condition
+                    ##
+                    # Authorization is ok, if no authrization required
+                    # Authorization fails, if:
+                    # - no authentication in current request
+                    # - or current credentials incorrect
+                    set port [dict get $socketStateArray($sock) port]
+                    if {    0 != [llength [dict get $portInfo $port auths]] &&
+                            ! ( [dict exists $socketStateArray($sock) header authorization] &&
+                                [regexp -nocase {^basic +([^ ]+)$} \
+                                    [dict get $socketStateArray($sock) header authorization] -> auth] &&
+                                $auth in [dict get $portInfo $port auths] )
+                    } {
+                        set realm [dict get $portInfo $port realm]
+                        ::log::log warning {Unauthorized}
+                        tailcall respond $sock 401 "" "WWW-Authenticate: Basic realm=\"$realm\"\n"
+                    }
+                    
+                    # Within the GET method, we have all we need
+                    if {[dict get $socketStateArray($sock) method] eq "GET"} {
+                        tailcall handler $sock
+                    }
+                    
+                    # Post method requires content-encoding header
+                    if {![dict exists $socketStateArray($sock) header content-type]} {
+                        ::log::logsubst warning  {Header missing: 'Content-Type'}
+                        tailcall cleanup $sock
+                    }
+                    set contentType [dict get $socketStateArray($sock) header content-type]
+                    dict set socketStateArray($sock) requestEncoding [contentTypeParse 1 contentType]
+
+                    # Post method requires query data
+                    dict set socketStateArray($sock) query ""
+                    set fChunked [expr {
+                            [dict exists $socketStateArray($sock) header transfer-encoding] &&
+                            [dict get $socketStateArray($sock) header transfer-encoding] eq "chunked"}]
+                    dict set socketStateArray($sock) fChunked $fChunked
+                    
+                    if {$fChunked} {
+                        dict set socketStateArray($sock) phase chunk
+                    } else {
+                        
+                        # Check for content length
+                        if { ! [dict exists $socketStateArray($sock) header content-length] ||
+                                0 == [scan [dict get $socketStateArray($sock) header content-length] %d contentLength]
+                        } {
+                            ::log::log warning "Header content-length missing"
+                            tailcall cleanup $sock
+                        }
+                        dict set socketStateArray($sock) readMax $contentLength
+                        dict set socketStateArray($sock) phase body
+
+                        # Switch to binary data
+                        if {[catch { chan configure $sock -translation binary } msg]} {
+                            ::log::log error "Channel config error: $msg"
+                            tailcall cleanup $sock
+                        }
+                    }
+                }
+            }
+            body {
+                ##
+                ## Read body data
+                ##
+                set query [dict get $socketStateArray($sock) query]
+                append query $line
+                dict set socketStateArray($sock) query $query
+
+                set readMax [expr {
+                        [dict get $socketStateArray($sock) readMax] - [string length $line] } ]
+
+                if {$readMax > 0} {
+                    # Data missing, so loop
+                    dict set socketStateArray($sock) readMax $readMax
+                } else {
+                    # We have all data
+                    
+                    if {[dict get $socketStateArray($sock) fChunked]} {
+                        # Chunk read
+                        # Switch to line mode
+                        if {[catch { chan configure $sock -translation crlf } msg]} {
+                            ::log::log error "Channel config error: $msg"
+                            tailcall cleanup $sock
+                        }
+                        dict set socketStateArray($sock) phase chunk
+                    } else {
+                        # no chunk -> all data -> call handler
+                        tailcall handler $sock
+                    }
+                }
+            }
+            chunk {
+                ##
+                ## Handle chunk header
+                ##
+                if {[scan $line %x length] != 1} {
+                    ::log::log warning "No chunk length in '$line'"
+                    tailcall cleanup $sock
+                }
+                if {$length > 0} {
+                    # Receive chunk data
+                    # Switch to binary data
+                    if {[catch { chan configure $sock -translation binary } msg]} {
+                        ::log::log error "Channel config error: $msg"
+                        tailcall cleanup $sock
+                    }
+                    dict set socketStateArray($sock) readMax $length
+                    dict set socketStateArray($sock) phase body
+                } else {
+                    # We have all data
+                    tailcall handler $sock
+                }
+            }
+        }
+    }
+}
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Embeded::timeout
+#
+# Description : socket timeout fired
+#
+# Arguments :
+#       sock        -- Incoming socket
+#
+# Returns :
+#       Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::timeout {sock} {
+    variable socketStateArray
+
+    # The timeout fired, so the cancel handle is not required any more
+    dict unset socketStateArray($sock) timeoutHandle
+    
+    ::log::log warning "Cancelling request due to timeout"
+    tailcall cleanup $sock
+}
+
+
+###########################################################################
+#
+# Private Procedure Header - as this procedure is modified, please be sure
+#                            that you update this header block. Thanks.
+#
+#>>BEGIN PRIVATE<<
+#
+# Procedure Name : ::WS::Embeded::cleanup
+#
+# Description : cleanup a socket
+#
+# Arguments :
+#       sock        -- Incoming socket
+#       fClosed     -- Socket already closed
+#
+# Returns :
+#       Nothing
+#
+# Side-Effects : None
+#
+# Exception Conditions : None
+#
+# Pre-requisite Conditions : None
+#
+# Original Author : Harald Oehlmann
+#
+#>>END PRIVATE<<
+#
+# Maintenance History - as this file is modified, please be sure that you
+#                       update this segment of the file header block by
+#                       adding a complete entry at the bottom of the list.
+#
+# Version     Date     Programmer   Comments / Changes / Reasons
+# -------  ----------  ----------   -------------------------------------------
+# 3.3.0    2021-03-18  H.Oehlmann   Initial version
+#
+#
+###########################################################################
+proc ::WS::Embeded::cleanup {sock {fClosed 0}} {
+    variable socketStateArray
+    if {!$fClosed} {
+        catch { chan close $sock }
+    }
+    if {[dict exists $socketStateArray($sock) timeoutHandle]} {
+        after cancel [dict get $socketStateArray($sock) timeoutHandle]
+    }
+    unset socketStateArray($sock)
+}
 
 
 ###########################################################################
@@ -848,13 +1204,13 @@ proc ::WS::Embeded::contentTypeParse {fReceiving contentTypeName} {
     # encoding was not found
     if {$fReceiving} {
         # This is the http default so use that
-        ::log::logsubst information {Use default encoding as content type header has missing/unknown charset in '$contentType'}
+        ::log::logsubst info {Use default encoding as content type header has missing/unknown charset in '$contentType'}
         return iso8859-1
     }
 
     # When sending, be sure to cover all characters, so use utf-8
     # correct content-type string (upvar)
-    ::log::logsubst information {Set send charset to utf-8 due missing/unknown charset in '$contentType'}
+    ::log::logsubst info {Set send charset to utf-8 due missing/unknown charset in '$contentType'}
     if {[info exists typeOnly]} {
         set contentType "${typeOnly};charset=utf-8"
     } else {
@@ -862,3 +1218,5 @@ proc ::WS::Embeded::contentTypeParse {fReceiving contentTypeName} {
     }
     return utf-8
 }
+
+
