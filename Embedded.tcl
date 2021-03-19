@@ -849,12 +849,11 @@ proc ::WS::Embeded::receive {sock} {
                 ##
                 if {![regexp {^([^ ]+) +([^ ]+) ([^ ]+)$} $line -> method url version]} {
                     ::log::logsubst warning  {Wrong request: $line}
-                    return
+                    tailcall cleanup $sock
                 }
                 if {$method ni {"GET" "POST"}} {
                     ::log::logsubst warning {Unsupported method '$method' from $ip}
-                    respond $sock 501 "Method not implemented"
-                    return
+                    tailcall respond $sock 501 "Method not implemented"
                 }
 
                 # Check if we have a handler for this method and URL path
