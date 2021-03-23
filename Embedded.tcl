@@ -51,7 +51,7 @@ if {![llength [info command ::log::logsubst]]} {
     }
 }
 
-package provide WS::Embeded 3.3.0
+package provide WS::Embeded 3.3.1
 
 namespace eval ::WS::Embeded {
 
@@ -223,6 +223,7 @@ proc ::WS::Embeded::GetValue {index {port ""}} {
 # 3.3.0    2021-03-18  H.Oehlmann   Add timeout option. Remove unused portList.
 #                                   Call Close, if we use the port already.
 #                                   Do not leave portInfo data, if open fails.
+# 3.3.1    2021-03-23  H.Oehlmann   Fix bug: pfx subject had added ")".
 #
 #
 ###########################################################################
@@ -268,7 +269,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             if {$pfxsubject eq ""} {
                 set pfxselection any
             } else {
-                set pfxselection [list subject_substring $pfxsubject)]
+                set pfxselection [list subject_substring $pfxsubject]
             }
 
             set hFile [open $certfile rb]
@@ -313,7 +314,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
         } else {
 
             ##
-            ## Use TCL Package
+            ## Use TLS Package
             ##
 
             package require tls
