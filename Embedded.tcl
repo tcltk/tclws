@@ -55,7 +55,7 @@ if {![llength [info command ::log::logsubst]]} {
 	}
 }
 
-package provide WS::Embeded 2.7.1
+package provide WS::Embeded 2.7.2
 
 namespace eval ::WS::Embeded {
 
@@ -261,6 +261,7 @@ proc ::WS::Embeded::AddHandlerAllPorts {url callback} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  03/28/2008  G.Lester     Initial version
+# 2.7.2    2021-03-23  H.Oehlmann   Fix bug: pfx subject had added ")".
 #
 #
 ###########################################################################
@@ -312,7 +313,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
             if {$pfxsubject eq ""} {
                 set pfxselection any
             } else {
-                set pfxselection [list subject_substring $pfxsubject)]
+                set pfxselection [list subject_substring $pfxsubject]
             }
             
             set hFile [open $certfile rb]
@@ -357,7 +358,7 @@ proc ::WS::Embeded::Listen {port {certfile {}} {keyfile {}} {userpwds {}} {realm
         } else {
             
             ##
-            ## Use TCL Package
+            ## Use TLS Package
             ##
             
             package require tls
