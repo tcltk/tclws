@@ -81,7 +81,7 @@ namespace eval ::WS::Server {
 #                                 Defaults to localhost.
 #                                 If 3.2 compatibility is activated, the default
 #                                 value is changed to ip:port in embedded mode.
-#               -hostlocation   - The host name which is promoted within the
+#               -hostlocation   - The host name, which is promoted within the
 #                                 generated WSDL file. Defaults to localhost.
 #                                 If 3.2 compatibility is activated, the
 #                                 default value is equal to the -host parameter.
@@ -186,7 +186,7 @@ namespace eval ::WS::Server {
 # 3.2.0    2021-03-17  H.Oehlmann   Add HTTP method to embedded registration.
 #                                   Change default of -checkheader from
 #                                   ::WS::Server::ok to the empty string.
-# 3.3.0    2021-10-15  H.Oehlmann   Rename option -hostProtocol to -hostprotocol.
+# 3.4.0    2021-10-15  H.Oehlmann   Rename option -hostProtocol to -hostprotocol.
 #                                   Still accept -hostProtocol.
 #                                   The logic on .hostprotocol=server is changed
 #                                   to default to http and set an update flag.
