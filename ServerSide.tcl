@@ -1,6 +1,6 @@
 ###############################################################################
 ##                                                                           ##
-##  Copyright (c) 2016-2020, Harald Oehlmann                                 ##
+##  Copyright (c) 2016-2021, Harald Oehlmann                                 ##
 ##  Copyright (c) 2006-2013, Gerald W. Lester                                ##
 ##  Copyright (c) 2008, Georgios Petasis                                     ##
 ##  Copyright (c) 2006, Visiprise Software, Inc                              ##
@@ -45,7 +45,7 @@ package require html
 package require log
 package require tdom
 
-package provide WS::Server 3.2.0
+package provide WS::Server 3.4.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}
@@ -72,15 +72,33 @@ namespace eval ::WS::Server {
 #                       Invoke an operation
 #
 # Arguments : this procedure uses position independent arguments, they are:
-#               -host           - The host name for this service.
-#                                 Defaults to "ip:port" in embedded mode,
-#                                 and to "localhost" otherwise.
-#               -hostProtocol   - Define the host protocol (http, https) for the
+#               -hostcompatibility32 bool - Activate version 3.2.0 compatibility
+#                                 mode for -host parameter.
+#                                 Defaults to true.
+#               -host           - The host specification within XML namespaces
+#                                 of the transmitted XML files.
+#                                 This should be unique.
+#                                 Defaults to localhost.
+#                                 If 3.2 compatibility is activated, the default
+#                                 value is changed to ip:port in embedded mode.
+#               -hostlocation   - The host name which is promoted within the
+#                                 generated WSDL file. Defaults to localhost.
+#                                 If 3.2 compatibility is activated, the
+#                                 default value is equal to the -host parameter.
+#               -hostlocationserver bool - If true, the host location is set by
+#                                 the current server settings.
+#                                 In case of httpd server, this value is imported.
+#                                 For other servers or if this fails, the value
+#                                 is the current ip:port.
+#                                 The default value is true.
+#                                 In case of 3.2 compatibility, the default
+#                                 value is true for tclhttpd, false otherwise.
+#               -hostprotocol   - Define the host protocol (http, https) for the
 #                                 WSDL location URL. The special value "server"
 #                                 (default) follows the TCP/IP server specification.
-#                                 This is implemented for Embedded server
-#                                 (switching to https if TLS is used) or tclhttpd,
-#                                 where protocol and host is taken.
+#                                 This is implemented for Embedded server and tclhttpd.
+#                                 Remark that the protocol for XML namespaces
+#                                 is always "http".
 #               -description    - The HTML description for this service
 #               -service        - The service name (this will also be used for
 #                                 the Tcl namespace of the procedures that implement
@@ -168,7 +186,20 @@ namespace eval ::WS::Server {
 # 3.2.0    2021-03-17  H.Oehlmann   Add HTTP method to embedded registration.
 #                                   Change default of -checkheader from
 #                                   ::WS::Server::ok to the empty string.
-#
+# 3.3.0    2021-10-15  H.Oehlmann   Rename option -hostProtocol to -hostprotocol.
+#                                   Still accept -hostProtocol.
+#                                   The logic on .hostprotocol=server is changed
+#                                   to default to http and set an update flag.
+#                                   The default value of -host in embedded mode
+#                                   is <current IP>:port. This is critial, if
+#                                   the IP changes and thus the XML namespace.
+#                                   If the old WSDL with old IP is used, there
+#                                   are no input parameters recognized, as the
+#                                   XML namespace has changed.
+#                                   In consequence, a new parameter set including
+#                                   options -host, -hostlocation, -hostlocationserver
+#                                   and -hostcompatibility32 is defined as
+#                                   described above.
 #
 ###########################################################################
 proc ::WS::Server::Service {args} {
@@ -196,7 +227,7 @@ proc ::WS::Server::Service {args} {
         -errorCallback  {}\
         -verifyUserArgs {N}\
         -enforceRequired {N}\
-        -hostProtocol   {server}]
+        -hostcompatibility32 1]
 
     set defaults [dict merge $defaults $args]
     
@@ -222,22 +253,85 @@ proc ::WS::Server::Service {args} {
     if {![dict exists $defaults -prefix]} {
         dict set defaults -prefix /service/$service
     }
-    # find default host
-    if {![dict exists $defaults -host]} {
-        switch -exact -- [dict get $defaults -mode] {
-            embedded {
-                set me [socket -server garbage_word -myaddr [info hostname] 0]
-                dict set defaults -host [lindex [fconfigure $me -sockname] 0]
-                close $me
-                if { 0 !=[llength [dict get $defaults -ports]] &&
-                        [lindex [dict get $defaults -ports] 0] ni {80 433} } {
-                    dict append defaults -host ":[lindex [dict get $defaults -ports] 0]"
-                }
-            }
-            default {
+    # find default host/host location
+    if {[dict get $defaults -hostcompatibility32]} {
+
+        ##
+        ## Version 3.2.x compatibility mode:
+        ## -host: default value is changed to ip:port in embedded mode.
+        ## -hostlocation : default value is equal to the -host parameter.
+        ## -hostlocationserver: default true for tclhttpd, false otherwise.
+        ##
+
+        if { ! [dict exists $defaults -hostlocationserver]} {
+            dict set defaults -hostlocationserver [expr {
+                    [dict get $defaults -mode] eq "tclhttpd" }]
+        }
+        if {![dict exists $defaults -host]} {
+            if { [dict get $defaults -mode] eq "embedded" } {
+                set myHostLocation [MyHostLocationGet [dict get $defaults -ports]]
+                dict set defaults -host $myHostLocation
+                # Note: myHostLocation may be reused below
+            } else {
                 dict set defaults -host localhost
             }
         }
+        if { ! [dict exists $defaults -hostlocation]} {
+            dict set defaults -hostlocation [dict get $defaults -host]
+        }
+    } else {
+
+        ##
+        ## No Version 3.2.x compatibility mode:
+        ## -host: defaults to localhost.
+        ## -hostlocation : defaults to localhost.
+        ## -hostlocationserver bool: defaults to true.
+        ##
+        
+        set defaults [dict merge \
+                [dict create \
+                    -hostlocation "localhost" \
+                    -hostlocationserver 1 \
+                    -host "localhost"] \
+                $defaults]
+    }
+    # Compatibility has done its work, remove it:
+    dict unset defaults -hostcompatibility32
+
+    ##
+    ## Update host location server to current value if specified
+    ##
+    
+    if { [dict get $defaults -hostlocationserver] } {
+        if {![info exists myHostLocation]} {
+            set myHostLocation [MyHostLocationGet [dict get $defaults -ports]]
+        }
+        dict set defaults -hostlocation $myHostLocation
+    }
+
+    ##
+    ## Resolve -hostprotocol setting.
+    ## Also accept -hostProtocol
+    ##
+    
+    if {![dict exists $defaults -hostprotocol]} {
+        if {[dict exists $defaults -hostProtocol]} {
+            dict set defaults -hostprotocol [dict get $defaults -hostProtocol]
+        } else {
+            dict set defaults -hostprotocol server
+        }
+    }
+    dict unset defaults -hostProtocol
+
+    ##
+    ## Resolve server protocol to http and set flag for server protocol.
+    ## If the flag is set, the protocol is corrected when required
+    ##
+    
+    dict set defaults hostProtocolServer [expr {
+            [dict get $defaults -hostprotocol] eq "server"}]
+    if {[dict get $defaults hostProtocolServer]} {
+        dict set  defaults -hostprotocol http
     }
 
     dict set defaults -uri $service
@@ -376,6 +470,23 @@ proc ::WS::Server::Service {args} {
     return
 }
 
+# Get my computers IP address
+proc ::WS::Server::MyHostLocationGet {ports} {
+    if {[catch {
+        set me [socket -server garbage_word -myaddr [info hostname] 0]
+        set myHostLocation [lindex [fconfigure $me -sockname] 0]
+        close $me
+    } errorMessage]} {
+        ::log::logsubst error {Error '$errorMessage' when querying my own IP\
+                address. Use 'localhost' instead.}
+        set myHostLocation "localhost"
+    }
+    if { 0 !=[llength $ports] && [lindex $ports 0] ni {80 433} } {
+        append myHostLocation ":[lindex $ports 0]"
+    }
+    return $myHostLocation
+}
+
 ###########################################################################
 #
 # Public Procedure Header - as this procedure is modified, please be sure
@@ -510,6 +621,9 @@ proc ::WS::Server::ServiceProc {service nameInfo arglist documentation body} {
 #       3  11/13/2018  J.Cone       Version support
 #   2.7.0  2020-10-26  H.Oehlmann   urlPrefix is a mandatory parameter.
 #                                   The caller has to think about it.
+#   3.3.0  2021-10-15  H.Oehlmann   Build default location from options
+#                                   -hostprotocol and -hostlocation replacing
+#                                   http and option -host.
 #
 #
 ###########################################################################
@@ -616,7 +730,7 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
     $port appendChild [$reply createElement soap:address address]
 
     if {$urlPrefix == ""} {
-        set urlPrefix "http://[dict get $serviceData -host]"
+        set urlPrefix "[dict get $serviceData -hostprotocol]://[dict get $serviceData -hostlocation]"
     }
 
     $address setAttribute \
@@ -747,6 +861,9 @@ proc ::WS::Server::GetWsdl {serviceName {urlPrefix ""} {version {}}} {
 #                                   Pass wibble responsename also with prefix
 #                                   "-responsename".
 # 3.2.0    2021-03-17  H.Oehlmann   In embedded mode, directly return the data
+# 3.3.0    2021-10-15  H.Oehlmann   Change the setting/update of the host location
+#                                   by using the new parameter -hostlocationserver
+#                                   and -hostlocation.
 #
 ###########################################################################
 proc ::WS::Server::generateWsdl {serviceName sock args} {
@@ -816,17 +933,11 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
     ## Check if the server protocol (and host) should be used
     ##
     
-    set protocol [dict get $serviceData -hostProtocol]
-    if {$protocol eq "server"} {
-        set serverprotocol 1
-        set protocol http
-    }
-    
     ##
     ## Prepare default URL prefix
     ##
     
-    set urlPrefix "$protocol://[dict get $serviceData -host]"
+    set urlPrefix "[dict get $serviceData -hostprotocol]://[dict get $serviceData -hostlocation]"
 
     ##
     ## Return the WSDL
@@ -834,13 +945,19 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
 
     switch -exact -- $mode {
         tclhttpd {
-            if {[info exists serverprotocol]} {
-                upvar #0 ::Httpd$sock s
+            upvar #0 ::Httpd$sock s
+            # Get protocol and host location from server if configured
+            if { [dict get $serviceData hostProtocolServer] } {
                 catch {
-                    set urlPrefix [lindex $s(self) 0]://[dict get $serviceData -host]
-                    set urlPrefix [lindex $s(self) 0]://$s(mime,host)
+                    dict set serviceData -hostprotocol [lindex $s(self) 0]
                 }
             }
+            if { [dict get $serviceData -hostlocationserver] } {
+                catch {
+                    dict set serviceData -hostprotocol $s(mime,host)
+                }
+            }
+            set urlPrefix [dict get $serviceData -hostprotocol]://[dict get $serviceData -hostlocation]
             set xml [GetWsdl $serviceName $urlPrefix $version]
             ::Httpd_ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
@@ -849,7 +966,7 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
             ::WS::Channel::ReturnData $sock "text/xml; charset=UTF-8" $xml 200
         }
         embedded {
-            if {[info exists serverprotocol]} {
+            if {[dict get $serviceData hostProtocolServer]} {
                 
                 ##
                 ## For https, change the URL prefix
@@ -862,8 +979,11 @@ proc ::WS::Server::generateWsdl {serviceName sock args} {
                 } elseif {  [::WS::Embeded::GetValue isHTTPS\
                             [lindex $args [expr {$argsIdx + 1}]]]
                 } {
-                    set urlPrefix "https://[dict get $serviceData -host]"
+                    dict set serviceData -hostprotocol https
+                } else {
+                    dict set serviceData -hostprotocol http
                 }
+                set urlPrefix "[dict get $serviceData -hostprotocol]://[dict get $serviceData -hostlocation]"
             }
             set xml [GetWsdl $serviceName $urlPrefix $version]
             return [list "text/xml; charset=UTF-8" $xml 200]
@@ -2143,8 +2263,11 @@ proc ::WS::Server::generateReply {serviceName operation results flavor {version 
         }
         soap {
             if {[info exists ::Config(docRoot)] && [file exists [file join $::Config(docRoot) $serviceName $operation.css]]} {
-                set replaceText [format {<?xml-stylesheet type="text/xsl" href="http://%s/css/%s/%s.css"?>}\
-                                     [dict get $serviceData -host] \
+                # *** Bug: the -hostprotocol in -hostprotocol=server is not
+                # *** corrected, if no WSDL is required before this call.
+                set replaceText [format {<?xml-stylesheet type="text/xsl" href="%s://%s/css/%s/%s.css"?>}\
+                                     [dict get $serviceData -hostprotocol] \
+                                     [dict get $serviceData -hostlocation] \
                                      $serviceName \
                                      $operation]
                 append replaceText "\n"

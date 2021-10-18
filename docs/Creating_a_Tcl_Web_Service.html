@@ -105,21 +105,34 @@ exist </p><PRE>               /service/&lt;ServiceName&gt;
                      Invoke an operation
 </PRE>
 <p><b>Arguments</b>&nbsp;: this procedure uses position independent arguments,
-they are: </p><pre>             -hostlocation   - The host name which is promoted within the
-                               generated WSDL file.
-                               Defaults to "ip:port" in embedded mode,
-                               and to "localhost" otherwise.
-             -hostProtocol   - Define the host protocol (http, https) for the
-                               WSDL location URL. The special value "server"
-                               (default) follows the TCP/IP server specification.
-                               This is implemented for Embedded server
-                               (switching to https if TLS is used) or tclhttpd,
-                               where protocol and host is taken.
-                               Remark that the protocol for XML namespaces is always "http".
+they are: </p><pre>
+             -hostcompatibility32 bool - Activate version 3.2.0 compatibility
+                               mode for -host parameter.
+                               Defaults to true.
              -host           - The host specification within XML namespaces
                                of the transmitted XML files.
                                This should be unique.
-                               Defaults to option option -hostlocation.
+                               Defaults to localhost.
+                               If 3.2 compatibility is activated, the default
+                               value is changed to ip:port in embedded mode.
+             -hostlocation   - The host name, which is promoted within the
+                               generated WSDL file. Defaults to localhost.
+                               If 3.2 compatibility is activated, the
+                               default value is equal to the -host parameter.
+             -hostlocationserver bool - If true, the host location is set by
+                               the current server settings.
+                               In case of httpd server, this value is imported.
+                               For other servers or if this fails, the value
+                               is the current ip:port.
+                               The default value is true.
+                               In case of 3.2 compatibility, the default
+                               value is true for tclhttpd, false otherwise.
+             -hostProtocol   - Define the host protocol (http, https) for the
+                               WSDL location URL. The special value "server"
+                               (default) follows the TCP/IP server specification.
+                               This is implemented for Embedded server and tclhttpd.
+                               Remark that the protocol for XML namespaces
+                               is always "http".
              -description    - The HTML description for this service
              -htmlhead       - The title string of the service description
              -author         - The author property in the service description
