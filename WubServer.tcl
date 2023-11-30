@@ -1,5 +1,5 @@
 # WSWub - Wub interface to WebServices
-package require Tcl 8.4
+package require Tcl 8.4-
 # WS::Utils usable here for dict?
 if {![llength [info command dict]]} {
     package require dict

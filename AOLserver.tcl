@@ -1,4 +1,4 @@
-package require Tcl 8.4
+package require Tcl 8.6-
 
 namespace eval ::WS::AOLserver {
 

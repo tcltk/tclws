@@ -40,7 +40,7 @@
 ##                                                                           ##
 ###############################################################################
 
-package require Tcl 8.6
+package require Tcl 8.6-
 package require WS::Utils ; # logsubst
 package require tdom 0.8
 package require http 2
