@@ -42,12 +42,12 @@
 
 package require Tcl 8.6-
 package require WS::Utils ; # logsubst
-package require tdom 0.8
-package require http 2
+package require tdom 0.8-
+package require http 2-
 package require log
 package require uri
 
-package provide WS::Client 3.0.1
+package provide WS::Client 3.1.0
 
 namespace eval ::WS::Client {
     # register https only if not yet registered
@@ -62,7 +62,7 @@ namespace eval ::WS::Client {
                 package require twapi_crypto
                 http::register https 443 ::twapi::tls_socket
                 
-            } Err] } {
+            } err] } {
                 log::log warning "No https support. No TWAPI package: $err"
             }
         }
@@ -1532,7 +1532,7 @@ proc ::WS::Client::DoRawCall {serviceName operationName argList {headers {}}} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[dict exists $serviceInfo operation $operationName action]} {
-        lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
+        lappend headers SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
 
     ##
@@ -1642,7 +1642,7 @@ proc ::WS::Client::DoCall {serviceName operationName argList {headers {}}} {
         set headers [concat $headers [dict get $serviceInfo headers]]
     }
     if {[dict exists $serviceInfo operation $operationName action]} {
-        lappend headers  SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
+        lappend headers SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     ##
     ## Do the http request
@@ -1815,6 +1815,8 @@ proc ::WS::Client::FormatHTTPError {token} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 3.1.0    2024-11-01  H.Oehlmann   Set header "SOAPAction" as in the other
+#                                   call methods. Ticket [b41fe0846b]
 #
 #
 ###########################################################################
@@ -1837,6 +1839,9 @@ proc ::WS::Client::DoAsyncCall {serviceName operationName argList succesCmd erro
     }
     if {[dict exists $serviceInfo headers]} {
         set headers [concat $headers [dict get $serviceInfo headers]]
+    }
+    if {[dict exists $serviceInfo operation $operationName action]} {
+        lappend headers SOAPAction [format {"%s"} [dict get $serviceInfo operation $operationName action]]
     }
     set url [dict get $serviceInfo location]
     SaveAndSetOptions $serviceName

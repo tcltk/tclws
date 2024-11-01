@@ -43,9 +43,9 @@ package require Tcl 8.6-
 package require WS::Utils
 package require html
 package require log
-package require tdom
+package require tdom 0.8-
 
-package provide WS::Server 3.4.0
+package provide WS::Server 3.5.0
 
 namespace eval ::WS::Server {
     array set ::WS::Server::serviceArr {}

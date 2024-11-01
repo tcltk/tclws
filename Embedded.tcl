@@ -51,7 +51,7 @@ if {![llength [info command ::log::logsubst]]} {
     }
 }
 
-package provide WS::Embeded 3.3.1
+package provide WS::Embeded 3.4.0
 
 namespace eval ::WS::Embeded {
 
@@ -786,6 +786,8 @@ proc ::WS::Embeded::accept {port sock ip clientport} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 # 3.3.0    2021-03-18  H.Oehlmann   Initial version
+# 3.4.0    2024-11-01  H.Oehlmann   replaced for byte lengths "scan %d" by
+#                                   "%lld" to support larger than 2**32
 #
 #
 ###########################################################################
@@ -926,7 +928,7 @@ proc ::WS::Embeded::receive {sock} {
                         
                         # Check for content length
                         if { ! [dict exists $socketStateArray($sock) header content-length] ||
-                                0 == [scan [dict get $socketStateArray($sock) header content-length] %d contentLength]
+                                0 == [scan [dict get $socketStateArray($sock) header content-length] %lld contentLength]
                         } {
                             ::log::log warning "Header content-length missing"
                             tailcall cleanup $sock
@@ -977,7 +979,7 @@ proc ::WS::Embeded::receive {sock} {
                 ##
                 ## Handle chunk header
                 ##
-                if {[scan $line %x length] != 1} {
+                if {[scan $line %llx length] != 1} {
                     ::log::log warning "No chunk length in '$line'"
                     tailcall cleanup $sock
                 }

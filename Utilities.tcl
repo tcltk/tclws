@@ -53,10 +53,10 @@ if {![llength [info command ::log::logsubst]]} {
     }
 }
 
-package require tdom 0.8
+package require tdom 0.8-
 package require struct::set
 
-package provide WS::Utils 3.1.0
+package provide WS::Utils 3.2.0
 
 namespace eval ::WS {}
 
@@ -2583,6 +2583,8 @@ proc ::WS::Utils::convertDictToTypeNoNs {mode service doc parent dict type {enfo
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 3.2.0    2024-11-01  H.Oehlmann   Replaced "format %d" by "%lld" for array
+#                                   index larger than 2**32.
 #
 #
 ###########################################################################
@@ -2701,7 +2703,7 @@ proc ::WS::Utils::convertDictToEncodedType {mode service doc parent dict type} {
                 }
                 set attrType [string trim $attrType {()?}]
                 $parent setAttribute xmlns:soapenc {http://schemas.xmlsoap.org/soap/encoding/}
-                $parent setAttribute soapenc:arrayType [format {%s[%d]} $attrType [llength $dataList]]
+                $parent setAttribute soapenc:arrayType [format {%s[%lld]} $attrType [llength $dataList]]
                 $parent setAttribute xsi:type soapenc:Array
                 #set itemName [$parent nodeName]
                 foreach item $dataList {
@@ -2850,6 +2852,8 @@ proc ::WS::Utils::parseDynamicType {mode serviceName node type} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/06/2006  G.Lester     Initial version
+# 3.2.0    2024-11-01  H.Oehlmann   Replaced "format %d" by "%lld" for tns
+#                                   count larger 2**32
 #
 #
 ###########################################################################
@@ -2879,7 +2883,7 @@ proc ::WS::Utils::parseScheme {mode baseUrl schemaNode serviceName serviceInfoVa
     }
     ::log::logsubst debug {@3a {$xns} {[dict get $serviceInfo tnsList url]}}
     if {![dict exists $serviceInfo tnsList url $xns]} {
-        set tns [format {tns%d} [incr tnsCount]]
+        set tns [format {tns%lld} [incr tnsCount]]
         dict set serviceInfo targetNamespace $tns $xns
         dict set serviceInfo tnsList url $xns $tns
         dict set serviceInfo tnsList tns $tns $tns
@@ -4261,6 +4265,8 @@ proc ::WS::Utils::parseSimpleType {mode dictVar serviceName node tns} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/13/2006  A.Wiedemann  Initial version
 #       2  08/18/2006  G.Lester     Generalized to handle qualified XML
+# 3.2.0    2024-11-01  H.Oehlmann   Fixed numeric check of
+#                                   fieldInfoArr(maxOccurs)
 #
 ###########################################################################
 proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
@@ -4313,7 +4319,7 @@ proc ::WS::Utils::checkTags {mode serviceName currNode typeName} {
                 set ::errorCode [list WS CHECK MINOCCUR [list $type $field]]
                 set result 0
             } elseif {[info exists fieldInfoArr(maxOccurs)] &&
-                      [string is integer fieldInfoArr(maxOccurs)] &&
+                      [string is entier $fieldInfoArr(maxOccurs)] &&
                       ($fieldInfoArr(maxOccurs) < [llength $fieldInfoArr($field)])} {
                 ##
                 ## Fields was required and present, but too many times
@@ -4461,6 +4467,8 @@ proc ::WS::Utils::checkValue {mode serviceName type value} {
 # -------  ----------  ----------   -------------------------------------------
 #       1  08/13/2006  A.Wiedemann  Initial version
 #       2  08/18/2006  G.Lester     Generalized to generate qualified XML
+# 3.2.0    2024-11-01  H.Oehlmann   Fixed numeric check of
+#                                   fieldInfoArr(maxOccurs)
 #
 ###########################################################################
 proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNode} {
@@ -4513,7 +4521,7 @@ proc ::WS::Utils::buildTags {mode serviceName typeName valueInfos doc currentNod
                 -errorcode [list WS CHECK MINOCCUR [list $type $field $minOccurs $valueListLenght]] \
                 "Field '$field' of type '$typeName' was required to occur $minOccurs time(s) but only occured $valueListLenght time(s)"
         } elseif {[info exists fieldInfoArr(maxOccurs)] &&
-                  [string is integer fieldInfoArr(maxOccurs)] &&
+                  [string is entier $fieldInfoArr(maxOccurs)] &&
                   ($fieldInfoArr(maxOccurs) < $valueListLenght)} {
             ##
             ## Fields was required and present, but too many times
@@ -4761,6 +4769,8 @@ proc ::WS::Utils::GenerateTemplateDict {mode serviceName type {arraySize 2}} {
 # Version     Date     Programmer   Comments / Changes / Reasons
 # -------  ----------  ----------   -------------------------------------------
 #       1  07/06/2006  G.Lester     Initial version
+# 3.2.0    2024-11-01  H.Oehlmann   Replaced "format %d" by "%lld" for array
+#                                   element log larger 2**32
 #
 #
 ###########################################################################
@@ -4847,7 +4857,7 @@ proc ::WS::Utils::_generateTemplateDict {mode serviceName type arraySize {xns {}
                 ##
                 set tmp {}
                 for {set row 1} {$row <= $arraySize} {incr row} {
-                    lappend tmp [format {Simple array element #%d} $row]
+                    lappend tmp [format {Simple array element #%lld} $row]
                 }
                 dict set results $partName $tmp
             }

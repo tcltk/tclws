@@ -11,7 +11,7 @@ package require Direct
 package require Debug
 Debug off wsdl 10
 
-package provide WS::Wub 2.4.0
+package provide WS::Wub 2.5.0
 package provide Wsdl 2.4.0
 
 class create Wsdl {
